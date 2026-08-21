@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App Directory</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="logo">📂 App Directory</h1>
+    </div>
+    <div class="header-right">
+      <button id="importBtn" class="btn btn-ghost" title="Import from JSON">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span class="btn-label">Import</span>
+      </button>
+      <button id="exportBtn" class="btn btn-ghost" title="Export to JSON">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="btn-label">Export</span>
+      </button>
+      <button id="themeToggle" class="btn btn-icon" title="Toggle theme">
+        <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" placeholder="Search by name or URL…" autocomplete="off">
+      </div>
+      <select id="categoryFilter">
+        <option value="">All Categories</option>
+        <!-- Populated dynamically by JS -->
+      </select>
+      <select id="sortSelect">
+        <option value="dateAdded-desc">Newest First</option>
+        <option value="dateAdded-asc">Oldest First</option>
+        <option value="name-asc">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+        <option value="visitCount-desc">Most Visited</option>
+        <option value="lastVisited-desc">Recently Visited</option>
+      </select>
+    </div>
+    <div class="toolbar-right">
+      <button id="addBtn" class="btn btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Website
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <span id="statsText">0 sites</span>
+  </div>
+
+  <!-- Card grid -->
+  <main class="grid" id="grid">
+    <!-- Cards rendered by JS -->
+  </main>
+
+  <!-- Empty state -->
+  <div class="empty-state" id="emptyState" style="display:none;">
+    <div class="empty-icon">🌐</div>
+    <h2>No websites yet</h2>
+    <p>Click <strong>Add Website</strong> to save your first site to the directory.</p>
+  </div>
+
+  <!-- Modal backdrop -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">Add Website</h2>
+        <button class="btn btn-icon modal-close" id="modalClose" title="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="entryForm" novalidate>
+        <div class="form-group">
+          <label for="entryName">Name <span class="required">*</span></label>
+          <input type="text" id="entryName" placeholder="e.g. GitHub" required>
+        </div>
+        <div class="form-group">
+          <label for="entryUrl">URL <span class="required">*</span></label>
+          <input type="url" id="entryUrl" placeholder="e.g. https://github.com" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="entryCategory">Category <span class="optional">(type or pick)</span></label>
+            <input type="text" id="entryCategory" list="categorySuggestions" placeholder="e.g. Development" autocomplete="off">
+            <datalist id="categorySuggestions">
+              <!-- Populated by JS -->
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label for="entryIcon">Icon URL <span class="optional">(auto-fetched)</span></label>
+            <input type="url" id="entryIcon" placeholder="Leave blank for auto-fetch">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="entryDescription">Description</label>
+          <textarea id="entryDescription" rows="3" placeholder="Optional short description…"></textarea>
+        </div>
+        <div class="form-group checkbox-group">
+          <label>
+            <input type="checkbox" id="entryFavorite">
+            <span>⭐ Mark as favorite</span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Hidden file input for import -->
+  <input type="file" id="importFile" accept=".json" style="display:none;">
+
+  <!-- Toast container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
