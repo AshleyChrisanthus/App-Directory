@@ -1117,6 +1117,10 @@
   // Upload custom icon from file
   if (uploadIconBtn && iconFileInput) {
     uploadIconBtn.addEventListener('click', () => iconFileInput.click());
+    if (entryIconPreview) {
+      entryIconPreview.style.cursor = 'pointer';
+      entryIconPreview.addEventListener('click', () => iconFileInput.click());
+    }
     iconFileInput.addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) {
         const file = e.target.files[0];
@@ -1128,6 +1132,57 @@
         };
         reader.readAsDataURL(file);
         e.target.value = '';
+      }
+    });
+  }
+
+  // Paste image directly from clipboard (Ctrl+V anywhere in modal or in icon input)
+  document.addEventListener('paste', (e) => {
+    if (!modalBackdrop.classList.contains('active')) return;
+    const items = (e.clipboardData || window.clipboardData)?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.startsWith('image/')) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          e.preventDefault();
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            entryIcon.value = evt.target.result; // Data URL
+            updateModalIconPreview();
+            showToast('Pasted image set as icon!');
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+    }
+  });
+
+  // Drag and Drop image file onto icon preview box
+  if (entryIconPreview) {
+    entryIconPreview.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      entryIconPreview.style.borderColor = 'var(--accent)';
+    });
+    entryIconPreview.addEventListener('dragleave', () => {
+      entryIconPreview.style.borderColor = '';
+    });
+    entryIconPreview.addEventListener('drop', (e) => {
+      e.preventDefault();
+      entryIconPreview.style.borderColor = '';
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        const file = e.dataTransfer.files[0];
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            entryIcon.value = evt.target.result;
+            updateModalIconPreview();
+            showToast('Dropped image set as icon!');
+          };
+          reader.readAsDataURL(file);
+        }
       }
     });
   }
