@@ -195,6 +195,108 @@
     }
   }
 
+  // ── Icon to Data URL Converter (Offline Persistence) ──────
+
+  async function urlToDataUrl(imageUrl) {
+    if (!imageUrl || imageUrl.startsWith('data:')) {
+      return imageUrl || '';
+    }
+
+    const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+    const imageToDataUrl = (src) => new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const maxDim = 128;
+          let w = img.naturalWidth || img.width || 64;
+          let h = img.naturalHeight || img.height || 64;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w || 64;
+          canvas.height = h || 64;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+
+    // Strategy 1: Direct fetch with CORS
+    try {
+      const resp = await fetch(imageUrl, { mode: 'cors' });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        if (blob && blob.size > 0) {
+          const dataUrl = await blobToDataUrl(blob);
+          if (dataUrl && dataUrl.startsWith('data:image')) return dataUrl;
+        }
+      }
+    } catch (_) {}
+
+    // Strategy 2: Image element with crossOrigin drawing to canvas
+    try {
+      const dataUrl = await imageToDataUrl(imageUrl);
+      if (dataUrl && dataUrl.startsWith('data:image')) {
+        return dataUrl;
+      }
+    } catch (_) {}
+
+    // Strategy 3: Open CORS image proxy (images.weserv.nl)
+    try {
+      const cleanUrl = imageUrl.replace(/^https?:\/\//i, '');
+      const proxyUrl = `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}&w=128&output=png`;
+      const resp = await fetch(proxyUrl, { mode: 'cors' });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        if (blob && blob.size > 0) {
+          const dataUrl = await blobToDataUrl(blob);
+          if (dataUrl && dataUrl.startsWith('data:image')) return dataUrl;
+        }
+      }
+    } catch (_) {}
+
+    // Strategy 4: Fallback to original URL
+    return imageUrl;
+  }
+
+  async function cacheExistingIconsOffline() {
+    let changed = false;
+    for (const entry of entries) {
+      if (entry.iconUrl && !entry.iconUrl.startsWith('data:')) {
+        try {
+          const dataUrl = await urlToDataUrl(entry.iconUrl);
+          if (dataUrl && dataUrl.startsWith('data:image')) {
+            entry.iconUrl = dataUrl;
+            changed = true;
+          }
+        } catch (_) {}
+      }
+    }
+    if (changed) {
+      saveEntries();
+      render();
+    }
+  }
+
   // ── Storage ────────────────────────────────────────────
 
   function migrateEntry(entry) {
@@ -339,14 +441,15 @@
 
   // ── CRUD ───────────────────────────────────────────────
 
-  function addEntry(data) {
+  async function addEntry(data) {
     const now = new Date().toISOString();
+    const rawIcon = data.iconUrl || getFaviconUrl(data.url);
     const entry = {
       id: generateId(),
       name: data.name,
       url: ensureProtocol(data.url),
       description: data.description || '',
-      iconUrl: data.iconUrl || getFaviconUrl(data.url),
+      iconUrl: rawIcon,
       categories: data.categories || [],
       dateAdded: now,
       dateModified: now,
@@ -356,22 +459,45 @@
     };
     entries.push(entry);
     saveEntries();
+    render();
     showToast(`"${entry.name}" added!`);
+
+    // Asynchronously convert and cache icon offline as Data URL
+    if (entry.iconUrl && !entry.iconUrl.startsWith('data:')) {
+      const permanentDataUrl = await urlToDataUrl(entry.iconUrl);
+      if (permanentDataUrl && permanentDataUrl.startsWith('data:')) {
+        entry.iconUrl = permanentDataUrl;
+        saveEntries();
+        render();
+      }
+    }
   }
 
-  function updateEntry(id, data) {
+  async function updateEntry(id, data) {
     const idx = entries.findIndex(e => e.id === id);
     if (idx === -1) return;
     const entry = entries[idx];
+    const rawIcon = data.iconUrl || getFaviconUrl(data.url);
     entry.name = data.name;
     entry.url = ensureProtocol(data.url);
     entry.description = data.description || '';
-    entry.iconUrl = data.iconUrl || getFaviconUrl(data.url);
+    entry.iconUrl = rawIcon;
     entry.categories = data.categories || [];
     entry.isFavorite = data.isFavorite || false;
     entry.dateModified = new Date().toISOString();
     saveEntries();
+    render();
     showToast(`"${entry.name}" updated!`);
+
+    // Asynchronously convert and cache icon offline as Data URL
+    if (entry.iconUrl && !entry.iconUrl.startsWith('data:')) {
+      const permanentDataUrl = await urlToDataUrl(entry.iconUrl);
+      if (permanentDataUrl && permanentDataUrl.startsWith('data:')) {
+        entry.iconUrl = permanentDataUrl;
+        saveEntries();
+        render();
+      }
+    }
   }
 
   function deleteEntry(id) {
@@ -403,27 +529,38 @@
     render();
   }
 
-  function refreshEntryIcon(id) {
+  async function refreshEntryIcon(id) {
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
-    entry.iconUrl = getFaviconUrl(entry.url);
+    const freshUrl = getFaviconUrl(entry.url);
+    entry.iconUrl = freshUrl;
     entry.dateModified = new Date().toISOString();
     saveEntries();
     render();
-    showToast(`Icon refreshed for "${entry.name}"`);
+    showToast(`Refreshing icon for "${entry.name}"...`);
+
+    const permanentDataUrl = await urlToDataUrl(freshUrl);
+    if (permanentDataUrl) {
+      entry.iconUrl = permanentDataUrl;
+      saveEntries();
+      render();
+      showToast(`Icon saved offline for "${entry.name}"`);
+    }
   }
 
-  function refreshAllIcons() {
+  async function refreshAllIcons() {
     if (entries.length === 0) {
       showToast('No sites to refresh.');
       return;
     }
-    entries.forEach(entry => {
-      entry.iconUrl = getFaviconUrl(entry.url);
-    });
+    showToast(`Refreshing & caching icons for ${entries.length} site${entries.length !== 1 ? 's' : ''}...`);
+    for (const entry of entries) {
+      const freshUrl = getFaviconUrl(entry.url);
+      entry.iconUrl = await urlToDataUrl(freshUrl);
+    }
     saveEntries();
     render();
-    showToast(`Refreshed icons for ${entries.length} site${entries.length !== 1 ? 's' : ''}`);
+    showToast(`All icons updated & cached offline!`);
   }
 
   // ── Filtering & Sorting ────────────────────────────────
@@ -1000,5 +1137,6 @@
   initTheme();
   loadEntries();
   render();
+  cacheExistingIconsOffline();
 
 })();
