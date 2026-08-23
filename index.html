@@ -93,11 +93,19 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="entryCategory">Category <span class="optional">(type or pick)</span></label>
-            <input type="text" id="entryCategory" list="categorySuggestions" placeholder="e.g. Development" autocomplete="off">
-            <datalist id="categorySuggestions">
-              <!-- Populated by JS -->
-            </datalist>
+            <label>Categories <span class="optional">(type or pick, press Enter to add)</span></label>
+            <div class="tag-input-wrapper">
+              <div class="tag-input-tags" id="categoryTags">
+                <!-- Category chips rendered by JS -->
+              </div>
+              <div class="tag-input-row">
+                <input type="text" id="entryCategory" list="categorySuggestions" placeholder="e.g. Development" autocomplete="off">
+                <button type="button" class="btn btn-ghost btn-sm" id="addCategoryBtn" title="Add category">+</button>
+              </div>
+              <datalist id="categorySuggestions">
+                <!-- Populated by JS -->
+              </datalist>
+            </div>
           </div>
           <div class="form-group">
             <label for="entryIcon">Icon URL <span class="optional">(auto-fetched)</span></label>

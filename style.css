@@ -632,6 +632,85 @@ select:focus {
   cursor: pointer;
 }
 
+.tag-input-wrapper {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  transition: border-color var(--transition);
+}
+
+.tag-input-wrapper:focus-within {
+  border-color: var(--input-focus);
+}
+
+.tag-input-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-input-tags:not(:empty) {
+  margin-bottom: 8px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--tag-bg);
+  color: var(--tag-text);
+  animation: fadeIn 0.2s ease;
+}
+
+.tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--tag-text);
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.6;
+  transition: all var(--transition);
+}
+
+.tag-chip-remove:hover {
+  opacity: 1;
+  background: rgba(255,59,48,0.15);
+  color: var(--danger);
+}
+
+.tag-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.tag-input-row input {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 4px 4px !important;
+  font-size: 0.85rem !important;
+  outline: none;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;

@@ -42,6 +42,7 @@
   // ── State ──────────────────────────────────────────────
   let entries = [];
   let editingId = null;
+  let selectedCategories = []; // categories selected in the modal form
 
   // ── Utilities ──────────────────────────────────────────
 
@@ -112,10 +113,34 @@
 
   // ── Storage ────────────────────────────────────────────
 
+  function migrateEntry(entry) {
+    // Migrate legacy 'category' (string) → 'categories' (array)
+    if (!entry.categories) {
+      if (entry.category && typeof entry.category === 'string') {
+        entry.categories = [entry.category.trim()];
+      } else {
+        entry.categories = [];
+      }
+    }
+    // Clean up legacy field
+    delete entry.category;
+    return entry;
+  }
+
   function loadEntries() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       entries = raw ? JSON.parse(raw) : [];
+      // Migrate any legacy entries
+      let migrated = false;
+      entries = entries.map(e => {
+        if (!e.categories || typeof e.category === 'string') {
+          migrated = true;
+          return migrateEntry(e);
+        }
+        return e;
+      });
+      if (migrated) saveEntries();
     } catch {
       entries = [];
     }
@@ -129,7 +154,8 @@
 
   function getAllCategories() {
     const custom = entries
-      .map(e => (e.category || '').trim())
+      .flatMap(e => (e.categories || []))
+      .map(c => c.trim())
       .filter(c => c && !DEFAULT_CATEGORIES.includes(c));
     const merged = [...DEFAULT_CATEGORIES, ...custom];
     // Deduplicate while preserving order
@@ -198,7 +224,7 @@
       saveBtn.textContent = 'Update';
       entryName.value = entry.name || '';
       entryUrl.value = entry.url || '';
-      entryCategory.value = entry.category || '';
+      selectedCategories = [...(entry.categories || [])];
       entryIcon.value = entry.iconUrl || '';
       entryDescription.value = entry.description || '';
       entryFavorite.checked = entry.isFavorite || false;
@@ -206,7 +232,11 @@
       modalTitle.textContent = 'Add Website';
       saveBtn.textContent = 'Save';
       entryForm.reset();
+      selectedCategories = [];
     }
+
+    entryCategory.value = '';
+    renderCategoryChips();
 
     // Clear validation
     entryForm.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
@@ -232,7 +262,7 @@
       url: ensureProtocol(data.url),
       description: data.description || '',
       iconUrl: data.iconUrl || getFaviconUrl(data.url),
-      category: data.category || '',
+      categories: data.categories || [],
       dateAdded: now,
       dateModified: now,
       visitCount: 0,
@@ -252,7 +282,7 @@
     entry.url = ensureProtocol(data.url);
     entry.description = data.description || '';
     entry.iconUrl = data.iconUrl || getFaviconUrl(data.url);
-    entry.category = data.category || '';
+    entry.categories = data.categories || [];
     entry.isFavorite = data.isFavorite || false;
     entry.dateModified = new Date().toISOString();
     saveEntries();
@@ -308,7 +338,7 @@
 
     // Category
     if (category) {
-      filtered = filtered.filter(e => e.category === category);
+      filtered = filtered.filter(e => (e.categories || []).includes(category));
     }
 
     // Sort — favorites always first
@@ -374,7 +404,7 @@
       </div>
       ${entry.description ? `<div class="card-description">${escapeHtml(entry.description)}</div>` : ''}
       <div class="card-meta">
-        ${entry.category ? `<span class="tag">${escapeHtml(entry.category)}</span>` : ''}
+        ${(entry.categories || []).map(cat => `<span class="tag">${escapeHtml(cat)}</span>`).join('')}
         <span class="meta-item" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
         ${entry.visitCount > 0 ? `
           <span class="meta-dot"></span>
@@ -494,13 +524,22 @@
         valid.forEach(item => {
           const url = ensureProtocol(item.url).toLowerCase();
           if (!existingUrls.has(url)) {
+            // Handle both legacy 'category' and new 'categories' format
+            let cats = item.categories || [];
+            if (!Array.isArray(cats) || cats.length === 0) {
+              if (item.category && typeof item.category === 'string') {
+                cats = [item.category.trim()];
+              } else {
+                cats = [];
+              }
+            }
             entries.push({
               id: item.id || generateId(),
               name: item.name,
               url: ensureProtocol(item.url),
               description: item.description || '',
               iconUrl: item.iconUrl || getFaviconUrl(item.url),
-              category: item.category || '',
+              categories: cats,
               dateAdded: item.dateAdded || new Date().toISOString(),
               dateModified: item.dateModified || new Date().toISOString(),
               visitCount: item.visitCount || 0,
@@ -520,6 +559,32 @@
       }
     };
     reader.readAsText(file);
+  }
+
+  // ── Category Chip UI ────────────────────────────────────
+
+  function renderCategoryChips() {
+    const container = document.getElementById('categoryTags');
+    container.innerHTML = '';
+    selectedCategories.forEach(cat => {
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.innerHTML = `${escapeHtml(cat)}<button type="button" class="tag-chip-remove" title="Remove">&times;</button>`;
+      chip.querySelector('.tag-chip-remove').addEventListener('click', () => {
+        selectedCategories = selectedCategories.filter(c => c !== cat);
+        renderCategoryChips();
+      });
+      container.appendChild(chip);
+    });
+  }
+
+  function addCategoryFromInput() {
+    const val = entryCategory.value.trim();
+    if (val && !selectedCategories.includes(val)) {
+      selectedCategories.push(val);
+      renderCategoryChips();
+    }
+    entryCategory.value = '';
   }
 
   // ── Form Submission ────────────────────────────────────
@@ -543,10 +608,16 @@
 
     if (!valid) return;
 
+    // If user typed a category but didn't press Enter, include it
+    const pendingCat = entryCategory.value.trim();
+    if (pendingCat && !selectedCategories.includes(pendingCat)) {
+      selectedCategories.push(pendingCat);
+    }
+
     const data = {
       name: entryName.value.trim(),
       url: entryUrl.value.trim(),
-      category: entryCategory.value.trim(),
+      categories: [...selectedCategories],
       iconUrl: entryIcon.value.trim(),
       description: entryDescription.value.trim(),
       isFavorite: entryFavorite.checked
@@ -578,6 +649,15 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
   });
+
+  // Category tag input
+  entryCategory.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCategoryFromInput();
+    }
+  });
+  document.getElementById('addCategoryBtn').addEventListener('click', addCategoryFromInput);
 
   // Form submit
   entryForm.addEventListener('submit', handleSubmit);
