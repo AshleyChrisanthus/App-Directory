@@ -8,8 +8,78 @@
   // ── Constants ──────────────────────────────────────────
   const STORAGE_KEY = 'appDirectory_entries';
   const THEME_KEY = 'appDirectory_theme';
-  const FAVICON_API = 'https://www.google.com/s2/favicons?sz=64&domain_url=';
   const DEFAULT_CATEGORIES = ['Development', 'Social', 'News', 'Entertainment', 'Productivity', 'Other'];
+
+  const KNOWN_APP_ICONS = [
+    {
+      test: (url) => /notebook(lm)?\.google\.com|google\.com\/notebooklm/i.test(url),
+      icon: 'https://notebooklm.google.com/_/static/branding/v4/dark_mode/favicon/apple-touch-icon.png'
+    },
+    {
+      test: (url) => /gemini\.google\.com|bard\.google\.com/i.test(url),
+      icon: 'https://www.gstatic.com/lamda/images/favicon_v1_150160cddff7f294ce30.svg'
+    },
+    {
+      test: (url) => /drive\.google\.com/i.test(url),
+      icon: 'https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png'
+    },
+    {
+      test: (url) => /docs\.google\.com\/(document|d\/)/i.test(url),
+      icon: 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico'
+    },
+    {
+      test: (url) => /sheets\.google\.com|docs\.google\.com\/spreadsheets/i.test(url),
+      icon: 'https://ssl.gstatic.com/docs/spreadsheets/images/favicon_table_auto_sized.ico'
+    },
+    {
+      test: (url) => /slides\.google\.com|docs\.google\.com\/presentation/i.test(url),
+      icon: 'https://ssl.gstatic.com/docs/presentations/images/favicon_show_auto_sized.ico'
+    },
+    {
+      test: (url) => /keep\.google\.com/i.test(url),
+      icon: 'https://ssl.gstatic.com/keep/keep_2020q4v2.ico'
+    },
+    {
+      test: (url) => /colab\.research\.google\.com/i.test(url),
+      icon: 'https://colab.research.google.com/img/favicon.ico'
+    },
+    {
+      test: (url) => /meet\.google\.com/i.test(url),
+      icon: 'https://fonts.gstatic.com/s/i/productlogos/meet_2020q4/v6/web-512dp/logo_meet_2020q4_color_2x_web_512dp.png'
+    },
+    {
+      test: (url) => /mail\.google\.com/i.test(url),
+      icon: 'https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico'
+    },
+    {
+      test: (url) => /calendar\.google\.com/i.test(url),
+      icon: 'https://calendar.google.com/googlecalendar/images/favicons_2020q4/calendar_31.ico'
+    },
+    {
+      test: (url) => /music\.youtube\.com/i.test(url),
+      icon: 'https://music.youtube.com/img/favicon_144.png'
+    },
+    {
+      test: (url) => /photos\.google\.com/i.test(url),
+      icon: 'https://ssl.gstatic.com/social/photosui/images/logo/1x/photos_96dp.png'
+    },
+    {
+      test: (url) => /maps\.google\.com/i.test(url),
+      icon: 'https://maps.gstatic.com/mapfiles/maps_lite/pwa/icons/pwa_icon_192.png'
+    },
+    {
+      test: (url) => /chatgpt\.com|chat\.openai\.com/i.test(url),
+      icon: 'https://chatgpt.com/favicon.ico'
+    },
+    {
+      test: (url) => /claude\.ai/i.test(url),
+      icon: 'https://claude.ai/favicon.ico'
+    },
+    {
+      test: (url) => /github\.com/i.test(url),
+      icon: 'https://github.githubassets.com/favicons/favicon.svg'
+    }
+  ];
 
   // ── DOM Elements ───────────────────────────────────────
   const grid = document.getElementById('grid');
@@ -37,6 +107,9 @@
   const entryUrl = document.getElementById('entryUrl');
   const entryCategory = document.getElementById('entryCategory');
   const entryIcon = document.getElementById('entryIcon');
+  const entryIconPreview = document.getElementById('entryIconPreview');
+  const uploadIconBtn = document.getElementById('uploadIconBtn');
+  const iconFileInput = document.getElementById('iconFileInput');
   const entryDescription = document.getElementById('entryDescription');
   const entryFavorite = document.getElementById('entryFavorite');
 
@@ -104,9 +177,19 @@
   }
 
   function getFaviconUrl(url) {
+    if (!url) return '';
     try {
       const full = ensureProtocol(url);
-      return FAVICON_API + encodeURIComponent(full);
+
+      // Check known web apps first (e.g. NotebookLM, Gemini, Docs, Drive, etc.)
+      for (const entry of KNOWN_APP_ICONS) {
+        if (entry.test(full)) {
+          return entry.icon;
+        }
+      }
+
+      // Use Google FaviconV2 high-resolution service with full URL
+      return `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(full)}&size=128`;
     } catch {
       return '';
     }
@@ -238,6 +321,7 @@
 
     entryCategory.value = '';
     renderCategoryChips();
+    updateModalIconPreview();
 
     // Clear validation
     entryForm.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
@@ -862,14 +946,54 @@
   // Export
   exportBtn.addEventListener('click', exportData);
 
-  // Auto-fetch favicon when URL field loses focus
+  // Icon Preview in Modal
+  function updateModalIconPreview() {
+    if (!entryIconPreview) return;
+    const custom = entryIcon.value.trim();
+    const url = entryUrl.value.trim();
+    const resolved = custom || (url ? getFaviconUrl(url) : '');
+
+    if (resolved) {
+      entryIconPreview.innerHTML = `<img src="${escapeHtml(resolved)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`;
+    } else {
+      entryIconPreview.innerHTML = '<span class="icon-fallback">🌐</span>';
+    }
+  }
+
+  // Real-time icon preview updates as user types
+  entryUrl.addEventListener('input', () => {
+    if (!entryIcon.value.trim()) {
+      updateModalIconPreview();
+    }
+  });
+
   entryUrl.addEventListener('blur', () => {
     const url = entryUrl.value.trim();
     if (url && !entryIcon.value.trim()) {
-      // Preview the favicon in real-time (it will be set on save if still empty)
       entryIcon.setAttribute('placeholder', `Auto: ${getDomain(ensureProtocol(url))}`);
+      updateModalIconPreview();
     }
   });
+
+  entryIcon.addEventListener('input', updateModalIconPreview);
+
+  // Upload custom icon from file
+  if (uploadIconBtn && iconFileInput) {
+    uploadIconBtn.addEventListener('click', () => iconFileInput.click());
+    iconFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          entryIcon.value = evt.target.result; // Data URL for offline preservation
+          updateModalIconPreview();
+          showToast('Custom icon loaded!');
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+      }
+    });
+  }
 
   // ── Initialize ─────────────────────────────────────────
 
