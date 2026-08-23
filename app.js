@@ -26,6 +26,7 @@
   const cancelBtn = document.getElementById('cancelBtn');
   const saveBtn = document.getElementById('saveBtn');
   const themeToggle = document.getElementById('themeToggle');
+  const refreshAllBtn = document.getElementById('refreshAllBtn');
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
   const importFile = document.getElementById('importFile');
@@ -104,8 +105,8 @@
 
   function getFaviconUrl(url) {
     try {
-      const u = new URL(ensureProtocol(url));
-      return FAVICON_API + encodeURIComponent(u.origin);
+      const full = ensureProtocol(url);
+      return FAVICON_API + encodeURIComponent(full);
     } catch {
       return '';
     }
@@ -318,6 +319,29 @@
     render();
   }
 
+  function refreshEntryIcon(id) {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    entry.iconUrl = getFaviconUrl(entry.url);
+    entry.dateModified = new Date().toISOString();
+    saveEntries();
+    render();
+    showToast(`Icon refreshed for "${entry.name}"`);
+  }
+
+  function refreshAllIcons() {
+    if (entries.length === 0) {
+      showToast('No sites to refresh.');
+      return;
+    }
+    entries.forEach(entry => {
+      entry.iconUrl = getFaviconUrl(entry.url);
+    });
+    saveEntries();
+    render();
+    showToast(`Refreshed icons for ${entries.length} site${entries.length !== 1 ? 's' : ''}`);
+  }
+
   // ── Filtering & Sorting ────────────────────────────────
 
   function getFilteredEntries() {
@@ -411,6 +435,7 @@
           <span class="meta-item">${entry.visitCount} visit${entry.visitCount !== 1 ? 's' : ''}</span>
         ` : ''}
         <div class="card-actions">
+          <button class="btn btn-ghost refresh-btn" title="Refresh icon">🔄</button>
           <button class="btn btn-ghost edit-btn" title="Edit">✏️</button>
           <button class="btn btn-danger delete-btn" title="Delete">🗑️</button>
         </div>
@@ -420,6 +445,7 @@
     // Click card → visit
     card.addEventListener('click', (e) => {
       if (e.target.closest('.card-favorite') ||
+          e.target.closest('.refresh-btn') ||
           e.target.closest('.edit-btn') ||
           e.target.closest('.delete-btn')) return;
       visitEntry(entry.id);
@@ -429,6 +455,12 @@
     card.querySelector('.card-favorite').addEventListener('click', (e) => {
       e.stopPropagation();
       toggleFavorite(entry.id);
+    });
+
+    // Refresh icon
+    card.querySelector('.refresh-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      refreshEntryIcon(entry.id);
     });
 
     // Edit
@@ -812,6 +844,11 @@
 
   // Theme toggle
   themeToggle.addEventListener('click', toggleTheme);
+
+  // Refresh all icons
+  if (refreshAllBtn) {
+    refreshAllBtn.addEventListener('click', refreshAllIcons);
+  }
 
   // Import
   importBtn.addEventListener('click', () => importFile.click());
