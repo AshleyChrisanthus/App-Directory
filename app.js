@@ -586,6 +586,149 @@
     }
     entryCategory.value = '';
   }
+  // ── Category Management Modal ───────────────────────────
+
+  const catModalBackdrop = document.getElementById('catModalBackdrop');
+  const catModalClose = document.getElementById('catModalClose');
+  const catList = document.getElementById('catList');
+  const catEmptyMsg = document.getElementById('catEmptyMsg');
+
+  function getUsedCategories() {
+    // Return categories that are actually used by at least one entry, with counts
+    const counts = {};
+    entries.forEach(e => {
+      (e.categories || []).forEach(cat => {
+        counts[cat] = (counts[cat] || 0) + 1;
+      });
+    });
+    // Sort alphabetically
+    return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
+  }
+
+  function openCatModal() {
+    renderCatList();
+    catModalBackdrop.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCatModal() {
+    catModalBackdrop.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function renameCategory(oldName, newName) {
+    newName = newName.trim();
+    if (!newName || newName === oldName) return;
+
+    let updated = 0;
+    entries.forEach(entry => {
+      const idx = (entry.categories || []).indexOf(oldName);
+      if (idx !== -1) {
+        // If newName already exists in this entry's categories, just remove the old one
+        if (entry.categories.includes(newName)) {
+          entry.categories.splice(idx, 1);
+        } else {
+          entry.categories[idx] = newName;
+        }
+        updated++;
+      }
+    });
+
+    if (updated > 0) {
+      saveEntries();
+      render();
+      showToast(`Renamed "${oldName}" → "${newName}" (${updated} site${updated !== 1 ? 's' : ''} updated)`);
+    }
+  }
+
+  function deleteCategory(catName) {
+    const count = entries.filter(e => (e.categories || []).includes(catName)).length;
+    if (!confirm(`Remove "${catName}" from ${count} site${count !== 1 ? 's' : ''}?`)) return;
+
+    entries.forEach(entry => {
+      entry.categories = (entry.categories || []).filter(c => c !== catName);
+    });
+
+    saveEntries();
+    render();
+    showToast(`Deleted category "${catName}"`);
+    renderCatList();
+  }
+
+  function renderCatList() {
+    const used = getUsedCategories();
+    catList.innerHTML = '';
+
+    if (used.length === 0) {
+      catEmptyMsg.style.display = 'block';
+      return;
+    }
+
+    catEmptyMsg.style.display = 'none';
+
+    used.forEach(([cat, count]) => {
+      const row = document.createElement('div');
+      row.className = 'cat-row';
+      row.innerHTML = `
+        <span class="cat-row-name">${escapeHtml(cat)}</span>
+        <span class="cat-row-count">${count} site${count !== 1 ? 's' : ''}</span>
+        <div class="cat-row-actions">
+          <button class="btn btn-ghost rename-btn" title="Rename">✏️</button>
+          <button class="btn btn-danger delete-btn" title="Delete">🗑️</button>
+        </div>
+      `;
+
+      // Rename
+      row.querySelector('.rename-btn').addEventListener('click', () => {
+        const nameEl = row.querySelector('.cat-row-name');
+        const actionsEl = row.querySelector('.cat-row-actions');
+
+        // Replace name with input
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'cat-row-input';
+        input.value = cat;
+        nameEl.replaceWith(input);
+        input.focus();
+        input.select();
+
+        // Replace actions with save/cancel
+        actionsEl.innerHTML = `
+          <button class="btn btn-primary btn-sm save-rename-btn">Save</button>
+          <button class="btn btn-ghost btn-sm cancel-rename-btn">Cancel</button>
+        `;
+
+        const doSave = () => {
+          const newVal = input.value.trim();
+          if (newVal && newVal !== cat) {
+            renameCategory(cat, newVal);
+          }
+          renderCatList();
+        };
+
+        const doCancel = () => renderCatList();
+
+        actionsEl.querySelector('.save-rename-btn').addEventListener('click', doSave);
+        actionsEl.querySelector('.cancel-rename-btn').addEventListener('click', doCancel);
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); doSave(); }
+          if (e.key === 'Escape') doCancel();
+        });
+      });
+
+      // Delete
+      row.querySelector('.delete-btn').addEventListener('click', () => deleteCategory(cat));
+
+      catList.appendChild(row);
+    });
+  }
+
+  // Category management modal events
+  document.getElementById('manageCategoriesBtn').addEventListener('click', openCatModal);
+  catModalClose.addEventListener('click', closeCatModal);
+  catModalBackdrop.addEventListener('click', (e) => {
+    if (e.target === catModalBackdrop) closeCatModal();
+  });
 
   // ── Form Submission ────────────────────────────────────
 
@@ -647,7 +790,7 @@
 
   // Escape key
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') { closeModal(); closeCatModal(); }
   });
 
   // Category tag input

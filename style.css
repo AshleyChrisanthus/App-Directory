@@ -725,6 +725,91 @@ select:focus {
 }
 
 /* ========================================
+   Category Management Modal
+   ======================================== */
+
+.cat-modal-body {
+  padding: 16px 24px 24px;
+}
+
+.cat-modal-hint {
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+.cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  transition: background var(--transition);
+}
+
+.cat-row:hover {
+  background: var(--bg-hover);
+}
+
+.cat-row-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-row-input {
+  flex: 1;
+  background: var(--input-bg);
+  border: 1px solid var(--input-focus);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.cat-row-count {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  background: var(--bg-primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.cat-row-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.cat-row-actions .btn {
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.cat-modal-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+}
+
+/* ========================================
    Toast
    ======================================== */
 
