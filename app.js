@@ -297,9 +297,30 @@
     }
   }
 
-  // ── Storage ────────────────────────────────────────────
+  // ── Storage & Multi-Tab Synchronization ─────────────────
+
+  let broadcastChannel;
+  try {
+    broadcastChannel = new BroadcastChannel('app_directory_sync_v1');
+    broadcastChannel.onmessage = (event) => {
+      if (event.data && event.data.type === 'SYNC_DATA') {
+        syncFromStorage();
+      } else if (event.data && event.data.type === 'SYNC_THEME') {
+        initTheme();
+      }
+    };
+  } catch (_) {}
+
+  function notifyOtherTabs(type = 'SYNC_DATA') {
+    if (broadcastChannel) {
+      try {
+        broadcastChannel.postMessage({ type });
+      } catch (_) {}
+    }
+  }
 
   function migrateEntry(entry) {
+    if (!entry) return null;
     // Migrate legacy 'category' (string) → 'categories' (array)
     if (!entry.categories) {
       if (entry.category && typeof entry.category === 'string') {
@@ -313,28 +334,76 @@
     return entry;
   }
 
-  function loadEntries() {
+  function getLatestStoredEntries() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      entries = raw ? JSON.parse(raw) : [];
-      // Migrate any legacy entries
-      let migrated = false;
-      entries = entries.map(e => {
-        if (!e.categories || typeof e.category === 'string') {
-          migrated = true;
-          return migrateEntry(e);
-        }
-        return e;
-      });
-      if (migrated) saveEntries();
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list.map(migrateEntry).filter(Boolean) : [];
     } catch {
-      entries = [];
+      return [];
     }
   }
 
-  function saveEntries() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  function mergeEntries(localList, diskList) {
+    const map = new Map();
+
+    // 1. Index all disk entries
+    for (const item of diskList) {
+      if (item && item.id) {
+        map.set(item.id, item);
+      }
+    }
+
+    // 2. Merge local entries
+    for (const item of localList) {
+      if (!item || !item.id) continue;
+      if (!map.has(item.id)) {
+        map.set(item.id, item);
+      } else {
+        const diskItem = map.get(item.id);
+        const localMod = new Date(item.dateModified || item.dateAdded || 0).getTime();
+        const diskMod = new Date(diskItem.dateModified || diskItem.dateAdded || 0).getTime();
+        // Take whichever version was modified more recently
+        if (localMod >= diskMod) {
+          map.set(item.id, item);
+        }
+      }
+    }
+
+    return Array.from(map.values());
   }
+
+  function loadEntries() {
+    entries = getLatestStoredEntries();
+  }
+
+  function saveEntries(targetList = null) {
+    const diskList = getLatestStoredEntries();
+    const sourceList = targetList || entries;
+    const merged = mergeEntries(sourceList, diskList);
+    entries = merged;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    notifyOtherTabs('SYNC_DATA');
+  }
+
+  function syncFromStorage() {
+    const diskList = getLatestStoredEntries();
+    // Merge latest disk state with in-memory state
+    entries = mergeEntries(entries, diskList);
+    render();
+    if (typeof renderCatList === 'function' && catModalBackdrop && catModalBackdrop.classList.contains('active')) {
+      renderCatList();
+    }
+  }
+
+  // Native storage listener for other tabs/windows
+  window.addEventListener('storage', (e) => {
+    if (e.key === STORAGE_KEY) {
+      syncFromStorage();
+    } else if (e.key === THEME_KEY) {
+      initTheme();
+    }
+  });
 
   // ── Categories ─────────────────────────────────────────
 
@@ -385,6 +454,7 @@
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem(THEME_KEY, next);
+    notifyOtherTabs('SYNC_THEME');
   }
 
   // ── Toast ──────────────────────────────────────────────
@@ -457,8 +527,10 @@
       lastVisited: null,
       isFavorite: data.isFavorite || false
     };
-    entries.push(entry);
-    saveEntries();
+
+    const diskList = getLatestStoredEntries();
+    diskList.push(entry);
+    saveEntries(diskList);
     render();
     showToast(`"${entry.name}" added!`);
 
@@ -466,36 +538,62 @@
     if (entry.iconUrl && !entry.iconUrl.startsWith('data:')) {
       const permanentDataUrl = await urlToDataUrl(entry.iconUrl);
       if (permanentDataUrl && permanentDataUrl.startsWith('data:')) {
-        entry.iconUrl = permanentDataUrl;
-        saveEntries();
-        render();
+        const latest = getLatestStoredEntries();
+        const target = latest.find(e => e.id === entry.id);
+        if (target) {
+          target.iconUrl = permanentDataUrl;
+          saveEntries(latest);
+          render();
+        }
       }
     }
   }
 
   async function updateEntry(id, data) {
-    const idx = entries.findIndex(e => e.id === id);
-    if (idx === -1) return;
-    const entry = entries[idx];
+    const diskList = getLatestStoredEntries();
+    let target = diskList.find(e => e.id === id);
     const rawIcon = data.iconUrl || getFaviconUrl(data.url);
-    entry.name = data.name;
-    entry.url = ensureProtocol(data.url);
-    entry.description = data.description || '';
-    entry.iconUrl = rawIcon;
-    entry.categories = data.categories || [];
-    entry.isFavorite = data.isFavorite || false;
-    entry.dateModified = new Date().toISOString();
-    saveEntries();
+
+    if (!target) {
+      target = {
+        id,
+        name: data.name,
+        url: ensureProtocol(data.url),
+        description: data.description || '',
+        iconUrl: rawIcon,
+        categories: data.categories || [],
+        dateAdded: new Date().toISOString(),
+        dateModified: new Date().toISOString(),
+        visitCount: 0,
+        lastVisited: null,
+        isFavorite: data.isFavorite || false
+      };
+      diskList.push(target);
+    } else {
+      target.name = data.name;
+      target.url = ensureProtocol(data.url);
+      target.description = data.description || '';
+      target.iconUrl = rawIcon;
+      target.categories = data.categories || [];
+      target.isFavorite = data.isFavorite || false;
+      target.dateModified = new Date().toISOString();
+    }
+
+    saveEntries(diskList);
     render();
-    showToast(`"${entry.name}" updated!`);
+    showToast(`"${target.name}" updated!`);
 
     // Asynchronously convert and cache icon offline as Data URL
-    if (entry.iconUrl && !entry.iconUrl.startsWith('data:')) {
-      const permanentDataUrl = await urlToDataUrl(entry.iconUrl);
+    if (target.iconUrl && !target.iconUrl.startsWith('data:')) {
+      const permanentDataUrl = await urlToDataUrl(target.iconUrl);
       if (permanentDataUrl && permanentDataUrl.startsWith('data:')) {
-        entry.iconUrl = permanentDataUrl;
-        saveEntries();
-        render();
+        const latest = getLatestStoredEntries();
+        const item = latest.find(e => e.id === id);
+        if (item) {
+          item.iconUrl = permanentDataUrl;
+          saveEntries(latest);
+          render();
+        }
       }
     }
   }
@@ -504,61 +602,75 @@
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
     if (!confirm(`Delete "${entry.name}"?`)) return;
-    entries = entries.filter(e => e.id !== id);
-    saveEntries();
+
+    const diskList = getLatestStoredEntries();
+    const filtered = diskList.filter(e => e.id !== id);
+    entries = filtered;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    notifyOtherTabs('SYNC_DATA');
     showToast(`"${entry.name}" deleted.`);
     render();
   }
 
   function toggleFavorite(id) {
-    const entry = entries.find(e => e.id === id);
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find(e => e.id === id);
     if (!entry) return;
     entry.isFavorite = !entry.isFavorite;
     entry.dateModified = new Date().toISOString();
-    saveEntries();
+    saveEntries(diskList);
     render();
   }
 
   function visitEntry(id) {
-    const entry = entries.find(e => e.id === id);
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find(e => e.id === id);
     if (!entry) return;
     entry.visitCount = (entry.visitCount || 0) + 1;
     entry.lastVisited = new Date().toISOString();
-    saveEntries();
+    entry.dateModified = new Date().toISOString();
+    saveEntries(diskList);
     window.open(entry.url, '_blank', 'noopener,noreferrer');
     render();
   }
 
   async function refreshEntryIcon(id) {
-    const entry = entries.find(e => e.id === id);
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find(e => e.id === id);
     if (!entry) return;
     const freshUrl = getFaviconUrl(entry.url);
     entry.iconUrl = freshUrl;
     entry.dateModified = new Date().toISOString();
-    saveEntries();
+    saveEntries(diskList);
     render();
     showToast(`Refreshing icon for "${entry.name}"...`);
 
     const permanentDataUrl = await urlToDataUrl(freshUrl);
     if (permanentDataUrl) {
-      entry.iconUrl = permanentDataUrl;
-      saveEntries();
-      render();
-      showToast(`Icon saved offline for "${entry.name}"`);
+      const latest = getLatestStoredEntries();
+      const item = latest.find(e => e.id === id);
+      if (item) {
+        item.iconUrl = permanentDataUrl;
+        saveEntries(latest);
+        render();
+        showToast(`Icon saved offline for "${item.name}"`);
+      }
     }
   }
 
   async function refreshAllIcons() {
-    if (entries.length === 0) {
+    const diskList = getLatestStoredEntries();
+    if (diskList.length === 0) {
       showToast('No sites to refresh.');
       return;
     }
-    showToast(`Refreshing & caching icons for ${entries.length} site${entries.length !== 1 ? 's' : ''}...`);
-    for (const entry of entries) {
+    showToast(`Refreshing & caching icons for ${diskList.length} site${diskList.length !== 1 ? 's' : ''}...`);
+    for (const entry of diskList) {
       const freshUrl = getFaviconUrl(entry.url);
       entry.iconUrl = await urlToDataUrl(freshUrl);
+      entry.dateModified = new Date().toISOString();
     }
-    saveEntries();
+    saveEntries(diskList);
     render();
     showToast(`All icons updated & cached offline!`);
   }
@@ -770,8 +882,9 @@
           return;
         }
 
-        // Merge: skip duplicates by URL
-        const existingUrls = new Set(entries.map(e => e.url.toLowerCase()));
+        // Merge: skip duplicates by URL against fresh disk storage
+        const diskList = getLatestStoredEntries();
+        const existingUrls = new Set(diskList.map(e => e.url.toLowerCase()));
         let imported = 0;
 
         valid.forEach(item => {
@@ -786,7 +899,7 @@
                 cats = [];
               }
             }
-            entries.push({
+            diskList.push({
               id: item.id || generateId(),
               name: item.name,
               url: ensureProtocol(item.url),
@@ -804,7 +917,7 @@
           }
         });
 
-        saveEntries();
+        saveEntries(diskList);
         render();
         showToast(`Imported ${imported} new site${imported !== 1 ? 's' : ''} (${valid.length - imported} duplicate${valid.length - imported !== 1 ? 's' : ''} skipped).`);
       } catch {
@@ -873,8 +986,9 @@
     newName = newName.trim();
     if (!newName || newName === oldName) return;
 
+    const diskList = getLatestStoredEntries();
     let updated = 0;
-    entries.forEach(entry => {
+    diskList.forEach(entry => {
       const idx = (entry.categories || []).indexOf(oldName);
       if (idx !== -1) {
         // If newName already exists in this entry's categories, just remove the old one
@@ -883,26 +997,29 @@
         } else {
           entry.categories[idx] = newName;
         }
+        entry.dateModified = new Date().toISOString();
         updated++;
       }
     });
 
     if (updated > 0) {
-      saveEntries();
+      saveEntries(diskList);
       render();
       showToast(`Renamed "${oldName}" → "${newName}" (${updated} site${updated !== 1 ? 's' : ''} updated)`);
     }
   }
 
   function deleteCategory(catName) {
-    const count = entries.filter(e => (e.categories || []).includes(catName)).length;
+    const diskList = getLatestStoredEntries();
+    const count = diskList.filter(e => (e.categories || []).includes(catName)).length;
     if (!confirm(`Remove "${catName}" from ${count} site${count !== 1 ? 's' : ''}?`)) return;
 
-    entries.forEach(entry => {
+    diskList.forEach(entry => {
       entry.categories = (entry.categories || []).filter(c => c !== catName);
+      entry.dateModified = new Date().toISOString();
     });
 
-    saveEntries();
+    saveEntries(diskList);
     render();
     showToast(`Deleted category "${catName}"`);
     renderCatList();
