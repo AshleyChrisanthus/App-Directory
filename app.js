@@ -293,19 +293,44 @@
     return imageUrl;
   }
 
-  async function cacheExistingIconsOffline() {
-    let changed = false;
-    for (const entry of entries) {
-      if (entry.iconUrl && !entry.iconUrl.startsWith('data:')) {
+  // Helper for parallel worker pool execution
+  async function runPool(items, concurrency, taskFn, onProgress) {
+    let index = 0;
+    let completed = 0;
+    const total = items.length;
+    if (total === 0) return;
+
+    const workerCount = Math.min(concurrency, total);
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (index < total) {
+        const i = index++;
+        const item = items[i];
         try {
-          const dataUrl = await urlToDataUrl(entry.iconUrl);
-          if (dataUrl && dataUrl.startsWith('data:image')) {
-            entry.iconUrl = dataUrl;
-            changed = true;
-          }
+          await taskFn(item, i);
         } catch (_) {}
+        completed++;
+        if (onProgress) onProgress(completed, total);
       }
-    }
+    });
+
+    await Promise.all(workers);
+  }
+
+  async function cacheExistingIconsOffline() {
+    const unCached = entries.filter(e => e.iconUrl && !e.iconUrl.startsWith('data:'));
+    if (unCached.length === 0) return;
+
+    let changed = false;
+    await runPool(unCached, 8, async (entry) => {
+      try {
+        const dataUrl = await urlToDataUrl(entry.iconUrl);
+        if (dataUrl && dataUrl.startsWith('data:image')) {
+          entry.iconUrl = dataUrl;
+          changed = true;
+        }
+      } catch (_) {}
+    });
+
     if (changed) {
       saveEntries();
       render();
@@ -757,22 +782,28 @@
     }
   }
 
-  async function refreshEntryIcon(id) {
+  async function refreshEntryIcon(id, btnElement = null) {
     const diskList = getLatestStoredEntries();
     const entry = diskList.find(e => e.id === id);
     if (!entry) return;
 
+    if (btnElement) btnElement.classList.add('is-spinning');
     showToast(`Checking for updated icon for "${entry.name}"...`);
-    const freshUrl = getFaviconUrl(entry.url);
-    const candidateDataUrl = await urlToDataUrl(freshUrl);
 
-    if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
-      pendingIcons.set(id, candidateDataUrl);
-      updatePendingIconsUI();
-      renderCardsOnly();
-      showToast(`New icon found for "${entry.name}"! Click "✓ Accept" to apply.`);
-    } else {
-      showToast(`Icon for "${entry.name}" is already up to date.`);
+    try {
+      const freshUrl = getFaviconUrl(entry.url);
+      const candidateDataUrl = await urlToDataUrl(freshUrl);
+
+      if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
+        pendingIcons.set(id, candidateDataUrl);
+        updatePendingIconsUI();
+        renderCardsOnly();
+        showToast(`New icon found for "${entry.name}"! Click "✓ Accept" to apply.`);
+      } else {
+        showToast(`Icon for "${entry.name}" is already up to date.`);
+      }
+    } finally {
+      if (btnElement) btnElement.classList.remove('is-spinning');
     }
   }
 
@@ -783,17 +814,61 @@
       return;
     }
 
-    showToast(`Checking for updated icons across ${diskList.length} sites...`);
-    let foundCount = 0;
+    const refreshProgressBar = document.getElementById('refreshProgressBar');
+    const refreshProgressFill = document.getElementById('refreshProgressFill');
+    const refreshProgressLabel = document.getElementById('refreshProgressLabel');
+    const refreshProgressCount = document.getElementById('refreshProgressCount');
+    const refreshBtnLabel = refreshAllBtn ? refreshAllBtn.querySelector('.btn-label') : null;
+    const originalBtnText = refreshBtnLabel ? refreshBtnLabel.textContent : 'Refresh Icons';
 
-    for (const entry of diskList) {
-      const freshUrl = getFaviconUrl(entry.url);
-      const candidateDataUrl = await urlToDataUrl(freshUrl);
-      if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
-        pendingIcons.set(entry.id, candidateDataUrl);
-        foundCount++;
-      }
+    // Show loading state and progress bar
+    if (refreshAllBtn) {
+      refreshAllBtn.classList.add('is-loading');
+      refreshAllBtn.disabled = true;
     }
+    if (refreshProgressBar) {
+      refreshProgressBar.style.display = 'block';
+      if (refreshProgressFill) refreshProgressFill.style.width = '0%';
+      if (refreshProgressCount) refreshProgressCount.textContent = `0 / ${diskList.length}`;
+      if (refreshProgressLabel) refreshProgressLabel.textContent = 'Checking for updated icons in parallel...';
+    }
+
+    let foundCount = 0;
+    const concurrency = 12; // Process 12 sites concurrently in parallel
+
+    await runPool(diskList, concurrency, async (entry) => {
+      try {
+        const freshUrl = getFaviconUrl(entry.url);
+        const candidateDataUrl = await urlToDataUrl(freshUrl);
+        if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
+          pendingIcons.set(entry.id, candidateDataUrl);
+          foundCount++;
+          updatePendingIconsUI();
+          renderCardsOnly();
+        }
+      } catch (_) {}
+    }, (completed, total) => {
+      const pct = Math.round((completed / total) * 100);
+      if (refreshProgressFill) refreshProgressFill.style.width = `${pct}%`;
+      if (refreshProgressCount) refreshProgressCount.textContent = `${completed} / ${total} (${pct}%)`;
+      if (refreshBtnLabel) refreshBtnLabel.textContent = `Checking (${pct}%)...`;
+    });
+
+    // Brief completion status on progress bar
+    if (refreshProgressLabel) {
+      refreshProgressLabel.textContent = foundCount > 0
+        ? `Done! Found ${foundCount} new icon update${foundCount !== 1 ? 's' : ''}.`
+        : 'Done! All icons are already up to date.';
+    }
+
+    setTimeout(() => {
+      if (refreshProgressBar) refreshProgressBar.style.display = 'none';
+      if (refreshAllBtn) {
+        refreshAllBtn.classList.remove('is-loading');
+        refreshAllBtn.disabled = false;
+        if (refreshBtnLabel) refreshBtnLabel.textContent = originalBtnText;
+      }
+    }, 1200);
 
     updatePendingIconsUI();
     renderCardsOnly();
@@ -1009,9 +1084,10 @@
     });
 
     // Refresh icon
-    card.querySelector('.refresh-btn').addEventListener('click', (e) => {
+    const refreshBtn = card.querySelector('.refresh-btn');
+    refreshBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      refreshEntryIcon(entry.id);
+      refreshEntryIcon(entry.id, refreshBtn);
     });
 
     // Accept / Dismiss pending icon
