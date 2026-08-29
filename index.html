@@ -53,6 +53,13 @@
               <button type="button" class="dropdown-action-btn" id="clearAllCatsBtn">Clear</button>
             </div>
           </div>
+          <div class="dropdown-mode-row">
+            <span class="dropdown-mode-label">Match:</span>
+            <div class="dropdown-mode-toggle">
+              <button type="button" class="mode-btn active" id="modeUnionBtn" data-mode="union" title="Show websites with ANY selected category (Union)">Any (Union)</button>
+              <button type="button" class="mode-btn" id="modeIntersectBtn" data-mode="intersect" title="Show websites with ALL selected categories (Intersection)">All (Intersection)</button>
+            </div>
+          </div>
           <div class="dropdown-list" id="catFilterList">
             <!-- Populated dynamically with checkboxes by JS -->
           </div>

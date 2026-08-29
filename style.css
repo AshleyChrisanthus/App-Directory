@@ -394,6 +394,55 @@ select:focus {
   background: var(--accent-bg);
 }
 
+.dropdown-mode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.dropdown-mode-label {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.dropdown-mode-toggle {
+  display: flex;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.mode-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.mode-btn:hover {
+  color: var(--text-primary);
+}
+
+.mode-btn.active {
+  background: var(--card-bg);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  font-weight: 600;
+}
+
 .dropdown-list {
   max-height: 240px;
   overflow-y: auto;

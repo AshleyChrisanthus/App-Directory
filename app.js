@@ -92,6 +92,8 @@
   const catFilterList = document.getElementById('catFilterList');
   const selectAllCatsBtn = document.getElementById('selectAllCatsBtn');
   const clearAllCatsBtn = document.getElementById('clearAllCatsBtn');
+  const modeUnionBtn = document.getElementById('modeUnionBtn');
+  const modeIntersectBtn = document.getElementById('modeIntersectBtn');
   const sortSelect = document.getElementById('sortSelect');
   const addBtn = document.getElementById('addBtn');
   const modalBackdrop = document.getElementById('modalBackdrop');
@@ -120,10 +122,12 @@
   const entryFavorite = document.getElementById('entryFavorite');
 
   // ── State ──────────────────────────────────────────────
+  const FILTER_MODE_KEY = 'app_directory_cat_filter_mode';
   let entries = [];
   let editingId = null;
   let selectedCategories = []; // categories selected in the modal form
   let selectedFilterCategories = new Set(); // categories checked in the filter dropdown
+  let catFilterMode = localStorage.getItem(FILTER_MODE_KEY) || 'union'; // 'union' or 'intersect'
 
   // ── Utilities ──────────────────────────────────────────
 
@@ -424,21 +428,49 @@
     return [...new Set(merged)];
   }
 
+  function updateModeToggleUI() {
+    if (modeUnionBtn && modeIntersectBtn) {
+      if (catFilterMode === 'intersect') {
+        modeUnionBtn.classList.remove('active');
+        modeIntersectBtn.classList.add('active');
+      } else {
+        modeUnionBtn.classList.add('active');
+        modeIntersectBtn.classList.remove('active');
+      }
+    }
+  }
+
   function updateCatFilterLabel() {
     if (!catFilterLabel || !catFilterBtn) return;
     const allCats = getAllCategories();
-    if (selectedFilterCategories.size === 0 || selectedFilterCategories.size === allCats.length) {
+    const count = selectedFilterCategories.size;
+
+    if (count === 0 || (catFilterMode === 'union' && count === allCats.length)) {
       catFilterLabel.textContent = 'All Categories';
       catFilterBtn.classList.remove('has-filter');
-    } else if (selectedFilterCategories.size === 1) {
-      catFilterLabel.textContent = Array.from(selectedFilterCategories)[0];
-      catFilterBtn.classList.add('has-filter');
-    } else if (selectedFilterCategories.size === 2) {
-      catFilterLabel.textContent = Array.from(selectedFilterCategories).join(', ');
-      catFilterBtn.classList.add('has-filter');
+      return;
+    }
+
+    catFilterBtn.classList.add('has-filter');
+    const list = Array.from(selectedFilterCategories);
+
+    if (catFilterMode === 'intersect') {
+      if (count === 1) {
+        catFilterLabel.textContent = `${list[0]} (All)`;
+      } else if (count === 2) {
+        catFilterLabel.textContent = `${list.join(' & ')}`;
+      } else {
+        catFilterLabel.textContent = `${count} Categories (All)`;
+      }
     } else {
-      catFilterLabel.textContent = `${selectedFilterCategories.size} Categories`;
-      catFilterBtn.classList.add('has-filter');
+      // Union mode
+      if (count === 1) {
+        catFilterLabel.textContent = list[0];
+      } else if (count === 2) {
+        catFilterLabel.textContent = list.join(', ');
+      } else {
+        catFilterLabel.textContent = `${count} Categories (Any)`;
+      }
     }
   }
 
@@ -753,12 +785,23 @@
       );
     }
 
-    // Multi-Category Filter: if specific categories are checked, match entries having at least one checked category
+    // Multi-Category Filter (Union vs Intersection)
     const allCats = getAllCategories();
-    if (selectedFilterCategories.size > 0 && selectedFilterCategories.size < allCats.length) {
-      filtered = filtered.filter(e =>
-        (e.categories || []).some(cat => selectedFilterCategories.has(cat))
-      );
+    if (selectedFilterCategories.size > 0) {
+      if (catFilterMode === 'intersect') {
+        const required = Array.from(selectedFilterCategories);
+        filtered = filtered.filter(e => {
+          const entryCats = e.categories || [];
+          return required.every(reqCat => entryCats.includes(reqCat));
+        });
+      } else {
+        // Union: match ANY selected category
+        if (selectedFilterCategories.size < allCats.length) {
+          filtered = filtered.filter(e =>
+            (e.categories || []).some(cat => selectedFilterCategories.has(cat))
+          );
+        }
+      }
     }
 
     // Sort — favorites always first
@@ -1284,6 +1327,26 @@
       });
     }
 
+    if (modeUnionBtn) {
+      modeUnionBtn.addEventListener('click', () => {
+        catFilterMode = 'union';
+        localStorage.setItem(FILTER_MODE_KEY, 'union');
+        updateModeToggleUI();
+        updateCatFilterLabel();
+        renderCardsOnly();
+      });
+    }
+
+    if (modeIntersectBtn) {
+      modeIntersectBtn.addEventListener('click', () => {
+        catFilterMode = 'intersect';
+        localStorage.setItem(FILTER_MODE_KEY, 'intersect');
+        updateModeToggleUI();
+        updateCatFilterLabel();
+        renderCardsOnly();
+      });
+    }
+
     // Close dropdown on click outside
     document.addEventListener('click', (e) => {
       if (!catFilterDropdown.contains(e.target)) {
@@ -1426,6 +1489,7 @@
   // ── Initialize ─────────────────────────────────────────
 
   initTheme();
+  updateModeToggleUI();
   loadEntries();
   render();
   cacheExistingIconsOffline();
