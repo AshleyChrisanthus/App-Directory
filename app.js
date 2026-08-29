@@ -108,6 +108,12 @@
   const acceptAllIconsBtn = document.getElementById('acceptAllIconsBtn');
   const pendingIconsCount = document.getElementById('pendingIconsCount');
   const dismissAllIconsBtn = document.getElementById('dismissAllIconsBtn');
+  const floatingReviewBar = document.getElementById('floatingReviewBar');
+  const floatingReviewCount = document.getElementById('floatingReviewCount');
+  const floatingReviewPlural = document.getElementById('floatingReviewPlural');
+  const floatingAcceptAllBtn = document.getElementById('floatingAcceptAllBtn');
+  const floatingDismissAllBtn = document.getElementById('floatingDismissAllBtn');
+  const topNavWrapper = document.getElementById('topNavWrapper');
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
   const importFile = document.getElementById('importFile');
@@ -770,15 +776,21 @@
   // ── Icon Refresh & Review Workflow ─────────────────────
 
   function updatePendingIconsUI() {
-    if (!acceptAllIconsBtn || !dismissAllIconsBtn) return;
     const count = pendingIcons.size;
     if (count > 0) {
       if (pendingIconsCount) pendingIconsCount.textContent = count;
-      acceptAllIconsBtn.style.display = 'inline-flex';
-      dismissAllIconsBtn.style.display = 'inline-flex';
+      if (acceptAllIconsBtn) acceptAllIconsBtn.style.display = 'inline-flex';
+      if (dismissAllIconsBtn) dismissAllIconsBtn.style.display = 'inline-flex';
+
+      if (floatingReviewBar) {
+        if (floatingReviewCount) floatingReviewCount.textContent = count;
+        if (floatingReviewPlural) floatingReviewPlural.textContent = count !== 1 ? 's' : '';
+        floatingReviewBar.style.display = 'block';
+      }
     } else {
-      acceptAllIconsBtn.style.display = 'none';
-      dismissAllIconsBtn.style.display = 'none';
+      if (acceptAllIconsBtn) acceptAllIconsBtn.style.display = 'none';
+      if (dismissAllIconsBtn) dismissAllIconsBtn.style.display = 'none';
+      if (floatingReviewBar) floatingReviewBar.style.display = 'none';
     }
   }
 
@@ -1631,12 +1643,75 @@
     refreshAllBtn.addEventListener('click', refreshAllIcons);
   }
 
-  // Accept / Dismiss all pending icons
+  // Accept / Dismiss all pending icons (Header buttons)
   if (acceptAllIconsBtn) {
     acceptAllIconsBtn.addEventListener('click', acceptAllPendingIcons);
   }
   if (dismissAllIconsBtn) {
     dismissAllIconsBtn.addEventListener('click', dismissAllPendingIcons);
+  }
+
+  // Accept / Dismiss all pending icons (Floating Bottom Bar)
+  if (floatingAcceptAllBtn) {
+    floatingAcceptAllBtn.addEventListener('click', acceptAllPendingIcons);
+  }
+  if (floatingDismissAllBtn) {
+    floatingDismissAllBtn.addEventListener('click', dismissAllPendingIcons);
+  }
+
+  // ── Smart Top Navigation Reveal on Hover / Scroll ────────
+  let lastScrollY = window.scrollY;
+  let isMouseNearTop = false;
+
+  function updateTopNavReveal() {
+    if (!topNavWrapper) return;
+    const scrollY = window.scrollY;
+    const isScrolled = scrollY > 100;
+
+    if (isScrolled) {
+      topNavWrapper.classList.add('is-scrolled');
+      const isDropdownOpen = catFilterDropdown && catFilterDropdown.classList.contains('open');
+      const isSearchFocused = searchInput && document.activeElement === searchInput;
+
+      if (isMouseNearTop || isDropdownOpen || isSearchFocused || scrollY < lastScrollY) {
+        topNavWrapper.classList.add('is-revealed');
+      } else {
+        topNavWrapper.classList.remove('is-revealed');
+      }
+    } else {
+      topNavWrapper.classList.remove('is-scrolled');
+      topNavWrapper.classList.remove('is-revealed');
+    }
+    lastScrollY = scrollY;
+  }
+
+  window.addEventListener('scroll', updateTopNavReveal, { passive: true });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!topNavWrapper) return;
+    const isRevealed = topNavWrapper.classList.contains('is-revealed');
+    const navHeight = topNavWrapper.offsetHeight || 130;
+    const threshold = isRevealed ? navHeight + 25 : 50;
+
+    const wasNear = isMouseNearTop;
+    isMouseNearTop = e.clientY <= threshold;
+
+    if (wasNear !== isMouseNearTop && window.scrollY > 100) {
+      updateTopNavReveal();
+    }
+  });
+
+  if (topNavWrapper) {
+    topNavWrapper.addEventListener('mouseenter', () => {
+      isMouseNearTop = true;
+      if (window.scrollY > 100) updateTopNavReveal();
+    });
+    topNavWrapper.addEventListener('mouseleave', (e) => {
+      if (e.clientY > (topNavWrapper.offsetHeight || 130)) {
+        isMouseNearTop = false;
+        if (window.scrollY > 100) updateTopNavReveal();
+      }
+    });
   }
 
   // Import
