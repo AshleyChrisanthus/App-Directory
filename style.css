@@ -196,6 +196,16 @@ body {
   background: rgba(255,59,48,0.1);
 }
 
+.btn-success {
+  background: var(--success);
+  color: #ffffff;
+}
+
+.btn-success:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
 /* Theme toggle icon visibility */
 [data-theme="light"] .icon-sun { display: none; }
 [data-theme="light"] .icon-moon { display: block; }
@@ -619,6 +629,104 @@ select:focus {
 
 .card-favorite.active {
   color: var(--favorite-color);
+}
+
+/* ========================================
+   Pending Icon Highlight & Review Box
+   ======================================== */
+
+.card.has-pending-icon {
+  border-color: var(--warning);
+  background: rgba(255, 159, 10, 0.05);
+  box-shadow: 0 0 0 1.5px var(--warning), var(--shadow-sm);
+}
+
+[data-theme="dark"] .card.has-pending-icon {
+  border-color: #ffd60a;
+  background: rgba(255, 214, 10, 0.07);
+  box-shadow: 0 0 0 1.5px #ffd60a, var(--shadow-sm);
+}
+
+.card.has-pending-icon:hover {
+  box-shadow: 0 0 0 2px var(--warning), var(--shadow-md);
+}
+
+.card-pending-icon-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-right: 24px;
+  z-index: 1;
+}
+
+.pending-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--warning);
+  background: rgba(255, 159, 10, 0.16);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.pending-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.new-icon-preview {
+  width: 36px;
+  height: 36px;
+  border: 2px dashed var(--warning);
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.new-icon-preview img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { transform: scale(1); border-color: var(--warning); }
+  50% { transform: scale(1.06); border-color: var(--accent); }
+}
+
+.btn-accept {
+  background: var(--success);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.btn-accept:hover {
+  filter: brightness(1.1);
+  transform: scale(1.04);
+}
+
+.dismiss-icon-btn {
+  padding: 4px 6px;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
 }
 
 .card-description {

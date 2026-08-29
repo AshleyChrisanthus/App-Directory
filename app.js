@@ -105,6 +105,9 @@
   const saveBtn = document.getElementById('saveBtn');
   const themeToggle = document.getElementById('themeToggle');
   const refreshAllBtn = document.getElementById('refreshAllBtn');
+  const acceptAllIconsBtn = document.getElementById('acceptAllIconsBtn');
+  const pendingIconsCount = document.getElementById('pendingIconsCount');
+  const dismissAllIconsBtn = document.getElementById('dismissAllIconsBtn');
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
   const importFile = document.getElementById('importFile');
@@ -128,6 +131,7 @@
   let selectedCategories = []; // categories selected in the modal form
   let selectedFilterCategories = new Set(); // categories checked in the filter dropdown
   let catFilterMode = localStorage.getItem(FILTER_MODE_KEY) || 'union'; // 'union' or 'intersect'
+  let pendingIcons = new Map(); // entryId => newCandidateDataUrl (icons awaiting user acceptance)
 
   // ── Utilities ──────────────────────────────────────────
 
@@ -676,6 +680,12 @@
     render();
     showToast(`"${target.name}" updated!`);
 
+    // Clean up any pending icon for this entry
+    if (pendingIcons.has(id)) {
+      pendingIcons.delete(id);
+      updatePendingIconsUI();
+    }
+
     // Asynchronously convert and cache icon offline as Data URL
     if (target.iconUrl && !target.iconUrl.startsWith('data:')) {
       const permanentDataUrl = await urlToDataUrl(target.iconUrl);
@@ -695,6 +705,11 @@
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
     if (!confirm(`Delete "${entry.name}"?`)) return;
+
+    if (pendingIcons.has(id)) {
+      pendingIcons.delete(id);
+      updatePendingIconsUI();
+    }
 
     const diskList = getLatestStoredEntries();
     const filtered = diskList.filter(e => e.id !== id);
@@ -727,27 +742,37 @@
     render();
   }
 
+  // ── Icon Refresh & Review Workflow ─────────────────────
+
+  function updatePendingIconsUI() {
+    if (!acceptAllIconsBtn || !dismissAllIconsBtn) return;
+    const count = pendingIcons.size;
+    if (count > 0) {
+      if (pendingIconsCount) pendingIconsCount.textContent = count;
+      acceptAllIconsBtn.style.display = 'inline-flex';
+      dismissAllIconsBtn.style.display = 'inline-flex';
+    } else {
+      acceptAllIconsBtn.style.display = 'none';
+      dismissAllIconsBtn.style.display = 'none';
+    }
+  }
+
   async function refreshEntryIcon(id) {
     const diskList = getLatestStoredEntries();
     const entry = diskList.find(e => e.id === id);
     if (!entry) return;
-    const freshUrl = getFaviconUrl(entry.url);
-    entry.iconUrl = freshUrl;
-    entry.dateModified = new Date().toISOString();
-    saveEntries(diskList);
-    render();
-    showToast(`Refreshing icon for "${entry.name}"...`);
 
-    const permanentDataUrl = await urlToDataUrl(freshUrl);
-    if (permanentDataUrl) {
-      const latest = getLatestStoredEntries();
-      const item = latest.find(e => e.id === id);
-      if (item) {
-        item.iconUrl = permanentDataUrl;
-        saveEntries(latest);
-        render();
-        showToast(`Icon saved offline for "${item.name}"`);
-      }
+    showToast(`Checking for updated icon for "${entry.name}"...`);
+    const freshUrl = getFaviconUrl(entry.url);
+    const candidateDataUrl = await urlToDataUrl(freshUrl);
+
+    if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
+      pendingIcons.set(id, candidateDataUrl);
+      updatePendingIconsUI();
+      renderCardsOnly();
+      showToast(`New icon found for "${entry.name}"! Click "✓ Accept" to apply.`);
+    } else {
+      showToast(`Icon for "${entry.name}" is already up to date.`);
     }
   }
 
@@ -757,15 +782,84 @@
       showToast('No sites to refresh.');
       return;
     }
-    showToast(`Refreshing & caching icons for ${diskList.length} site${diskList.length !== 1 ? 's' : ''}...`);
+
+    showToast(`Checking for updated icons across ${diskList.length} sites...`);
+    let foundCount = 0;
+
     for (const entry of diskList) {
       const freshUrl = getFaviconUrl(entry.url);
-      entry.iconUrl = await urlToDataUrl(freshUrl);
-      entry.dateModified = new Date().toISOString();
+      const candidateDataUrl = await urlToDataUrl(freshUrl);
+      if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
+        pendingIcons.set(entry.id, candidateDataUrl);
+        foundCount++;
+      }
     }
+
+    updatePendingIconsUI();
+    renderCardsOnly();
+
+    if (foundCount > 0) {
+      showToast(`Found ${foundCount} new icon update${foundCount !== 1 ? 's' : ''}! Review or click "Accept All".`);
+    } else {
+      showToast('All icons are already up to date!');
+    }
+  }
+
+  function acceptPendingIcon(id) {
+    const newIcon = pendingIcons.get(id);
+    if (!newIcon) return;
+
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find(e => e.id === id);
+    if (entry) {
+      entry.iconUrl = newIcon;
+      entry.dateModified = new Date().toISOString();
+      saveEntries(diskList);
+      pendingIcons.delete(id);
+      updatePendingIconsUI();
+      renderCardsOnly();
+      showToast(`Icon updated for "${entry.name}"!`);
+    }
+  }
+
+  function dismissPendingIcon(id) {
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find(e => e.id === id);
+    pendingIcons.delete(id);
+    updatePendingIconsUI();
+    renderCardsOnly();
+    if (entry) {
+      showToast(`Dismissed icon update for "${entry.name}".`);
+    }
+  }
+
+  function acceptAllPendingIcons() {
+    if (pendingIcons.size === 0) return;
+
+    const diskList = getLatestStoredEntries();
+    let count = 0;
+
+    for (const [id, newIcon] of pendingIcons.entries()) {
+      const entry = diskList.find(e => e.id === id);
+      if (entry) {
+        entry.iconUrl = newIcon;
+        entry.dateModified = new Date().toISOString();
+        count++;
+      }
+    }
+
     saveEntries(diskList);
-    render();
-    showToast(`All icons updated & cached offline!`);
+    pendingIcons.clear();
+    updatePendingIconsUI();
+    renderCardsOnly();
+    showToast(`Accepted and updated ${count} icon${count !== 1 ? 's' : ''}!`);
+  }
+
+  function dismissAllPendingIcons() {
+    pendingIcons.clear();
+    updatePendingIconsUI();
+    renderCardsOnly();
+    showToast('All proposed icon updates dismissed.');
   }
 
   // ── Filtering & Sorting ────────────────────────────────
@@ -847,6 +941,11 @@
     card.className = 'card';
     card.setAttribute('data-id', entry.id);
 
+    const pendingIcon = pendingIcons.get(entry.id);
+    if (pendingIcon) {
+      card.classList.add('has-pending-icon');
+    }
+
     const domain = getDomain(entry.url);
 
     card.innerHTML = `
@@ -854,7 +953,7 @@
         ${entry.isFavorite ? '★' : '☆'}
       </button>
       <div class="card-top">
-        <div class="card-icon">
+        <div class="card-icon" title="Current icon">
           ${entry.iconUrl
             ? `<img src="${escapeHtml(entry.iconUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
             : '<span class="icon-fallback">🌐</span>'
@@ -864,6 +963,18 @@
           <div class="card-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
           <div class="card-url" title="${escapeHtml(entry.url)}">${escapeHtml(domain)}</div>
         </div>
+        ${pendingIcon ? `
+          <div class="card-pending-icon-box" title="New icon proposed">
+            <span class="pending-badge">New Icon</span>
+            <div class="pending-preview-row">
+              <div class="card-icon new-icon-preview" title="New icon preview">
+                <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
+              </div>
+              <button type="button" class="btn-accept accept-icon-btn" title="Accept new icon">✓ Accept</button>
+              <button type="button" class="btn btn-ghost dismiss-icon-btn" title="Dismiss new icon">✕</button>
+            </div>
+          </div>
+        ` : ''}
       </div>
       ${entry.description ? `<div class="card-description">${escapeHtml(entry.description)}</div>` : ''}
       <div class="card-meta">
@@ -874,7 +985,7 @@
           <span class="meta-item">${entry.visitCount} visit${entry.visitCount !== 1 ? 's' : ''}</span>
         ` : ''}
         <div class="card-actions">
-          <button class="btn btn-ghost refresh-btn" title="Refresh icon">🔄</button>
+          <button class="btn btn-ghost refresh-btn" title="Check for updated icon">🔄</button>
           <button class="btn btn-ghost edit-btn" title="Edit">✏️</button>
           <button class="btn btn-danger delete-btn" title="Delete">🗑️</button>
         </div>
@@ -886,7 +997,8 @@
       if (e.target.closest('.card-favorite') ||
           e.target.closest('.refresh-btn') ||
           e.target.closest('.edit-btn') ||
-          e.target.closest('.delete-btn')) return;
+          e.target.closest('.delete-btn') ||
+          e.target.closest('.card-pending-icon-box')) return;
       visitEntry(entry.id);
     });
 
@@ -901,6 +1013,24 @@
       e.stopPropagation();
       refreshEntryIcon(entry.id);
     });
+
+    // Accept / Dismiss pending icon
+    if (pendingIcon) {
+      const acceptBtn = card.querySelector('.accept-icon-btn');
+      if (acceptBtn) {
+        acceptBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          acceptPendingIcon(entry.id);
+        });
+      }
+      const dismissBtn = card.querySelector('.dismiss-icon-btn');
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          dismissPendingIcon(entry.id);
+        });
+      }
+    }
 
     // Edit
     card.querySelector('.edit-btn').addEventListener('click', (e) => {
@@ -1368,6 +1498,14 @@
   // Refresh all icons
   if (refreshAllBtn) {
     refreshAllBtn.addEventListener('click', refreshAllIcons);
+  }
+
+  // Accept / Dismiss all pending icons
+  if (acceptAllIconsBtn) {
+    acceptAllIconsBtn.addEventListener('click', acceptAllPendingIcons);
+  }
+  if (dismissAllIconsBtn) {
+    dismissAllIconsBtn.addEventListener('click', dismissAllPendingIcons);
   }
 
   // Import
