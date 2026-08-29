@@ -85,7 +85,13 @@
   const grid = document.getElementById('grid');
   const emptyState = document.getElementById('emptyState');
   const searchInput = document.getElementById('searchInput');
-  const categoryFilter = document.getElementById('categoryFilter');
+  const catFilterDropdown = document.getElementById('catFilterDropdown');
+  const catFilterBtn = document.getElementById('catFilterBtn');
+  const catFilterLabel = document.getElementById('catFilterLabel');
+  const catFilterMenu = document.getElementById('catFilterMenu');
+  const catFilterList = document.getElementById('catFilterList');
+  const selectAllCatsBtn = document.getElementById('selectAllCatsBtn');
+  const clearAllCatsBtn = document.getElementById('clearAllCatsBtn');
   const sortSelect = document.getElementById('sortSelect');
   const addBtn = document.getElementById('addBtn');
   const modalBackdrop = document.getElementById('modalBackdrop');
@@ -117,6 +123,7 @@
   let entries = [];
   let editingId = null;
   let selectedCategories = []; // categories selected in the modal form
+  let selectedFilterCategories = new Set(); // categories checked in the filter dropdown
 
   // ── Utilities ──────────────────────────────────────────
 
@@ -417,28 +424,82 @@
     return [...new Set(merged)];
   }
 
+  function updateCatFilterLabel() {
+    if (!catFilterLabel || !catFilterBtn) return;
+    const allCats = getAllCategories();
+    if (selectedFilterCategories.size === 0 || selectedFilterCategories.size === allCats.length) {
+      catFilterLabel.textContent = 'All Categories';
+      catFilterBtn.classList.remove('has-filter');
+    } else if (selectedFilterCategories.size === 1) {
+      catFilterLabel.textContent = Array.from(selectedFilterCategories)[0];
+      catFilterBtn.classList.add('has-filter');
+    } else if (selectedFilterCategories.size === 2) {
+      catFilterLabel.textContent = Array.from(selectedFilterCategories).join(', ');
+      catFilterBtn.classList.add('has-filter');
+    } else {
+      catFilterLabel.textContent = `${selectedFilterCategories.size} Categories`;
+      catFilterBtn.classList.add('has-filter');
+    }
+  }
+
   function populateCategories() {
     const cats = getAllCategories();
 
-    // Update filter dropdown (preserve current selection)
-    const currentFilter = categoryFilter.value;
-    categoryFilter.innerHTML = '<option value="">All Categories</option>';
-    cats.forEach(cat => {
-      const opt = document.createElement('option');
-      opt.value = cat;
-      opt.textContent = cat;
-      categoryFilter.appendChild(opt);
+    // Clean up any selected filter categories that no longer exist
+    const catSet = new Set(cats);
+    for (const selected of selectedFilterCategories) {
+      if (!catSet.has(selected)) {
+        selectedFilterCategories.delete(selected);
+      }
+    }
+
+    // Category counts from entries
+    const counts = {};
+    entries.forEach(e => {
+      (e.categories || []).forEach(cat => {
+        counts[cat] = (counts[cat] || 0) + 1;
+      });
     });
-    categoryFilter.value = currentFilter;
+
+    // Populate multi-select category checkboxes
+    if (catFilterList) {
+      catFilterList.innerHTML = '';
+      cats.forEach(cat => {
+        const item = document.createElement('label');
+        item.className = 'dropdown-item';
+        const isChecked = selectedFilterCategories.has(cat);
+        const count = counts[cat] || 0;
+        item.innerHTML = `
+          <input type="checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''}>
+          <span class="dropdown-item-name">${escapeHtml(cat)}</span>
+          <span class="dropdown-item-count">${count}</span>
+        `;
+        const cb = item.querySelector('input');
+        cb.addEventListener('change', () => {
+          if (cb.checked) {
+            selectedFilterCategories.add(cat);
+          } else {
+            selectedFilterCategories.delete(cat);
+          }
+          updateCatFilterLabel();
+          renderCardsOnly();
+        });
+        catFilterList.appendChild(item);
+      });
+    }
+
+    updateCatFilterLabel();
 
     // Update datalist in the form
     const datalist = document.getElementById('categorySuggestions');
-    datalist.innerHTML = '';
-    cats.forEach(cat => {
-      const opt = document.createElement('option');
-      opt.value = cat;
-      datalist.appendChild(opt);
-    });
+    if (datalist) {
+      datalist.innerHTML = '';
+      cats.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        datalist.appendChild(opt);
+      });
+    }
   }
 
   // ── Theme ──────────────────────────────────────────────
@@ -679,7 +740,6 @@
 
   function getFilteredEntries() {
     const query = searchInput.value.toLowerCase().trim();
-    const category = categoryFilter.value;
     const [sortField, sortDir] = sortSelect.value.split('-');
 
     let filtered = [...entries];
@@ -693,9 +753,12 @@
       );
     }
 
-    // Category
-    if (category) {
-      filtered = filtered.filter(e => (e.categories || []).includes(category));
+    // Multi-Category Filter: if specific categories are checked, match entries having at least one checked category
+    const allCats = getAllCategories();
+    if (selectedFilterCategories.size > 0 && selectedFilterCategories.size < allCats.length) {
+      filtered = filtered.filter(e =>
+        (e.categories || []).some(cat => selectedFilterCategories.has(cat))
+      );
     }
 
     // Sort — favorites always first
@@ -818,8 +881,7 @@
     return div.innerHTML;
   }
 
-  function render() {
-    populateCategories();
+  function renderCardsOnly() {
     const filtered = getFilteredEntries();
 
     // Update stats
@@ -848,6 +910,11 @@
     filtered.forEach(entry => {
       grid.appendChild(renderCard(entry));
     });
+  }
+
+  function render() {
+    populateCategories();
+    renderCardsOnly();
   }
 
   // ── Import / Export ────────────────────────────────────
@@ -1003,6 +1070,10 @@
     });
 
     if (updated > 0) {
+      if (selectedFilterCategories.has(oldName)) {
+        selectedFilterCategories.delete(oldName);
+        selectedFilterCategories.add(newName);
+      }
       saveEntries(diskList);
       render();
       showToast(`Renamed "${oldName}" → "${newName}" (${updated} site${updated !== 1 ? 's' : ''} updated)`);
@@ -1019,6 +1090,7 @@
       entry.dateModified = new Date().toISOString();
     });
 
+    selectedFilterCategories.delete(catName);
     saveEntries(diskList);
     render();
     showToast(`Deleted category "${catName}"`);
@@ -1160,10 +1232,14 @@
 
   // Escape key
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeModal(); closeCatModal(); }
+    if (e.key === 'Escape') {
+      closeModal();
+      closeCatModal();
+      if (catFilterDropdown) catFilterDropdown.classList.remove('open');
+    }
   });
 
-  // Category tag input
+  // Category tag input in Modal
   entryCategory.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -1172,13 +1248,56 @@
   });
   document.getElementById('addCategoryBtn').addEventListener('click', addCategoryFromInput);
 
+  // Category Multi-Select Dropdown Controls
+  if (catFilterBtn && catFilterDropdown) {
+    catFilterBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      catFilterDropdown.classList.toggle('open');
+    });
+
+    if (catFilterMenu) {
+      catFilterMenu.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+
+    if (selectAllCatsBtn) {
+      selectAllCatsBtn.addEventListener('click', () => {
+        const allCats = getAllCategories();
+        selectedFilterCategories = new Set(allCats);
+        if (catFilterList) {
+          catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+        }
+        updateCatFilterLabel();
+        renderCardsOnly();
+      });
+    }
+
+    if (clearAllCatsBtn) {
+      clearAllCatsBtn.addEventListener('click', () => {
+        selectedFilterCategories.clear();
+        if (catFilterList) {
+          catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+        updateCatFilterLabel();
+        renderCardsOnly();
+      });
+    }
+
+    // Close dropdown on click outside
+    document.addEventListener('click', (e) => {
+      if (!catFilterDropdown.contains(e.target)) {
+        catFilterDropdown.classList.remove('open');
+      }
+    });
+  }
+
   // Form submit
   entryForm.addEventListener('submit', handleSubmit);
 
-  // Search / filter / sort
-  searchInput.addEventListener('input', render);
-  categoryFilter.addEventListener('change', render);
-  sortSelect.addEventListener('change', render);
+  // Search / sort
+  searchInput.addEventListener('input', renderCardsOnly);
+  sortSelect.addEventListener('change', renderCardsOnly);
 
   // Theme toggle
   themeToggle.addEventListener('click', toggleTheme);
