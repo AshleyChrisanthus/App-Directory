@@ -782,6 +782,60 @@
     }
   }
 
+  // Targeted in-place DOM update for individual card pending state (zero flashing)
+  function updateCardPendingState(id) {
+    if (!grid) return;
+    const card = grid.querySelector(`.card[data-id="${id}"]`);
+    if (!card) return;
+
+    const pendingIcon = pendingIcons.get(id);
+    const cardTop = card.querySelector('.card-top');
+    let pendingBox = card.querySelector('.card-pending-icon-box');
+
+    if (pendingIcon) {
+      card.classList.add('has-pending-icon');
+      if (!pendingBox && cardTop) {
+        pendingBox = document.createElement('div');
+        pendingBox.className = 'card-pending-icon-box';
+        pendingBox.title = 'New icon proposed';
+        pendingBox.innerHTML = `
+          <span class="pending-badge">New Icon</span>
+          <div class="pending-preview-row">
+            <div class="card-icon new-icon-preview" title="New icon preview">
+              <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
+            </div>
+            <button type="button" class="btn-accept accept-icon-btn" title="Accept new icon">✓ Accept</button>
+            <button type="button" class="btn btn-ghost dismiss-icon-btn" title="Dismiss new icon">✕</button>
+          </div>
+        `;
+        pendingBox.querySelector('.accept-icon-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          acceptPendingIcon(id);
+        });
+        pendingBox.querySelector('.dismiss-icon-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          dismissPendingIcon(id);
+        });
+        cardTop.appendChild(pendingBox);
+      }
+    } else {
+      card.classList.remove('has-pending-icon');
+      if (pendingBox) {
+        pendingBox.remove();
+      }
+      // Update the primary icon thumbnail in place if entry icon changed
+      const entry = entries.find(e => e.id === id);
+      if (entry) {
+        const iconDiv = card.querySelector('.card-icon:not(.new-icon-preview)');
+        if (iconDiv) {
+          iconDiv.innerHTML = entry.iconUrl
+            ? `<img src="${escapeHtml(entry.iconUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
+            : '<span class="icon-fallback">🌐</span>';
+        }
+      }
+    }
+  }
+
   async function refreshEntryIcon(id, btnElement = null) {
     const diskList = getLatestStoredEntries();
     const entry = diskList.find(e => e.id === id);
@@ -797,7 +851,7 @@
       if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
         pendingIcons.set(id, candidateDataUrl);
         updatePendingIconsUI();
-        renderCardsOnly();
+        updateCardPendingState(id);
         showToast(`New icon found for "${entry.name}"! Click "✓ Accept" to apply.`);
       } else {
         showToast(`Icon for "${entry.name}" is already up to date.`);
@@ -844,7 +898,7 @@
           pendingIcons.set(entry.id, candidateDataUrl);
           foundCount++;
           updatePendingIconsUI();
-          renderCardsOnly();
+          updateCardPendingState(entry.id); // In-place DOM update (zero flashing!)
         }
       } catch (_) {}
     }, (completed, total) => {
@@ -871,7 +925,6 @@
     }, 1200);
 
     updatePendingIconsUI();
-    renderCardsOnly();
 
     if (foundCount > 0) {
       showToast(`Found ${foundCount} new icon update${foundCount !== 1 ? 's' : ''}! Review or click "Accept All".`);
@@ -892,7 +945,7 @@
       saveEntries(diskList);
       pendingIcons.delete(id);
       updatePendingIconsUI();
-      renderCardsOnly();
+      updateCardPendingState(id);
       showToast(`Icon updated for "${entry.name}"!`);
     }
   }
@@ -902,7 +955,7 @@
     const entry = diskList.find(e => e.id === id);
     pendingIcons.delete(id);
     updatePendingIconsUI();
-    renderCardsOnly();
+    updateCardPendingState(id);
     if (entry) {
       showToast(`Dismissed icon update for "${entry.name}".`);
     }
@@ -913,6 +966,7 @@
 
     const diskList = getLatestStoredEntries();
     let count = 0;
+    const acceptedIds = Array.from(pendingIcons.keys());
 
     for (const [id, newIcon] of pendingIcons.entries()) {
       const entry = diskList.find(e => e.id === id);
@@ -926,14 +980,15 @@
     saveEntries(diskList);
     pendingIcons.clear();
     updatePendingIconsUI();
-    renderCardsOnly();
+    acceptedIds.forEach(id => updateCardPendingState(id));
     showToast(`Accepted and updated ${count} icon${count !== 1 ? 's' : ''}!`);
   }
 
   function dismissAllPendingIcons() {
+    const dismissedIds = Array.from(pendingIcons.keys());
     pendingIcons.clear();
     updatePendingIconsUI();
-    renderCardsOnly();
+    dismissedIds.forEach(id => updateCardPendingState(id));
     showToast('All proposed icon updates dismissed.');
   }
 
