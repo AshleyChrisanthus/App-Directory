@@ -1149,26 +1149,66 @@ select:focus {
   cursor: pointer;
 }
 
-.tag-input-wrapper {
-  background: var(--input-bg);
-  border: 1px solid var(--input-border);
-  border-radius: var(--radius-sm);
-  padding: 8px;
-  transition: border-color var(--transition);
+/* Form Category Selector Dropdown */
+.form-cat-dropdown {
+  width: 100%;
 }
 
-.tag-input-wrapper:focus-within {
-  border-color: var(--input-focus);
+.form-cat-btn {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.form-cat-menu {
+  width: 100%;
+  min-width: 100%;
+  max-width: 100%;
+  max-height: 280px;
+}
+
+.form-cat-create-row {
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.form-cat-create-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-bg);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition);
+}
+
+.form-cat-create-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.form-cat-create-btn .create-plus {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .tag-input-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-top: 8px;
 }
 
-.tag-input-tags:not(:empty) {
-  margin-bottom: 8px;
+.tag-input-tags:empty {
+  display: none;
 }
 
 .tag-chip {
@@ -1206,20 +1246,6 @@ select:focus {
   opacity: 1;
   background: rgba(255,59,48,0.15);
   color: var(--danger);
-}
-
-.tag-input-row {
-  display: flex;
-  gap: 6px;
-}
-
-.tag-input-row input {
-  flex: 1;
-  border: none !important;
-  background: transparent !important;
-  padding: 4px 4px !important;
-  font-size: 0.85rem !important;
-  outline: none;
 }
 
 .btn-sm {

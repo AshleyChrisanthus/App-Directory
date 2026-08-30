@@ -149,18 +149,37 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Categories <span class="optional">(type or pick, press Enter to add)</span></label>
-            <div class="tag-input-wrapper">
-              <div class="tag-input-tags" id="categoryTags">
-                <!-- Category chips rendered by JS -->
+            <label>Categories <span class="optional">(select or type new)</span></label>
+            <div class="custom-dropdown form-cat-dropdown" id="formCatDropdown">
+              <button type="button" class="custom-dropdown-btn form-cat-btn" id="formCatBtn" title="Select or add categories">
+                <span id="formCatBtnLabel">Select categories…</span>
+                <svg class="dropdown-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div class="custom-dropdown-menu form-cat-menu" id="formCatMenu">
+                <div class="dropdown-header-actions">
+                  <span class="dropdown-header-title">Assign Categories</span>
+                  <div class="dropdown-header-btns">
+                    <button type="button" class="dropdown-action-btn" id="formSelectAllCatsBtn">Select All</button>
+                    <button type="button" class="dropdown-action-btn" id="formClearAllCatsBtn">Clear</button>
+                  </div>
+                </div>
+                <div class="dropdown-search-box">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input type="text" id="formCatSearchInput" placeholder="Filter or type new (Enter to add)…" autocomplete="off">
+                  <button type="button" class="search-clear-btn" id="formCatSearchClearBtn" style="display: none;" title="Clear search">✕</button>
+                </div>
+                <div class="form-cat-create-row" id="formCatCreateRow" style="display: none;">
+                  <button type="button" class="form-cat-create-btn" id="formCatCreateBtn">
+                    <span class="create-plus">+</span> Add new category "<strong id="formCatCreateName"></strong>"
+                  </button>
+                </div>
+                <div class="dropdown-list" id="formCatList">
+                  <!-- Populated dynamically with checkboxes by JS -->
+                </div>
               </div>
-              <div class="tag-input-row">
-                <input type="text" id="entryCategory" list="categorySuggestions" placeholder="e.g. Development" autocomplete="off">
-                <button type="button" class="btn btn-ghost btn-sm" id="addCategoryBtn" title="Add category">+</button>
-              </div>
-              <datalist id="categorySuggestions">
-                <!-- Populated by JS -->
-              </datalist>
+            </div>
+            <div class="tag-input-tags" id="categoryTags">
+              <!-- Category chips rendered by JS -->
             </div>
           </div>
           <div class="form-group">
