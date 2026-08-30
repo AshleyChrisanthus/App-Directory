@@ -1327,16 +1327,47 @@
     }
   }
 
+  function getBackupTimestampString(d = new Date()) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const year = d.getFullYear();
+    const month = pad(d.getMonth() + 1);
+    const day = pad(d.getDate());
+    const hours = pad(d.getHours());
+    const mins = pad(d.getMinutes());
+    const secs = pad(d.getSeconds());
+    return `${year}-${month}-${day}_${hours}-${mins}-${secs}`;
+  }
+
   function getExportJson() {
     const list = getLatestStoredEntries();
     if (list.length === 0) {
       showToast('Nothing to export.');
       return null;
     }
+    const timestamp = getBackupTimestampString();
     return {
       json: JSON.stringify(list, null, 2),
-      filename: `app-directory-backup-${new Date().toISOString().slice(0, 10)}.json`
+      baseName: `app-directory-backup-${timestamp}`,
+      filename: `app-directory-backup-${timestamp}.json`
     };
+  }
+
+  async function getUniqueFileHandleInDir(dirHandle, baseName, ext = '.json') {
+    let candidateName = `${baseName}${ext}`;
+    let counter = 1;
+
+    while (true) {
+      try {
+        // Try getting existing file without creating it
+        await dirHandle.getFileHandle(candidateName, { create: false });
+        // If it exists, append incremented number
+        candidateName = `${baseName} (${counter})${ext}`;
+        counter++;
+      } catch {
+        // Filename is free! Create and return the handle
+        return await dirHandle.getFileHandle(candidateName, { create: true });
+      }
+    }
   }
 
   async function exportToFolderDirect(changeFolder = false) {
@@ -1370,11 +1401,11 @@
         }
 
         if (dirHandle) {
-          const fileHandle = await dirHandle.getFileHandle(data.filename, { create: true });
+          const fileHandle = await getUniqueFileHandleInDir(dirHandle, data.baseName, '.json');
           const writable = await fileHandle.createWritable();
           await writable.write(data.json);
           await writable.close();
-          showToast(`Saved directly to ${dirHandle.name}/${data.filename}!`);
+          showToast(`Saved directly to ${dirHandle.name}/${fileHandle.name}!`);
           return;
         }
       } catch (err) {
