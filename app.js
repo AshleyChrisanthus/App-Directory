@@ -121,9 +121,10 @@
   const exportBtn = document.getElementById('exportBtn');
   const exportSplitGroup = document.getElementById('exportSplitGroup');
   const exportMenuBtn = document.getElementById('exportMenuBtn');
-  const exportSaveAsBtn = document.getElementById('exportSaveAsBtn');
-  const exportClipboardBtn = document.getElementById('exportClipboardBtn');
+  const exportFolderBtn = document.getElementById('exportFolderBtn');
+  const exportChangeFolderBtn = document.getElementById('exportChangeFolderBtn');
   const exportQuickBtn = document.getElementById('exportQuickBtn');
+  const exportClipboardBtn = document.getElementById('exportClipboardBtn');
   const importFile = document.getElementById('importFile');
   const statsText = document.getElementById('statsText');
 
@@ -1276,7 +1277,55 @@
     renderCardsOnly();
   }
 
-  // ── Import / Export ────────────────────────────────────
+  // ── Import / Export & Direct Folder Save ──────────────
+
+  const IDB_DB_NAME = 'app_directory_db';
+  const IDB_STORE_NAME = 'handles';
+  const IDB_KEY_EXPORTS = 'exports_dir_handle';
+
+  function openHandlesDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(IDB_DB_NAME, 1);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
+          db.createObjectStore(IDB_STORE_NAME);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function getStoredExportsDirHandle() {
+    try {
+      const db = await openHandlesDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(IDB_STORE_NAME, 'readonly');
+        const store = tx.objectStore(IDB_STORE_NAME);
+        const req = store.get(IDB_KEY_EXPORTS);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async function saveExportsDirHandle(handle) {
+    try {
+      const db = await openHandlesDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
+        const store = tx.objectStore(IDB_STORE_NAME);
+        const req = store.put(handle, IDB_KEY_EXPORTS);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => resolve(false);
+      });
+    } catch {
+      return false;
+    }
+  }
 
   function getExportJson() {
     const list = getLatestStoredEntries();
@@ -1290,6 +1339,53 @@
     };
   }
 
+  async function exportToFolderDirect(changeFolder = false) {
+    const data = getExportJson();
+    if (!data) return;
+
+    // Use modern File System Access Directory Picker if available
+    if ('showDirectoryPicker' in window) {
+      try {
+        let dirHandle = changeFolder ? null : await getStoredExportsDirHandle();
+
+        if (dirHandle) {
+          let perm = await dirHandle.queryPermission({ mode: 'readwrite' });
+          if (perm !== 'granted') {
+            perm = await dirHandle.requestPermission({ mode: 'readwrite' });
+          }
+          if (perm !== 'granted') {
+            dirHandle = null;
+          }
+        }
+
+        if (!dirHandle) {
+          showToast('Select your "exports" folder to save directly.');
+          dirHandle = await window.showDirectoryPicker({
+            id: 'app-directory-exports',
+            mode: 'readwrite'
+          });
+          if (dirHandle) {
+            await saveExportsDirHandle(dirHandle);
+          }
+        }
+
+        if (dirHandle) {
+          const fileHandle = await dirHandle.getFileHandle(data.filename, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(data.json);
+          await writable.close();
+          showToast(`Saved directly to ${dirHandle.name}/${data.filename}!`);
+          return;
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User cancelled
+      }
+    }
+
+    // Fallback: File Save As or Download
+    exportSaveAs();
+  }
+
   function exportQuickDownload() {
     const data = getExportJson();
     if (!data) return;
@@ -1300,14 +1396,13 @@
     a.download = data.filename;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Exported backup to file!');
+    showToast('Exported backup to Downloads!');
   }
 
   async function exportSaveAs() {
     const data = getExportJson();
     if (!data) return;
 
-    // Use File System Access API if available
     if ('showSaveFilePicker' in window) {
       try {
         const handle = await window.showSaveFilePicker({
@@ -1323,11 +1418,10 @@
         showToast('Saved backup successfully!');
         return;
       } catch (err) {
-        if (err.name === 'AbortError') return; // User cancelled
+        if (err.name === 'AbortError') return;
       }
     }
 
-    // Fallback to quick download
     exportQuickDownload();
   }
 
@@ -1343,7 +1437,7 @@
   }
 
   function exportData() {
-    exportQuickDownload();
+    exportToFolderDirect(false);
   }
 
   function importData(file) {
@@ -2132,17 +2226,17 @@
     });
   }
 
-  if (exportSaveAsBtn) {
-    exportSaveAsBtn.addEventListener('click', () => {
+  if (exportFolderBtn) {
+    exportFolderBtn.addEventListener('click', () => {
       if (exportSplitGroup) exportSplitGroup.classList.remove('open');
-      exportSaveAs();
+      exportToFolderDirect(false);
     });
   }
 
-  if (exportClipboardBtn) {
-    exportClipboardBtn.addEventListener('click', () => {
+  if (exportChangeFolderBtn) {
+    exportChangeFolderBtn.addEventListener('click', () => {
       if (exportSplitGroup) exportSplitGroup.classList.remove('open');
-      exportToClipboard();
+      exportToFolderDirect(true);
     });
   }
 
@@ -2150,6 +2244,13 @@
     exportQuickBtn.addEventListener('click', () => {
       if (exportSplitGroup) exportSplitGroup.classList.remove('open');
       exportQuickDownload();
+    });
+  }
+
+  if (exportClipboardBtn) {
+    exportClipboardBtn.addEventListener('click', () => {
+      if (exportSplitGroup) exportSplitGroup.classList.remove('open');
+      exportToClipboard();
     });
   }
 
