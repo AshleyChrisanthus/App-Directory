@@ -85,6 +85,7 @@
   const grid = document.getElementById('grid');
   const emptyState = document.getElementById('emptyState');
   const searchInput = document.getElementById('searchInput');
+  const searchClearBtn = document.getElementById('searchClearBtn');
   const catFilterDropdown = document.getElementById('catFilterDropdown');
   const catFilterBtn = document.getElementById('catFilterBtn');
   const catFilterLabel = document.getElementById('catFilterLabel');
@@ -1759,7 +1760,30 @@
   entryForm.addEventListener('submit', handleSubmit);
 
   // Search / sort
-  searchInput.addEventListener('input', renderCardsOnly);
+  searchInput.addEventListener('input', () => {
+    if (searchClearBtn) {
+      searchClearBtn.style.display = searchInput.value.trim() ? 'inline-flex' : 'none';
+    }
+    renderCardsOnly();
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && searchInput.value) {
+      searchInput.value = '';
+      if (searchClearBtn) searchClearBtn.style.display = 'none';
+      renderCardsOnly();
+    }
+  });
+
+  if (searchClearBtn) {
+    searchClearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      searchClearBtn.style.display = 'none';
+      searchInput.focus();
+      renderCardsOnly();
+    });
+  }
+
   sortSelect.addEventListener('change', renderCardsOnly);
 
   // Theme toggle
