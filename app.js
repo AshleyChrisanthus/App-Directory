@@ -1751,11 +1751,46 @@
   });
 
   // Form Category Selector Controls (Modal)
+  let formCatHighlightedIndex = -1;
+
+  function getFormCatNavigableItems() {
+    const items = [];
+    if (formCatCreateRow && formCatCreateRow.style.display !== 'none' && formCatCreateBtn) {
+      items.push(formCatCreateBtn);
+    }
+    if (formCatList) {
+      formCatList.querySelectorAll('.dropdown-item').forEach(el => items.push(el));
+    }
+    return items;
+  }
+
+  function setFormCatHighlight(newIndex) {
+    const items = getFormCatNavigableItems();
+    items.forEach(el => el.classList.remove('is-focused'));
+    if (items.length === 0) {
+      formCatHighlightedIndex = -1;
+      return;
+    }
+    if (newIndex < 0) {
+      formCatHighlightedIndex = items.length - 1;
+    } else if (newIndex >= items.length) {
+      formCatHighlightedIndex = 0;
+    } else {
+      formCatHighlightedIndex = newIndex;
+    }
+    const target = items[formCatHighlightedIndex];
+    if (target) {
+      target.classList.add('is-focused');
+      target.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
   if (formCatBtn && formCatDropdown) {
     formCatBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = formCatDropdown.classList.toggle('open');
       if (isOpen && formCatSearchInput) {
+        formCatHighlightedIndex = -1;
         setTimeout(() => formCatSearchInput.focus(), 60);
       }
     });
@@ -1768,12 +1803,46 @@
 
     if (formCatSearchInput) {
       formCatSearchInput.addEventListener('input', () => {
+        formCatHighlightedIndex = -1;
         renderFormCategoryDropdown();
       });
       formCatSearchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
+        const items = getFormCatNavigableItems();
+        if (e.key === 'ArrowDown') {
           e.preventDefault();
-          if (formCatSearchInput.value.trim()) {
+          setFormCatHighlight(formCatHighlightedIndex + 1);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setFormCatHighlight(formCatHighlightedIndex - 1);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (formCatHighlightedIndex >= 0 && items[formCatHighlightedIndex]) {
+            const target = items[formCatHighlightedIndex];
+            if (target === formCatCreateBtn) {
+              if (formCatSearchInput.value.trim()) {
+                addFormCategory(formCatSearchInput.value);
+              }
+            } else {
+              const cb = target.querySelector('input[type="checkbox"]');
+              if (cb) {
+                cb.checked = !cb.checked;
+                cb.dispatchEvent(new Event('change'));
+              }
+            }
+          } else if (items.length > 0) {
+            const target = items[0];
+            if (target === formCatCreateBtn) {
+              if (formCatSearchInput.value.trim()) {
+                addFormCategory(formCatSearchInput.value);
+              }
+            } else {
+              const cb = target.querySelector('input[type="checkbox"]');
+              if (cb) {
+                cb.checked = !cb.checked;
+                cb.dispatchEvent(new Event('change'));
+              }
+            }
+          } else if (formCatSearchInput.value.trim()) {
             addFormCategory(formCatSearchInput.value);
           }
         } else if (e.key === 'Escape') {
@@ -1789,6 +1858,7 @@
           formCatSearchInput.value = '';
           formCatSearchInput.focus();
         }
+        formCatHighlightedIndex = -1;
         renderFormCategoryDropdown();
       });
     }
@@ -1836,11 +1906,40 @@
   }
 
   // Category Multi-Select Dropdown Controls
+  let catFilterHighlightedIndex = -1;
+
+  function getCatFilterNavigableItems() {
+    if (!catFilterList) return [];
+    return Array.from(catFilterList.querySelectorAll('.dropdown-item'));
+  }
+
+  function setCatFilterHighlight(newIndex) {
+    const items = getCatFilterNavigableItems();
+    items.forEach(el => el.classList.remove('is-focused'));
+    if (items.length === 0) {
+      catFilterHighlightedIndex = -1;
+      return;
+    }
+    if (newIndex < 0) {
+      catFilterHighlightedIndex = items.length - 1;
+    } else if (newIndex >= items.length) {
+      catFilterHighlightedIndex = 0;
+    } else {
+      catFilterHighlightedIndex = newIndex;
+    }
+    const target = items[catFilterHighlightedIndex];
+    if (target) {
+      target.classList.add('is-focused');
+      target.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
   if (catFilterBtn && catFilterDropdown) {
     catFilterBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const isOpen = catFilterDropdown.classList.toggle('open');
       if (isOpen && catFilterSearchInput) {
+        catFilterHighlightedIndex = -1;
         setTimeout(() => catFilterSearchInput.focus(), 60);
       }
     });
@@ -1853,10 +1952,30 @@
 
     if (catFilterSearchInput) {
       catFilterSearchInput.addEventListener('input', () => {
+        catFilterHighlightedIndex = -1;
         populateCategories();
       });
       catFilterSearchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
+        const items = getCatFilterNavigableItems();
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setCatFilterHighlight(catFilterHighlightedIndex + 1);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setCatFilterHighlight(catFilterHighlightedIndex - 1);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const target = (catFilterHighlightedIndex >= 0 && items[catFilterHighlightedIndex])
+            ? items[catFilterHighlightedIndex]
+            : (items.length === 1 ? items[0] : null);
+          if (target) {
+            const cb = target.querySelector('input[type="checkbox"]');
+            if (cb) {
+              cb.checked = !cb.checked;
+              cb.dispatchEvent(new Event('change'));
+            }
+          }
+        } else if (e.key === 'Escape') {
           catFilterSearchInput.value = '';
           populateCategories();
           catFilterDropdown.classList.remove('open');

@@ -674,8 +674,14 @@ select:focus {
   color: var(--text-primary);
 }
 
-.dropdown-item:hover {
+.dropdown-item:hover,
+.dropdown-item.is-focused {
   background: var(--bg-hover);
+}
+
+.dropdown-item.is-focused {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
 }
 
 .dropdown-item input[type="checkbox"] {
@@ -1189,9 +1195,11 @@ select:focus {
   transition: all var(--transition);
 }
 
-.form-cat-create-btn:hover {
+.form-cat-create-btn:hover,
+.form-cat-create-btn.is-focused {
   background: var(--accent);
   color: #fff;
+  outline: 2px solid var(--accent);
 }
 
 .form-cat-create-btn .create-plus {
