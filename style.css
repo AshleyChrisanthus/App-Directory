@@ -349,6 +349,105 @@ body {
   gap: 8px;
 }
 
+/* Split Button Group */
+.split-btn-group {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  transition: border-color var(--transition);
+}
+
+.split-btn-group:hover {
+  border-color: var(--input-focus);
+}
+
+.split-btn-group .split-btn-main {
+  border: none !important;
+  background: transparent !important;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm) !important;
+  padding-right: 8px !important;
+}
+
+.split-btn-group .split-btn-main:hover {
+  background: var(--bg-hover) !important;
+}
+
+.split-btn-group .split-btn-arrow {
+  border: none !important;
+  background: transparent !important;
+  border-left: 1px solid var(--border-light) !important;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0 !important;
+  padding: 0 8px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+}
+
+.split-btn-group .split-btn-arrow:hover,
+.split-btn-group.open .split-btn-arrow {
+  background: var(--bg-hover) !important;
+  color: var(--text-primary);
+}
+
+.split-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 1100;
+  backdrop-filter: blur(20px);
+  animation: fadeIn 0.15s ease;
+}
+
+.split-btn-group.open .split-dropdown-menu {
+  display: flex;
+}
+
+.split-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.split-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.split-dropdown-item svg {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.split-dropdown-item:hover svg {
+  color: var(--accent);
+}
+
 /* Theme toggle icon visibility */
 [data-theme="light"] .icon-sun { display: none; }
 [data-theme="light"] .icon-moon { display: block; }

@@ -119,6 +119,11 @@
   const topNavWrapper = document.getElementById('topNavWrapper');
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
+  const exportSplitGroup = document.getElementById('exportSplitGroup');
+  const exportMenuBtn = document.getElementById('exportMenuBtn');
+  const exportSaveAsBtn = document.getElementById('exportSaveAsBtn');
+  const exportClipboardBtn = document.getElementById('exportClipboardBtn');
+  const exportQuickBtn = document.getElementById('exportQuickBtn');
   const importFile = document.getElementById('importFile');
   const statsText = document.getElementById('statsText');
 
@@ -1273,46 +1278,72 @@
 
   // ── Import / Export ────────────────────────────────────
 
-  async function exportData() {
+  function getExportJson() {
     const list = getLatestStoredEntries();
     if (list.length === 0) {
       showToast('Nothing to export.');
-      return;
+      return null;
     }
-    const json = JSON.stringify(list, null, 2);
-    const filename = `app-directory-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    return {
+      json: JSON.stringify(list, null, 2),
+      filename: `app-directory-backup-${new Date().toISOString().slice(0, 10)}.json`
+    };
+  }
 
-    // Try modern File System Access API (allows picking exports/ folder directly)
+  function exportQuickDownload() {
+    const data = getExportJson();
+    if (!data) return;
+    const blob = new Blob([data.json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = data.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Exported backup to file!');
+  }
+
+  async function exportSaveAs() {
+    const data = getExportJson();
+    if (!data) return;
+
+    // Use File System Access API if available
     if ('showSaveFilePicker' in window) {
       try {
         const handle = await window.showSaveFilePicker({
-          suggestedName: filename,
+          suggestedName: data.filename,
           types: [{
             description: 'JSON Backup File',
             accept: { 'application/json': ['.json'] }
           }]
         });
         const writable = await handle.createWritable();
-        await writable.write(json);
+        await writable.write(data.json);
         await writable.close();
-        showToast('Exported backup successfully!');
+        showToast('Saved backup successfully!');
         return;
       } catch (err) {
-        // User cancelled file picker
-        if (err.name === 'AbortError') return;
-        // Otherwise fallback to Blob download below
+        if (err.name === 'AbortError') return; // User cancelled
       }
     }
 
-    // Standard download fallback
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Exported backup successfully!');
+    // Fallback to quick download
+    exportQuickDownload();
+  }
+
+  async function exportToClipboard() {
+    const data = getExportJson();
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(data.json);
+      showToast('Directory JSON copied to clipboard!');
+    } catch {
+      showToast('Failed to copy to clipboard.');
+    }
+  }
+
+  function exportData() {
+    exportQuickDownload();
   }
 
   function importData(file) {
@@ -1756,6 +1787,7 @@
       closeModal();
       closeCatModal();
       if (catFilterDropdown) catFilterDropdown.classList.remove('open');
+      if (exportSplitGroup) exportSplitGroup.classList.remove('open');
     }
   });
 
@@ -1964,6 +1996,9 @@
       if (tagInputWrapper && !tagInputWrapper.contains(e.target)) {
         hideCategorySuggestions();
       }
+      if (exportSplitGroup && !exportSplitGroup.contains(e.target)) {
+        exportSplitGroup.classList.remove('open');
+      }
     });
   }
 
@@ -2085,8 +2120,38 @@
     }
   });
 
-  // Export
-  exportBtn.addEventListener('click', exportData);
+  // Export Split Button
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportData);
+  }
+
+  if (exportMenuBtn && exportSplitGroup) {
+    exportMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportSplitGroup.classList.toggle('open');
+    });
+  }
+
+  if (exportSaveAsBtn) {
+    exportSaveAsBtn.addEventListener('click', () => {
+      if (exportSplitGroup) exportSplitGroup.classList.remove('open');
+      exportSaveAs();
+    });
+  }
+
+  if (exportClipboardBtn) {
+    exportClipboardBtn.addEventListener('click', () => {
+      if (exportSplitGroup) exportSplitGroup.classList.remove('open');
+      exportToClipboard();
+    });
+  }
+
+  if (exportQuickBtn) {
+    exportQuickBtn.addEventListener('click', () => {
+      if (exportSplitGroup) exportSplitGroup.classList.remove('open');
+      exportQuickDownload();
+    });
+  }
 
   // Icon Preview in Modal
   function updateModalIconPreview() {
