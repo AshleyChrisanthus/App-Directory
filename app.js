@@ -1273,20 +1273,46 @@
 
   // ── Import / Export ────────────────────────────────────
 
-  function exportData() {
-    if (entries.length === 0) {
+  async function exportData() {
+    const list = getLatestStoredEntries();
+    if (list.length === 0) {
       showToast('Nothing to export.');
       return;
     }
-    const json = JSON.stringify(entries, null, 2);
+    const json = JSON.stringify(list, null, 2);
+    const filename = `app-directory-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+    // Try modern File System Access API (allows picking exports/ folder directly)
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'JSON Backup File',
+            accept: { 'application/json': ['.json'] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        showToast('Exported backup successfully!');
+        return;
+      } catch (err) {
+        // User cancelled file picker
+        if (err.name === 'AbortError') return;
+        // Otherwise fallback to Blob download below
+      }
+    }
+
+    // Standard download fallback
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `app-directory-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-    showToast('Exported successfully!');
+    showToast('Exported backup successfully!');
   }
 
   function importData(file) {

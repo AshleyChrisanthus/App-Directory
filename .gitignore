@@ -1,0 +1,16 @@
+﻿# Data exports & private backups (kept local, secret from GitHub)
+exports/*
+!exports/.gitkeep
+backups/*
+!backups/.gitkeep
+*.backup.json
+app-directory-backup-*.json
+
+# OS & Editor Metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.tmp
+.vscode/
+.idea/
