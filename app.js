@@ -125,18 +125,11 @@
   // Form fields
   const entryName = document.getElementById('entryName');
   const entryUrl = document.getElementById('entryUrl');
-  const formCatDropdown = document.getElementById('formCatDropdown');
-  const formCatBtn = document.getElementById('formCatBtn');
-  const formCatBtnLabel = document.getElementById('formCatBtnLabel');
-  const formCatMenu = document.getElementById('formCatMenu');
-  const formCatSearchInput = document.getElementById('formCatSearchInput');
-  const formCatSearchClearBtn = document.getElementById('formCatSearchClearBtn');
-  const formCatCreateRow = document.getElementById('formCatCreateRow');
-  const formCatCreateBtn = document.getElementById('formCatCreateBtn');
-  const formCatCreateName = document.getElementById('formCatCreateName');
-  const formCatList = document.getElementById('formCatList');
-  const formSelectAllCatsBtn = document.getElementById('formSelectAllCatsBtn');
-  const formClearAllCatsBtn = document.getElementById('formClearAllCatsBtn');
+  const tagInputWrapper = document.getElementById('tagInputWrapper');
+  const entryCategory = document.getElementById('entryCategory');
+  const addCategoryBtn = document.getElementById('addCategoryBtn');
+  const categorySuggestionsPopup = document.getElementById('categorySuggestionsPopup');
+  const categoryTags = document.getElementById('categoryTags');
   const entryIcon = document.getElementById('entryIcon');
   const entryIconPreview = document.getElementById('entryIconPreview');
   const uploadIconBtn = document.getElementById('uploadIconBtn');
@@ -648,10 +641,9 @@
       selectedCategories = [];
     }
 
-    if (formCatSearchInput) formCatSearchInput.value = '';
-    if (formCatDropdown) formCatDropdown.classList.remove('open');
+    if (entryCategory) entryCategory.value = '';
+    hideCategorySuggestions();
     renderCategoryChips();
-    renderFormCategoryDropdown();
     updateModalIconPreview();
 
     // Clear validation
@@ -663,7 +655,7 @@
   }
 
   function closeModal() {
-    if (formCatDropdown) formCatDropdown.classList.remove('open');
+    hideCategorySuggestions();
     modalBackdrop.classList.remove('active');
     document.body.style.overflow = '';
     editingId = null;
@@ -1356,25 +1348,9 @@
     reader.readAsText(file);
   }
 
-  // ── Form Category Selector & Chips ─────────────────────
+  // ── Category Chip UI & Modern Autocomplete Suggestions ──
 
-  function updateFormCatBtnLabel() {
-    if (!formCatBtnLabel) return;
-    const count = selectedCategories.length;
-    if (count === 0) {
-      formCatBtnLabel.textContent = 'Select categories…';
-      if (formCatBtn) formCatBtn.classList.remove('has-filter');
-    } else if (count === 1) {
-      formCatBtnLabel.textContent = selectedCategories[0];
-      if (formCatBtn) formCatBtn.classList.add('has-filter');
-    } else if (count === 2) {
-      formCatBtnLabel.textContent = selectedCategories.join(', ');
-      if (formCatBtn) formCatBtn.classList.add('has-filter');
-    } else {
-      formCatBtnLabel.textContent = `${count} categories selected`;
-      if (formCatBtn) formCatBtn.classList.add('has-filter');
-    }
-  }
+  let suggestionHighlightedIndex = -1;
 
   function renderCategoryChips() {
     const container = document.getElementById('categoryTags');
@@ -1388,19 +1364,26 @@
         e.stopPropagation();
         selectedCategories = selectedCategories.filter(c => c !== cat);
         renderCategoryChips();
-        renderFormCategoryDropdown();
+        renderCategorySuggestions();
       });
       container.appendChild(chip);
     });
-    updateFormCatBtnLabel();
   }
 
-  function renderFormCategoryDropdown() {
-    if (!formCatList) return;
-    const allCats = getAllCategories();
-    // Merge any custom categories currently selected
-    const combinedCats = [...new Set([...allCats, ...selectedCategories])];
+  function renderCategorySuggestions() {
+    if (!categorySuggestionsPopup || !entryCategory) return;
 
+    const allCats = getAllCategories();
+    const query = entryCategory.value.trim().toLowerCase();
+
+    // Available categories not yet selected
+    const available = allCats.filter(cat => !selectedCategories.includes(cat));
+
+    const matches = query
+      ? available.filter(cat => cat.toLowerCase().includes(query))
+      : available;
+
+    // Calculate usage counts
     const counts = {};
     entries.forEach(e => {
       (e.categories || []).forEach(cat => {
@@ -1408,70 +1391,71 @@
       });
     });
 
-    const query = formCatSearchInput ? formCatSearchInput.value.toLowerCase().trim() : '';
-    const rawQuery = formCatSearchInput ? formCatSearchInput.value.trim() : '';
+    categorySuggestionsPopup.innerHTML = '';
+    suggestionHighlightedIndex = -1;
 
-    if (formCatSearchClearBtn) {
-      formCatSearchClearBtn.style.display = query ? 'inline-flex' : 'none';
+    if (matches.length === 0) {
+      categorySuggestionsPopup.style.display = 'none';
+      return;
     }
 
-    // Check if user is typing a new category name
-    const exactMatch = combinedCats.some(c => c.toLowerCase() === query);
-    if (query && !exactMatch && formCatCreateRow && formCatCreateName) {
-      formCatCreateName.textContent = rawQuery;
-      formCatCreateRow.style.display = 'block';
-    } else if (formCatCreateRow) {
-      formCatCreateRow.style.display = 'none';
-    }
-
-    const filteredCats = query
-      ? combinedCats.filter(cat => cat.toLowerCase().includes(query))
-      : combinedCats;
-
-    formCatList.innerHTML = '';
-
-    if (filteredCats.length === 0 && (!query || exactMatch)) {
-      const empty = document.createElement('div');
-      empty.className = 'dropdown-empty-search';
-      empty.textContent = query ? `No categories match "${rawQuery}"` : 'No categories available.';
-      formCatList.appendChild(empty);
-    } else {
-      filteredCats.forEach(cat => {
-        const item = document.createElement('label');
-        item.className = 'dropdown-item';
-        const isChecked = selectedCategories.includes(cat);
-        const count = counts[cat] || 0;
-        item.innerHTML = `
-          <input type="checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''}>
-          <span class="dropdown-item-name">${escapeHtml(cat)}</span>
-          <span class="dropdown-item-count">${count}</span>
-        `;
-        const cb = item.querySelector('input');
-        cb.addEventListener('change', () => {
-          if (cb.checked) {
-            if (!selectedCategories.includes(cat)) selectedCategories.push(cat);
-          } else {
-            selectedCategories = selectedCategories.filter(c => c !== cat);
-          }
-          renderCategoryChips();
-          renderFormCategoryDropdown();
-        });
-        formCatList.appendChild(item);
+    matches.forEach((cat) => {
+      const count = counts[cat] || 0;
+      const item = document.createElement('div');
+      item.className = 'suggestion-item';
+      item.innerHTML = `
+        <span class="suggestion-name">${escapeHtml(cat)}</span>
+        <span class="suggestion-count">${count} site${count !== 1 ? 's' : ''}</span>
+      `;
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Prevent input blur before click
+        addTag(cat);
       });
-    }
+      categorySuggestionsPopup.appendChild(item);
+    });
 
-    updateFormCatBtnLabel();
+    categorySuggestionsPopup.style.display = 'flex';
   }
 
-  function addFormCategory(name) {
-    const clean = name.trim();
-    if (!clean) return;
-    if (!selectedCategories.includes(clean)) {
-      selectedCategories.push(clean);
+  function hideCategorySuggestions() {
+    if (categorySuggestionsPopup) {
+      categorySuggestionsPopup.style.display = 'none';
+      suggestionHighlightedIndex = -1;
     }
-    if (formCatSearchInput) formCatSearchInput.value = '';
-    renderCategoryChips();
-    renderFormCategoryDropdown();
+  }
+
+  function setSuggestionHighlight(newIndex) {
+    if (!categorySuggestionsPopup) return;
+    const items = categorySuggestionsPopup.querySelectorAll('.suggestion-item');
+    items.forEach(el => el.classList.remove('is-focused'));
+    if (items.length === 0) {
+      suggestionHighlightedIndex = -1;
+      return;
+    }
+    if (newIndex < 0) {
+      suggestionHighlightedIndex = items.length - 1;
+    } else if (newIndex >= items.length) {
+      suggestionHighlightedIndex = 0;
+    } else {
+      suggestionHighlightedIndex = newIndex;
+    }
+    const target = items[suggestionHighlightedIndex];
+    if (target) {
+      target.classList.add('is-focused');
+      target.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function addTag(val) {
+    val = (val || '').trim();
+    if (val && !selectedCategories.includes(val)) {
+      selectedCategories.push(val);
+      renderCategoryChips();
+    }
+    if (entryCategory) {
+      entryCategory.value = '';
+    }
+    hideCategorySuggestions();
   }
 
   // ── Category Management Modal ───────────────────────────
@@ -1703,8 +1687,8 @@
 
     if (!valid) return;
 
-    // If user typed a category in search but didn't press Enter, include it
-    const pendingCat = formCatSearchInput ? formCatSearchInput.value.trim() : '';
+    // If user typed a category but didn't press Enter/Add, include it
+    const pendingCat = entryCategory ? entryCategory.value.trim() : '';
     if (pendingCat && !selectedCategories.includes(pendingCat)) {
       selectedCategories.push(pendingCat);
     }
@@ -1746,163 +1730,58 @@
       closeModal();
       closeCatModal();
       if (catFilterDropdown) catFilterDropdown.classList.remove('open');
-      if (formCatDropdown) formCatDropdown.classList.remove('open');
     }
   });
 
-  // Form Category Selector Controls (Modal)
-  let formCatHighlightedIndex = -1;
-
-  function getFormCatNavigableItems() {
-    const items = [];
-    if (formCatCreateRow && formCatCreateRow.style.display !== 'none' && formCatCreateBtn) {
-      items.push(formCatCreateBtn);
-    }
-    if (formCatList) {
-      formCatList.querySelectorAll('.dropdown-item').forEach(el => items.push(el));
-    }
-    return items;
-  }
-
-  function setFormCatHighlight(newIndex) {
-    const items = getFormCatNavigableItems();
-    items.forEach(el => el.classList.remove('is-focused'));
-    if (items.length === 0) {
-      formCatHighlightedIndex = -1;
-      return;
-    }
-    if (newIndex < 0) {
-      formCatHighlightedIndex = items.length - 1;
-    } else if (newIndex >= items.length) {
-      formCatHighlightedIndex = 0;
-    } else {
-      formCatHighlightedIndex = newIndex;
-    }
-    const target = items[formCatHighlightedIndex];
-    if (target) {
-      target.classList.add('is-focused');
-      target.scrollIntoView({ block: 'nearest' });
-    }
-  }
-
-  if (formCatBtn && formCatDropdown) {
-    formCatBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const isOpen = formCatDropdown.classList.toggle('open');
-      if (isOpen && formCatSearchInput) {
-        formCatHighlightedIndex = -1;
-        setTimeout(() => formCatSearchInput.focus(), 60);
-      }
+  // Category tag input & autocomplete suggestions (Modal)
+  if (entryCategory) {
+    entryCategory.addEventListener('input', () => {
+      renderCategorySuggestions();
     });
 
-    if (formCatMenu) {
-      formCatMenu.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-    }
+    entryCategory.addEventListener('focus', () => {
+      renderCategorySuggestions();
+    });
 
-    if (formCatSearchInput) {
-      formCatSearchInput.addEventListener('input', () => {
-        formCatHighlightedIndex = -1;
-        renderFormCategoryDropdown();
-      });
-      formCatSearchInput.addEventListener('keydown', (e) => {
-        const items = getFormCatNavigableItems();
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setFormCatHighlight(formCatHighlightedIndex + 1);
-        } else if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setFormCatHighlight(formCatHighlightedIndex - 1);
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          if (formCatHighlightedIndex >= 0 && items[formCatHighlightedIndex]) {
-            const target = items[formCatHighlightedIndex];
-            if (target === formCatCreateBtn) {
-              if (formCatSearchInput.value.trim()) {
-                addFormCategory(formCatSearchInput.value);
-              }
-            } else {
-              const cb = target.querySelector('input[type="checkbox"]');
-              if (cb) {
-                cb.checked = !cb.checked;
-                cb.dispatchEvent(new Event('change'));
-              }
-            }
-          } else if (items.length > 0) {
-            const target = items[0];
-            if (target === formCatCreateBtn) {
-              if (formCatSearchInput.value.trim()) {
-                addFormCategory(formCatSearchInput.value);
-              }
-            } else {
-              const cb = target.querySelector('input[type="checkbox"]');
-              if (cb) {
-                cb.checked = !cb.checked;
-                cb.dispatchEvent(new Event('change'));
-              }
-            }
-          } else if (formCatSearchInput.value.trim()) {
-            addFormCategory(formCatSearchInput.value);
-          }
-        } else if (e.key === 'Escape') {
-          formCatDropdown.classList.remove('open');
-        }
-      });
-    }
+    entryCategory.addEventListener('keydown', (e) => {
+      const isVisible = categorySuggestionsPopup && categorySuggestionsPopup.style.display !== 'none';
+      const items = categorySuggestionsPopup ? categorySuggestionsPopup.querySelectorAll('.suggestion-item') : [];
 
-    if (formCatSearchClearBtn) {
-      formCatSearchClearBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (formCatSearchInput) {
-          formCatSearchInput.value = '';
-          formCatSearchInput.focus();
-        }
-        formCatHighlightedIndex = -1;
-        renderFormCategoryDropdown();
-      });
-    }
-
-    if (formCatCreateBtn) {
-      formCatCreateBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (formCatSearchInput && formCatSearchInput.value.trim()) {
-          addFormCategory(formCatSearchInput.value);
-        }
-      });
-    }
-
-    if (formSelectAllCatsBtn) {
-      formSelectAllCatsBtn.addEventListener('click', () => {
-        const allCats = getAllCategories();
-        const combinedCats = [...new Set([...allCats, ...selectedCategories])];
-        const query = formCatSearchInput ? formCatSearchInput.value.toLowerCase().trim() : '';
-        const targetCats = query ? combinedCats.filter(c => c.toLowerCase().includes(query)) : combinedCats;
-
-        targetCats.forEach(c => {
-          if (!selectedCategories.includes(c)) selectedCategories.push(c);
-        });
-
-        renderCategoryChips();
-        renderFormCategoryDropdown();
-      });
-    }
-
-    if (formClearAllCatsBtn) {
-      formClearAllCatsBtn.addEventListener('click', () => {
-        const query = formCatSearchInput ? formCatSearchInput.value.toLowerCase().trim() : '';
-        if (query) {
-          const allCats = getAllCategories();
-          const combinedCats = [...new Set([...allCats, ...selectedCategories])];
-          const targetCats = combinedCats.filter(c => c.toLowerCase().includes(query));
-          selectedCategories = selectedCategories.filter(c => !targetCats.includes(c));
+      if (e.key === 'ArrowDown') {
+        if (!isVisible) {
+          renderCategorySuggestions();
         } else {
-          selectedCategories = [];
+          e.preventDefault();
+          setSuggestionHighlight(suggestionHighlightedIndex + 1);
         }
-        renderCategoryChips();
-        renderFormCategoryDropdown();
-      });
-    }
+      } else if (e.key === 'ArrowUp') {
+        if (isVisible) {
+          e.preventDefault();
+          setSuggestionHighlight(suggestionHighlightedIndex - 1);
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (isVisible && suggestionHighlightedIndex >= 0 && items[suggestionHighlightedIndex]) {
+          const name = items[suggestionHighlightedIndex].querySelector('.suggestion-name').textContent;
+          addTag(name);
+        } else if (entryCategory.value.trim()) {
+          addTag(entryCategory.value);
+        }
+      } else if (e.key === 'Escape') {
+        if (isVisible) {
+          e.stopPropagation();
+          hideCategorySuggestions();
+        }
+      }
+    });
+  }
+
+  if (addCategoryBtn) {
+    addCategoryBtn.addEventListener('click', () => {
+      if (entryCategory && entryCategory.value.trim()) {
+        addTag(entryCategory.value);
+      }
+    });
   }
 
   // Category Multi-Select Dropdown Controls
@@ -2051,13 +1930,13 @@
       });
     }
 
-    // Close dropdowns on click outside
+    // Close dropdowns & popups on click outside
     document.addEventListener('click', (e) => {
       if (catFilterDropdown && !catFilterDropdown.contains(e.target)) {
         catFilterDropdown.classList.remove('open');
       }
-      if (formCatDropdown && !formCatDropdown.contains(e.target)) {
-        formCatDropdown.classList.remove('open');
+      if (tagInputWrapper && !tagInputWrapper.contains(e.target)) {
+        hideCategorySuggestions();
       }
     });
   }

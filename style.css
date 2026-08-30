@@ -1155,64 +1155,27 @@ select:focus {
   cursor: pointer;
 }
 
-/* Form Category Selector Dropdown */
-.form-cat-dropdown {
-  width: 100%;
-}
-
-.form-cat-btn {
-  width: 100%;
-  justify-content: space-between;
-}
-
-.form-cat-menu {
-  width: 100%;
-  min-width: 100%;
-  max-width: 100%;
-  max-height: 280px;
-}
-
-.form-cat-create-row {
-  padding: 6px 8px;
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-light);
-}
-
-.form-cat-create-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent-bg);
-  border: 1px dashed var(--accent);
+.tag-input-wrapper {
+  position: relative;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-sm);
-  color: var(--accent);
-  padding: 6px 10px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  transition: all var(--transition);
+  padding: 8px;
+  transition: border-color var(--transition);
 }
 
-.form-cat-create-btn:hover,
-.form-cat-create-btn.is-focused {
-  background: var(--accent);
-  color: #fff;
-  outline: 2px solid var(--accent);
-}
-
-.form-cat-create-btn .create-plus {
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1;
+.tag-input-wrapper:focus-within {
+  border-color: var(--input-focus);
 }
 
 .tag-input-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+}
+
+.tag-input-tags:not(:empty) {
+  margin-bottom: 8px;
 }
 
 .tag-input-tags:empty {
@@ -1230,6 +1193,103 @@ select:focus {
   background: var(--tag-bg);
   color: var(--tag-text);
   animation: fadeIn 0.2s ease;
+}
+
+.tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--tag-text);
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.6;
+  transition: all var(--transition);
+}
+
+.tag-chip-remove:hover {
+  opacity: 1;
+  background: rgba(255,59,48,0.15);
+  color: var(--danger);
+}
+
+.tag-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag-input-row input {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 4px 4px !important;
+  font-size: 0.875rem !important;
+  color: var(--text-primary) !important;
+  outline: none;
+}
+
+.tag-input-row input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Modern Autocomplete Suggestions Popup */
+.category-suggestions-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition);
+  user-select: none;
+}
+
+.suggestion-item:hover,
+.suggestion-item.is-focused {
+  background: var(--bg-hover);
+}
+
+.suggestion-item.is-focused {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.suggestion-name {
+  font-weight: 500;
+}
+
+.suggestion-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 2px 7px;
+  border-radius: 999px;
 }
 
 .tag-chip-remove {
