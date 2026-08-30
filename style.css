@@ -547,6 +547,64 @@ select:focus {
   background: var(--accent-bg);
 }
 
+.dropdown-search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--input-bg);
+  border-bottom: 1px solid var(--border-light);
+  position: relative;
+}
+
+.dropdown-search-box svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.dropdown-search-box input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  width: 100%;
+  padding: 2px 0;
+}
+
+.dropdown-search-box input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px 5px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.search-clear-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.dropdown-empty-search {
+  padding: 14px 12px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
 .dropdown-mode-row {
   display: flex;
   align-items: center;
@@ -1228,7 +1286,42 @@ select:focus {
 .cat-modal-hint {
   font-size: 0.85rem;
   color: var(--text-tertiary);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+.cat-modal-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  transition: border-color var(--transition);
+}
+
+.cat-modal-search-box:focus-within {
+  border-color: var(--input-focus);
+}
+
+.cat-modal-search-box svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.cat-modal-search-box input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.cat-modal-search-box input::placeholder {
+  color: var(--text-tertiary);
 }
 
 .cat-list {

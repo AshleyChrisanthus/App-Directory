@@ -90,6 +90,8 @@
   const catFilterLabel = document.getElementById('catFilterLabel');
   const catFilterMenu = document.getElementById('catFilterMenu');
   const catFilterList = document.getElementById('catFilterList');
+  const catFilterSearchInput = document.getElementById('catFilterSearchInput');
+  const catFilterSearchClearBtn = document.getElementById('catFilterSearchClearBtn');
   const selectAllCatsBtn = document.getElementById('selectAllCatsBtn');
   const clearAllCatsBtn = document.getElementById('clearAllCatsBtn');
   const modeUnionBtn = document.getElementById('modeUnionBtn');
@@ -510,10 +512,10 @@
   }
 
   function populateCategories() {
-    const cats = getAllCategories();
+    const allCats = getAllCategories();
 
     // Clean up any selected filter categories that no longer exist
-    const catSet = new Set(cats);
+    const catSet = new Set(allCats);
     for (const selected of selectedFilterCategories) {
       if (!catSet.has(selected)) {
         selectedFilterCategories.delete(selected);
@@ -528,31 +530,46 @@
       });
     });
 
+    // Check search query in dropdown
+    const query = catFilterSearchInput ? catFilterSearchInput.value.toLowerCase().trim() : '';
+    if (catFilterSearchClearBtn) {
+      catFilterSearchClearBtn.style.display = query ? 'inline-flex' : 'none';
+    }
+
+    const filteredCats = query ? allCats.filter(cat => cat.toLowerCase().includes(query)) : allCats;
+
     // Populate multi-select category checkboxes
     if (catFilterList) {
       catFilterList.innerHTML = '';
-      cats.forEach(cat => {
-        const item = document.createElement('label');
-        item.className = 'dropdown-item';
-        const isChecked = selectedFilterCategories.has(cat);
-        const count = counts[cat] || 0;
-        item.innerHTML = `
-          <input type="checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''}>
-          <span class="dropdown-item-name">${escapeHtml(cat)}</span>
-          <span class="dropdown-item-count">${count}</span>
-        `;
-        const cb = item.querySelector('input');
-        cb.addEventListener('change', () => {
-          if (cb.checked) {
-            selectedFilterCategories.add(cat);
-          } else {
-            selectedFilterCategories.delete(cat);
-          }
-          updateCatFilterLabel();
-          renderCardsOnly();
+      if (filteredCats.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'dropdown-empty-search';
+        empty.textContent = `No categories match "${query}"`;
+        catFilterList.appendChild(empty);
+      } else {
+        filteredCats.forEach(cat => {
+          const item = document.createElement('label');
+          item.className = 'dropdown-item';
+          const isChecked = selectedFilterCategories.has(cat);
+          const count = counts[cat] || 0;
+          item.innerHTML = `
+            <input type="checkbox" value="${escapeHtml(cat)}" ${isChecked ? 'checked' : ''}>
+            <span class="dropdown-item-name">${escapeHtml(cat)}</span>
+            <span class="dropdown-item-count">${count}</span>
+          `;
+          const cb = item.querySelector('input');
+          cb.addEventListener('change', () => {
+            if (cb.checked) {
+              selectedFilterCategories.add(cat);
+            } else {
+              selectedFilterCategories.delete(cat);
+            }
+            updateCatFilterLabel();
+            renderCardsOnly();
+          });
+          catFilterList.appendChild(item);
         });
-        catFilterList.appendChild(item);
-      });
+      }
     }
 
     updateCatFilterLabel();
@@ -561,7 +578,7 @@
     const datalist = document.getElementById('categorySuggestions');
     if (datalist) {
       datalist.innerHTML = '';
-      cats.forEach(cat => {
+      allCats.forEach(cat => {
         const opt = document.createElement('option');
         opt.value = cat;
         datalist.appendChild(opt);
@@ -671,7 +688,14 @@
         if (target) {
           target.iconUrl = permanentDataUrl;
           saveEntries(latest);
-          render();
+          // In-place DOM update (avoids full grid destroy & flash)
+          const card = grid ? grid.querySelector(`.card[data-id="${entry.id}"]`) : null;
+          if (card) {
+            const iconDiv = card.querySelector('.card-icon:not(.new-icon-preview)');
+            if (iconDiv) {
+              iconDiv.innerHTML = `<img src="${escapeHtml(permanentDataUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`;
+            }
+          }
         }
       }
     }
@@ -726,7 +750,14 @@
         if (item) {
           item.iconUrl = permanentDataUrl;
           saveEntries(latest);
-          render();
+          // In-place DOM update (avoids full grid destroy & flash)
+          const card = grid ? grid.querySelector(`.card[data-id="${id}"]`) : null;
+          if (card) {
+            const iconDiv = card.querySelector('.card-icon:not(.new-icon-preview)');
+            if (iconDiv) {
+              iconDiv.innerHTML = `<img src="${escapeHtml(permanentDataUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`;
+            }
+          }
         }
       }
     }
@@ -1339,6 +1370,8 @@
 
   const catModalBackdrop = document.getElementById('catModalBackdrop');
   const catModalClose = document.getElementById('catModalClose');
+  const catModalSearchInput = document.getElementById('catModalSearchInput');
+  const catModalSearchClearBtn = document.getElementById('catModalSearchClearBtn');
   const catList = document.getElementById('catList');
   const catEmptyMsg = document.getElementById('catEmptyMsg');
 
@@ -1355,9 +1388,18 @@
   }
 
   function openCatModal() {
-    renderCatList();
+    if (catModalSearchInput) {
+      catModalSearchInput.value = '';
+    }
+    if (catModalSearchClearBtn) {
+      catModalSearchClearBtn.style.display = 'none';
+    }
+    renderCatList('');
     catModalBackdrop.classList.add('active');
     document.body.style.overflow = 'hidden';
+    if (catModalSearchInput) {
+      setTimeout(() => catModalSearchInput.focus(), 60);
+    }
   }
 
   function closeCatModal() {
@@ -1410,21 +1452,39 @@
     saveEntries(diskList);
     render();
     showToast(`Deleted category "${catName}"`);
-    renderCatList();
+    const q = catModalSearchInput ? catModalSearchInput.value : '';
+    renderCatList(q);
   }
 
-  function renderCatList() {
-    const used = getUsedCategories();
+  function renderCatList(query = '') {
+    const allUsed = getUsedCategories();
+    const cleanQuery = (typeof query === 'string' ? query : '').toLowerCase().trim();
+
+    if (catModalSearchClearBtn) {
+      catModalSearchClearBtn.style.display = cleanQuery ? 'inline-flex' : 'none';
+    }
+
+    const filtered = cleanQuery
+      ? allUsed.filter(([cat]) => cat.toLowerCase().includes(cleanQuery))
+      : allUsed;
+
     catList.innerHTML = '';
 
-    if (used.length === 0) {
+    if (allUsed.length === 0) {
+      catEmptyMsg.textContent = 'No categories in use yet.';
+      catEmptyMsg.style.display = 'block';
+      return;
+    }
+
+    if (filtered.length === 0) {
+      catEmptyMsg.textContent = `No categories match "${cleanQuery}".`;
       catEmptyMsg.style.display = 'block';
       return;
     }
 
     catEmptyMsg.style.display = 'none';
 
-    used.forEach(([cat, count]) => {
+    filtered.forEach(([cat, count]) => {
       const row = document.createElement('div');
       row.className = 'cat-row';
       row.innerHTML = `
@@ -1461,10 +1521,14 @@
           if (newVal && newVal !== cat) {
             renameCategory(cat, newVal);
           }
-          renderCatList();
+          const q = catModalSearchInput ? catModalSearchInput.value : '';
+          renderCatList(q);
         };
 
-        const doCancel = () => renderCatList();
+        const doCancel = () => {
+          const q = catModalSearchInput ? catModalSearchInput.value : '';
+          renderCatList(q);
+        };
 
         actionsEl.querySelector('.save-rename-btn').addEventListener('click', doSave);
         actionsEl.querySelector('.cancel-rename-btn').addEventListener('click', doCancel);
@@ -1487,6 +1551,28 @@
   catModalBackdrop.addEventListener('click', (e) => {
     if (e.target === catModalBackdrop) closeCatModal();
   });
+
+  if (catModalSearchInput) {
+    catModalSearchInput.addEventListener('input', () => {
+      renderCatList(catModalSearchInput.value);
+    });
+    catModalSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        catModalSearchInput.value = '';
+        renderCatList('');
+      }
+    });
+  }
+
+  if (catModalSearchClearBtn) {
+    catModalSearchClearBtn.addEventListener('click', () => {
+      if (catModalSearchInput) {
+        catModalSearchInput.value = '';
+        catModalSearchInput.focus();
+      }
+      renderCatList('');
+    });
+  }
 
   // ── Form Submission ────────────────────────────────────
 
@@ -1568,7 +1654,10 @@
   if (catFilterBtn && catFilterDropdown) {
     catFilterBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      catFilterDropdown.classList.toggle('open');
+      const isOpen = catFilterDropdown.classList.toggle('open');
+      if (isOpen && catFilterSearchInput) {
+        setTimeout(() => catFilterSearchInput.focus(), 60);
+      }
     });
 
     if (catFilterMenu) {
@@ -1577,10 +1666,38 @@
       });
     }
 
+    if (catFilterSearchInput) {
+      catFilterSearchInput.addEventListener('input', () => {
+        populateCategories();
+      });
+      catFilterSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          catFilterSearchInput.value = '';
+          populateCategories();
+          catFilterDropdown.classList.remove('open');
+        }
+      });
+    }
+
+    if (catFilterSearchClearBtn) {
+      catFilterSearchClearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (catFilterSearchInput) {
+          catFilterSearchInput.value = '';
+          catFilterSearchInput.focus();
+        }
+        populateCategories();
+      });
+    }
+
     if (selectAllCatsBtn) {
       selectAllCatsBtn.addEventListener('click', () => {
         const allCats = getAllCategories();
-        selectedFilterCategories = new Set(allCats);
+        const query = catFilterSearchInput ? catFilterSearchInput.value.toLowerCase().trim() : '';
+        const targetCats = query ? allCats.filter(cat => cat.toLowerCase().includes(query)) : allCats;
+
+        targetCats.forEach(cat => selectedFilterCategories.add(cat));
+
         if (catFilterList) {
           catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
         }
@@ -1591,9 +1708,19 @@
 
     if (clearAllCatsBtn) {
       clearAllCatsBtn.addEventListener('click', () => {
-        selectedFilterCategories.clear();
-        if (catFilterList) {
-          catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        const query = catFilterSearchInput ? catFilterSearchInput.value.toLowerCase().trim() : '';
+        if (query) {
+          const allCats = getAllCategories();
+          const targetCats = allCats.filter(cat => cat.toLowerCase().includes(query));
+          targetCats.forEach(cat => selectedFilterCategories.delete(cat));
+          if (catFilterList) {
+            catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+          }
+        } else {
+          selectedFilterCategories.clear();
+          if (catFilterList) {
+            catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+          }
         }
         updateCatFilterLabel();
         renderCardsOnly();

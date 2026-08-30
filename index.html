@@ -73,6 +73,11 @@
                 <button type="button" class="dropdown-action-btn" id="clearAllCatsBtn">Clear</button>
               </div>
             </div>
+            <div class="dropdown-search-box">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="catFilterSearchInput" placeholder="Filter categories…" autocomplete="off">
+              <button type="button" class="search-clear-btn" id="catFilterSearchClearBtn" style="display: none;" title="Clear search">✕</button>
+            </div>
             <div class="dropdown-mode-row">
               <span class="dropdown-mode-label">Match:</span>
               <div class="dropdown-mode-toggle">
@@ -198,6 +203,11 @@
       </div>
       <div class="cat-modal-body">
         <p class="cat-modal-hint">Rename or delete categories. Changes apply to all websites using that category.</p>
+        <div class="cat-modal-search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="catModalSearchInput" placeholder="Search categories to rename or delete…" autocomplete="off">
+          <button type="button" class="search-clear-btn" id="catModalSearchClearBtn" style="display: none;" title="Clear search">✕</button>
+        </div>
         <div id="catList" class="cat-list">
           <!-- Category rows rendered by JS -->
         </div>
