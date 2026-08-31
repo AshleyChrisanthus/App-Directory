@@ -185,6 +185,25 @@
   const cancelFolderBtn = document.getElementById('cancelFolderBtn');
   const saveFolderBtn = document.getElementById('saveFolderBtn');
 
+  // Add Bookmarks to Folder Modal elements
+  const addBookmarksToFolderBtn = document.getElementById('addBookmarksToFolderBtn');
+  const addBookmarksModalBackdrop = document.getElementById('addBookmarksModalBackdrop');
+  const addBookmarksModal = document.getElementById('addBookmarksModal');
+  const addBookmarksModalIcon = document.getElementById('addBookmarksModalIcon');
+  const addBookmarksModalTitle = document.getElementById('addBookmarksModalTitle');
+  const addBookmarksModalClose = document.getElementById('addBookmarksModalClose');
+  const addBmSearchInput = document.getElementById('addBmSearchInput');
+  const addBmSearchClear = document.getElementById('addBmSearchClear');
+  const addBmFilterPills = document.getElementById('addBmFilterPills');
+  const addBmSelectedCount = document.getElementById('addBmSelectedCount');
+  const addBmTotalCount = document.getElementById('addBmTotalCount');
+  const addBmSelectAllBtn = document.getElementById('addBmSelectAllBtn');
+  const addBmDeselectAllBtn = document.getElementById('addBmDeselectAllBtn');
+  const addBmList = document.getElementById('addBmList');
+  const addBmEmpty = document.getElementById('addBmEmpty');
+  const cancelAddBmBtn = document.getElementById('cancelAddBmBtn');
+  const confirmAddBmBtn = document.getElementById('confirmAddBmBtn');
+
   // ── State ──────────────────────────────────────────────
   const STORAGE_FOLDERS_KEY = 'appDirectory_folders';
   const SIDEBAR_STATE_KEY = 'appDirectory_sidebarCollapsed';
@@ -1523,6 +1542,163 @@
     renderFoldersSidebar();
     render();
     showToast(`Deleted folder "${folder.name}"`);
+  }
+
+  // ── Add Bookmarks to Folder Modal ───────────────────────
+
+  let selectedBookmarksToMove = new Set();
+  let addBmSearchQuery = '';
+  let addBmSourceFilter = 'all';
+
+  function openAddBookmarksModal() {
+    if (!activeFolderId || !activeFolderId.startsWith('f-')) return;
+    const folder = folders.find(f => f.id === activeFolderId);
+    if (!folder) return;
+
+    selectedBookmarksToMove.clear();
+    addBmSearchQuery = '';
+    addBmSourceFilter = 'all';
+
+    if (addBmSearchInput) addBmSearchInput.value = '';
+    if (addBmSearchClear) addBmSearchClear.style.display = 'none';
+
+    if (addBookmarksModalIcon) addBookmarksModalIcon.textContent = folder.icon || '📁';
+    if (addBookmarksModalTitle) addBookmarksModalTitle.textContent = `Add Bookmarks to "${folder.name}"`;
+
+    if (addBmFilterPills) {
+      addBmFilterPills.querySelectorAll('.pill-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-source') === 'all');
+      });
+    }
+
+    renderAddBookmarksList();
+
+    if (addBookmarksModalBackdrop) {
+      addBookmarksModalBackdrop.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      setTimeout(() => { if (addBmSearchInput) addBmSearchInput.focus(); }, 60);
+    }
+  }
+
+  function closeAddBookmarksModal() {
+    if (addBookmarksModalBackdrop) {
+      addBookmarksModalBackdrop.classList.remove('active');
+    }
+    document.body.style.overflow = '';
+    selectedBookmarksToMove.clear();
+  }
+
+  function getAvailableBookmarksForFolder() {
+    const diskList = getLatestStoredEntries();
+    return diskList.filter(e => e.folderId !== activeFolderId);
+  }
+
+  function getFilteredBookmarksToMove() {
+    let list = getAvailableBookmarksForFolder();
+
+    if (addBmSourceFilter === 'unorganized') {
+      list = list.filter(e => !e.folderId);
+    } else if (addBmSourceFilter === 'folders') {
+      list = list.filter(e => !!e.folderId);
+    }
+
+    if (addBmSearchQuery) {
+      const q = addBmSearchQuery.toLowerCase();
+      list = list.filter(e => (e.name || '').toLowerCase().includes(q) || (e.url || '').toLowerCase().includes(q));
+    }
+
+    return list;
+  }
+
+  function renderAddBookmarksList() {
+    if (!addBmList) return;
+    const available = getFilteredBookmarksToMove();
+
+    if (addBmTotalCount) addBmTotalCount.textContent = available.length;
+    if (addBmSelectedCount) addBmSelectedCount.textContent = selectedBookmarksToMove.size;
+
+    if (confirmAddBmBtn) {
+      const count = selectedBookmarksToMove.size;
+      confirmAddBmBtn.disabled = count === 0;
+      confirmAddBmBtn.textContent = `Move Selected (${count}) Bookmark${count !== 1 ? 's' : ''}`;
+    }
+
+    if (available.length === 0) {
+      addBmList.innerHTML = '';
+      if (addBmEmpty) addBmEmpty.style.display = 'block';
+      return;
+    }
+
+    if (addBmEmpty) addBmEmpty.style.display = 'none';
+    addBmList.innerHTML = '';
+
+    available.forEach(entry => {
+      const isSelected = selectedBookmarksToMove.has(entry.id);
+      const row = document.createElement('div');
+      row.className = `add-bm-item-row ${isSelected ? 'is-selected' : ''}`;
+
+      let folderName = '📂 Unorganized';
+      if (entry.folderId) {
+        const f = folders.find(fld => fld.id === entry.folderId);
+        if (f) folderName = `${f.icon || '📁'} ${f.name}`;
+      }
+
+      const domain = getDomain(entry.url);
+
+      row.innerHTML = `
+        <div class="add-bm-item-left">
+          <input type="checkbox" class="add-bm-checkbox" ${isSelected ? 'checked' : ''}>
+          <div class="add-bm-item-icon">
+            <img src="${escapeHtml(entry.icon || getDefaultIcon(entry.name))}" alt="" onerror="this.src='${getDefaultIcon(entry.name)}'">
+          </div>
+          <div class="add-bm-item-info">
+            <div class="add-bm-item-name">${escapeHtml(entry.name)}</div>
+            <div class="add-bm-item-url">${escapeHtml(domain || entry.url)}</div>
+          </div>
+        </div>
+        <span class="add-bm-folder-badge">${escapeHtml(folderName)}</span>
+      `;
+
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('add-bm-checkbox')) {
+          if (e.target.checked) {
+            selectedBookmarksToMove.add(entry.id);
+          } else {
+            selectedBookmarksToMove.delete(entry.id);
+          }
+        } else {
+          if (selectedBookmarksToMove.has(entry.id)) {
+            selectedBookmarksToMove.delete(entry.id);
+          } else {
+            selectedBookmarksToMove.add(entry.id);
+          }
+        }
+        renderAddBookmarksList();
+      });
+
+      addBmList.appendChild(row);
+    });
+  }
+
+  function confirmMoveBookmarksToFolder() {
+    if (selectedBookmarksToMove.size === 0 || !activeFolderId || !activeFolderId.startsWith('f-')) return;
+    const folder = folders.find(f => f.id === activeFolderId);
+    const diskList = getLatestStoredEntries();
+    let movedCount = 0;
+
+    diskList.forEach(entry => {
+      if (selectedBookmarksToMove.has(entry.id)) {
+        entry.folderId = activeFolderId;
+        entry.dateModified = new Date().toISOString();
+        movedCount++;
+      }
+    });
+
+    saveEntries(diskList);
+    closeAddBookmarksModal();
+    render();
+    renderFoldersSidebar();
+    showToast(`Moved ${movedCount} bookmark${movedCount !== 1 ? 's' : ''} to "${folder ? folder.name : 'folder'}" 📁`);
   }
 
   // ── Toast ──────────────────────────────────────────────
@@ -3578,6 +3754,74 @@
       }
     });
   });
+
+  // ── Add Bookmarks to Folder Event Listeners ─────────────
+
+  if (addBookmarksToFolderBtn) {
+    addBookmarksToFolderBtn.addEventListener('click', openAddBookmarksModal);
+  }
+
+  if (addBookmarksModalClose) {
+    addBookmarksModalClose.addEventListener('click', closeAddBookmarksModal);
+  }
+
+  if (cancelAddBmBtn) {
+    cancelAddBmBtn.addEventListener('click', closeAddBookmarksModal);
+  }
+
+  if (addBookmarksModalBackdrop) {
+    addBookmarksModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === addBookmarksModalBackdrop) closeAddBookmarksModal();
+    });
+  }
+
+  if (addBmSearchInput) {
+    addBmSearchInput.addEventListener('input', () => {
+      addBmSearchQuery = addBmSearchInput.value.trim();
+      if (addBmSearchClear) addBmSearchClear.style.display = addBmSearchQuery ? 'block' : 'none';
+      renderAddBookmarksList();
+    });
+  }
+
+  if (addBmSearchClear) {
+    addBmSearchClear.addEventListener('click', () => {
+      addBmSearchInput.value = '';
+      addBmSearchQuery = '';
+      addBmSearchClear.style.display = 'none';
+      renderAddBookmarksList();
+      addBmSearchInput.focus();
+    });
+  }
+
+  if (addBmFilterPills) {
+    addBmFilterPills.querySelectorAll('.pill-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        addBmFilterPills.querySelectorAll('.pill-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        addBmSourceFilter = btn.getAttribute('data-source') || 'all';
+        renderAddBookmarksList();
+      });
+    });
+  }
+
+  if (addBmSelectAllBtn) {
+    addBmSelectAllBtn.addEventListener('click', () => {
+      const available = getFilteredBookmarksToMove();
+      available.forEach(e => selectedBookmarksToMove.add(e.id));
+      renderAddBookmarksList();
+    });
+  }
+
+  if (addBmDeselectAllBtn) {
+    addBmDeselectAllBtn.addEventListener('click', () => {
+      selectedBookmarksToMove.clear();
+      renderAddBookmarksList();
+    });
+  }
+
+  if (confirmAddBmBtn) {
+    confirmAddBmBtn.addEventListener('click', confirmMoveBookmarksToFolder);
+  }
 
   // ── Header Logo Reset ──────────────────────────────────
   function resetToAllBookmarks() {

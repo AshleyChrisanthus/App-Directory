@@ -2372,6 +2372,184 @@ select:focus {
   z-index: 1060;
 }
 
+#addBookmarksModalBackdrop {
+  z-index: 1050;
+}
+
+/* ========================================
+   Add Bookmarks to Folder Modal
+   ======================================== */
+
+.add-bookmarks-body {
+  padding: 16px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.add-bm-controls-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.add-bm-search-box {
+  max-width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+}
+
+.add-bm-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill-filter-btn {
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.pill-filter-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.pill-filter-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.add-bm-selection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.add-bm-selection-info {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.add-bm-selection-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.add-bm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.add-bm-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+}
+
+.add-bm-item-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.add-bm-item-row.is-selected {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+}
+
+.add-bm-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.add-bm-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.add-bm-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.add-bm-item-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.add-bm-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.add-bm-item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-bm-item-url {
+  font-size: 0.76rem;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-bm-folder-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ========================================
    Responsive
    ======================================== */
