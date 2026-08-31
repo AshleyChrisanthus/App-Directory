@@ -145,6 +145,8 @@
   // Form fields
   const entryName = document.getElementById('entryName');
   const entryUrl = document.getElementById('entryUrl');
+  const urlAutofillStatus = document.getElementById('urlAutofillStatus');
+  const autoDetectBtn = document.getElementById('autoDetectBtn');
   const tagInputWrapper = document.getElementById('tagInputWrapper');
   const entryCategory = document.getElementById('entryCategory');
   const addCategoryBtn = document.getElementById('addCategoryBtn');
@@ -2100,10 +2102,191 @@
     setTimeout(() => toast.remove(), 3000);
   }
 
+  // ── Smart URL Auto-Fill ─────────────────────────────────
+
+  let lastAutoDetectedUrl = '';
+  let isAutoDetecting = false;
+
+  function cleanPageTitle(rawTitle, domain = '') {
+    if (!rawTitle) return '';
+    let title = rawTitle.trim();
+    if (typeof document !== 'undefined') {
+      try {
+        const txt = document.createElement('textarea');
+        txt.innerHTML = title;
+        if (txt.value) {
+          title = txt.value;
+        }
+      } catch {}
+    }
+
+    if (domain) {
+      const cleanDom = domain.replace(/^www\./i, '').split('.')[0];
+      const regexes = [
+        new RegExp(`\\s*[-|–—•·]\\s*${cleanDom}.*$`, 'i'),
+        new RegExp(`^${cleanDom}\\s*[-|–—•·]\\s*`, 'i')
+      ];
+      for (const r of regexes) {
+        if (title.length > 20 && r.test(title)) {
+          title = title.replace(r, '').trim();
+        }
+      }
+    }
+    return title.replace(/\s+/g, ' ').trim();
+  }
+
+  function fallbackTitleFromUrl(url) {
+    try {
+      const domain = getDomain(url);
+      if (!domain) return '';
+      const parts = domain.replace(/^www\./i, '').split('.');
+      const main = parts[0] || '';
+      return main.charAt(0).toUpperCase() + main.slice(1);
+    } catch {
+      return '';
+    }
+  }
+
+  async function fetchWebsiteMetadata(url) {
+    if (!url) return null;
+    let targetUrl = url.trim();
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    const domain = getDomain(targetUrl);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      const res = await fetch(proxyUrl, { signal: controller.signal, cache: 'no-cache' });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.contents) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(data.contents, 'text/html');
+
+          const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
+          const twTitle = doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content');
+          const docTitle = doc.querySelector('title')?.textContent;
+          const rawTitle = ogTitle || twTitle || docTitle || '';
+          const cleanedTitle = cleanPageTitle(rawTitle, domain) || fallbackTitleFromUrl(targetUrl);
+
+          const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
+          const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content');
+          const twDesc = doc.querySelector('meta[name="twitter:description"]')?.getAttribute('content');
+          const description = (ogDesc || metaDesc || twDesc || '').trim();
+
+          const iconLink = doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') ||
+                           doc.querySelector('link[rel="icon"]')?.getAttribute('href') ||
+                           doc.querySelector('link[rel="shortcut icon"]')?.getAttribute('href');
+          let resolvedIcon = '';
+          if (iconLink) {
+            try {
+              resolvedIcon = new URL(iconLink, targetUrl).href;
+            } catch {
+              resolvedIcon = '';
+            }
+          }
+          if (!resolvedIcon) {
+            resolvedIcon = `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(targetUrl)}&size=128`;
+          }
+
+          return {
+            title: cleanedTitle,
+            description,
+            iconUrl: resolvedIcon,
+            url: targetUrl
+          };
+        }
+      }
+    } catch {
+      clearTimeout(timeoutId);
+    }
+
+    const fallbackTitle = fallbackTitleFromUrl(targetUrl);
+    const fallbackIcon = `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(targetUrl)}&size=128`;
+    return {
+      title: fallbackTitle,
+      description: '',
+      iconUrl: fallbackIcon,
+      url: targetUrl
+    };
+  }
+
+  async function autoFillUrlMetadata(force = false) {
+    if (!entryUrl) return;
+    const rawUrl = entryUrl.value.trim();
+    if (!rawUrl || (!rawUrl.includes('.') && !rawUrl.startsWith('localhost'))) {
+      return;
+    }
+
+    if (!force && rawUrl === lastAutoDetectedUrl) {
+      return;
+    }
+
+    if (isAutoDetecting) return;
+    isAutoDetecting = true;
+    lastAutoDetectedUrl = rawUrl;
+
+    if (urlAutofillStatus) {
+      urlAutofillStatus.className = 'url-autofill-status loading';
+      urlAutofillStatus.textContent = '🪄 Detecting info…';
+      urlAutofillStatus.style.display = 'inline-flex';
+    }
+
+    if (autoDetectBtn) autoDetectBtn.disabled = true;
+
+    try {
+      const meta = await fetchWebsiteMetadata(rawUrl);
+      if (meta) {
+        const currentName = entryName ? entryName.value.trim() : '';
+        if (meta.title && (force || !currentName)) {
+          if (entryName) entryName.value = meta.title;
+        }
+
+        const currentDesc = entryDescription ? entryDescription.value.trim() : '';
+        if (meta.description && (force || !currentDesc)) {
+          if (entryDescription) entryDescription.value = meta.description;
+        }
+
+        const currentIcon = entryIcon ? entryIcon.value.trim() : '';
+        if (meta.iconUrl && (force || !currentIcon)) {
+          if (entryIcon) entryIcon.value = meta.iconUrl;
+          if (entryIconPreview) {
+            entryIconPreview.innerHTML = `<img src="${escapeHtml(meta.iconUrl)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`;
+          }
+        }
+
+        if (urlAutofillStatus) {
+          urlAutofillStatus.className = 'url-autofill-status success';
+          urlAutofillStatus.textContent = `✓ ${meta.title ? meta.title.slice(0, 24) + (meta.title.length > 24 ? '…' : '') : 'Detected'}`;
+          setTimeout(() => {
+            if (urlAutofillStatus.className.includes('success')) {
+              urlAutofillStatus.style.display = 'none';
+            }
+          }, 3500);
+        }
+      }
+    } catch {
+      if (urlAutofillStatus) {
+        urlAutofillStatus.style.display = 'none';
+      }
+    } finally {
+      isAutoDetecting = false;
+      if (autoDetectBtn) autoDetectBtn.disabled = false;
+    }
+  }
+
   // ── Modal ──────────────────────────────────────────────
 
   function openModal(id = null) {
     editingId = id;
+    lastAutoDetectedUrl = '';
+    if (urlAutofillStatus) urlAutofillStatus.style.display = 'none';
 
     if (id) {
       const entry = entries.find(e => e.id === id);
@@ -3860,20 +4043,48 @@
     }
   }
 
-  // Real-time icon preview updates as user types
-  entryUrl.addEventListener('input', () => {
-    if (!entryIcon.value.trim()) {
-      updateModalIconPreview();
-    }
-  });
+  // Real-time icon preview and Smart URL Auto-Fill
+  let urlAutofillDebounceTimer = null;
 
-  entryUrl.addEventListener('blur', () => {
-    const url = entryUrl.value.trim();
-    if (url && !entryIcon.value.trim()) {
-      entryIcon.setAttribute('placeholder', `Auto: ${getDomain(ensureProtocol(url))}`);
-      updateModalIconPreview();
-    }
-  });
+  if (entryUrl) {
+    entryUrl.addEventListener('input', () => {
+      if (!entryIcon.value.trim()) {
+        updateModalIconPreview();
+      }
+      clearTimeout(urlAutofillDebounceTimer);
+      urlAutofillDebounceTimer = setTimeout(() => {
+        const val = entryUrl.value.trim();
+        if (val.length > 5 && (val.includes('.') || val.startsWith('localhost'))) {
+          autoFillUrlMetadata(false);
+        }
+      }, 650);
+    });
+
+    entryUrl.addEventListener('paste', () => {
+      clearTimeout(urlAutofillDebounceTimer);
+      setTimeout(() => {
+        autoFillUrlMetadata(false);
+      }, 50);
+    });
+
+    entryUrl.addEventListener('blur', () => {
+      const url = entryUrl.value.trim();
+      if (url && !entryIcon.value.trim()) {
+        entryIcon.setAttribute('placeholder', `Auto: ${getDomain(ensureProtocol(url))}`);
+        updateModalIconPreview();
+      }
+      if (url && (!entryName.value.trim() || !entryDescription.value.trim())) {
+        autoFillUrlMetadata(false);
+      }
+    });
+  }
+
+  if (autoDetectBtn) {
+    autoDetectBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      autoFillUrlMetadata(true);
+    });
+  }
 
   entryIcon.addEventListener('input', updateModalIconPreview);
 

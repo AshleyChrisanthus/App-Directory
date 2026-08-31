@@ -1245,6 +1245,48 @@ select:focus {
   min-height: 60px;
 }
 
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.form-label-row label {
+  margin-bottom: 0;
+}
+
+.url-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.url-input-group input {
+  flex: 1;
+}
+
+.url-autofill-status {
+  font-size: 0.76rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.url-autofill-status.loading {
+  color: var(--accent);
+  animation: pulseHealth 1.2s infinite;
+}
+
+.url-autofill-status.success {
+  color: #10b981;
+}
+
+.url-autofill-status.error {
+  color: var(--text-tertiary);
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
