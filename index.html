@@ -12,6 +12,9 @@
     <!-- Header -->
     <header class="header">
       <div class="header-left">
+        <button id="sidebarToggleBtn" class="btn btn-icon sidebar-toggle-btn" title="Toggle Folders Sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <h1 class="logo">📂 App Directory</h1>
       </div>
       <div class="header-right">
@@ -139,21 +142,77 @@
     </div>
   </div>
 
-  <!-- Stats bar -->
-  <div class="stats-bar">
-    <span id="statsText">0 sites</span>
-  </div>
+  <!-- App Layout (Sidebar + Main Content) -->
+  <div class="app-layout" id="appLayout">
+    <!-- Folders & Collections Sidebar -->
+    <aside class="folders-sidebar" id="foldersSidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-nav-list" id="sidebarQuickViews">
+          <button type="button" class="sidebar-nav-item active" data-folder-id="all">
+            <span class="sidebar-item-icon">📁</span>
+            <span class="sidebar-item-name">All Bookmarks</span>
+            <span class="sidebar-item-count" id="countAll">0</span>
+          </button>
+          <button type="button" class="sidebar-nav-item" data-folder-id="favorites">
+            <span class="sidebar-item-icon">⭐</span>
+            <span class="sidebar-item-name">Favorites</span>
+            <span class="sidebar-item-count" id="countFavorites">0</span>
+          </button>
+          <button type="button" class="sidebar-nav-item" data-folder-id="unorganized">
+            <span class="sidebar-item-icon">📂</span>
+            <span class="sidebar-item-name">Unorganized</span>
+            <span class="sidebar-item-count" id="countUnorganized">0</span>
+          </button>
+        </div>
+      </div>
 
-  <!-- Card grid -->
-  <main class="grid" id="grid">
-    <!-- Cards rendered by JS -->
-  </main>
+      <div class="sidebar-section">
+        <div class="sidebar-header">
+          <span class="sidebar-header-title">Collections</span>
+          <button type="button" class="sidebar-header-action" id="newFolderBtn" title="Create New Folder">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="sidebar-nav-list" id="sidebarFoldersList">
+          <!-- Dynamic Folders rendered by JS -->
+        </div>
+      </div>
+    </aside>
 
-  <!-- Empty state -->
-  <div class="empty-state" id="emptyState" style="display:none;">
-    <div class="empty-icon">🌐</div>
-    <h2>No websites yet</h2>
-    <p>Click <strong>Add Website</strong> to save your first site to the directory.</p>
+    <!-- Main Content Area -->
+    <div class="main-content-area">
+      <!-- Active Folder Banner / Breadcrumbs -->
+      <div class="active-folder-banner" id="activeFolderBanner" style="display: none;">
+        <div class="folder-banner-left">
+          <span class="folder-banner-icon" id="folderBannerIcon">📁</span>
+          <div class="folder-banner-info">
+            <h2 class="folder-banner-title" id="folderBannerTitle">Work</h2>
+            <span class="folder-banner-count" id="folderBannerCount">0 sites</span>
+          </div>
+        </div>
+        <div class="folder-banner-actions" id="folderBannerActions">
+          <button type="button" class="btn btn-ghost btn-sm" id="editFolderBtn" title="Edit Folder">✏️ Edit</button>
+          <button type="button" class="btn btn-danger btn-sm" id="deleteFolderBtn" title="Delete Folder">🗑️ Delete</button>
+        </div>
+      </div>
+
+      <!-- Stats bar -->
+      <div class="stats-bar">
+        <span id="statsText">0 sites</span>
+      </div>
+
+      <!-- Card grid -->
+      <main class="grid" id="grid">
+        <!-- Cards rendered by JS -->
+      </main>
+
+      <!-- Empty state -->
+      <div class="empty-state" id="emptyState" style="display:none;">
+        <div class="empty-icon">🌐</div>
+        <h2>No websites yet</h2>
+        <p>Click <strong>Add Website</strong> to save your first site to the directory.</p>
+      </div>
+    </div>
   </div>
 
   <!-- Modal backdrop -->
@@ -204,6 +263,13 @@
           </div>
         </div>
         <div class="form-group">
+          <label for="entryFolder">Folder / Collection <span class="optional">(Organize into folder)</span></label>
+          <select id="entryFolder" class="form-select">
+            <option value="">📂 None (Unorganized)</option>
+            <!-- Populated dynamically by JS -->
+          </select>
+        </div>
+        <div class="form-group">
           <label for="entryDescription">Description</label>
           <textarea id="entryDescription" rows="3" placeholder="Optional short description…"></textarea>
         </div>
@@ -216,6 +282,52 @@
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" id="cancelBtn">Cancel</button>
           <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Folder Create / Edit Modal -->
+  <div class="modal-backdrop" id="folderModalBackdrop">
+    <div class="modal modal-sm" id="folderModal">
+      <div class="modal-header">
+        <h2 id="folderModalTitle">New Folder</h2>
+        <button class="btn btn-icon modal-close" id="folderModalClose" title="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="folderForm" novalidate>
+        <div class="form-group">
+          <label for="folderNameInput">Folder Name <span class="required">*</span></label>
+          <input type="text" id="folderNameInput" placeholder="e.g. Work Projects" required autocomplete="off">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="folderIconInput">Icon / Emoji</label>
+            <div class="folder-emoji-picker-row">
+              <input type="text" id="folderIconInput" value="📁" maxlength="4" style="width: 54px; text-align: center; font-size: 1.2rem;">
+              <div class="folder-emoji-suggestions" id="folderEmojiSuggestions">
+                <button type="button" class="emoji-preset-btn">📁</button>
+                <button type="button" class="emoji-preset-btn">💼</button>
+                <button type="button" class="emoji-preset-btn">🏠</button>
+                <button type="button" class="emoji-preset-btn">🔬</button>
+                <button type="button" class="emoji-preset-btn">🛠️</button>
+                <button type="button" class="emoji-preset-btn">🎨</button>
+                <button type="button" class="emoji-preset-btn">⚡</button>
+                <button type="button" class="emoji-preset-btn">📚</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="folderColorInput">Color Accent</label>
+            <div class="cat-color-picker-wrap" style="height: 42px;">
+              <input type="color" id="folderColorInput" value="#0a84ff" title="Choose folder accent color">
+            </div>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-ghost" id="cancelFolderBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveFolderBtn">Save Folder</button>
         </div>
       </form>
     </div>

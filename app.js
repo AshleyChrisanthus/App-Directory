@@ -148,6 +148,7 @@
   const addCategoryBtn = document.getElementById('addCategoryBtn');
   const categorySuggestionsPopup = document.getElementById('categorySuggestionsPopup');
   const categoryTags = document.getElementById('categoryTags');
+  const entryFolder = document.getElementById('entryFolder');
   const entryIcon = document.getElementById('entryIcon');
   const entryIconPreview = document.getElementById('entryIconPreview');
   const uploadIconBtn = document.getElementById('uploadIconBtn');
@@ -155,9 +156,48 @@
   const entryDescription = document.getElementById('entryDescription');
   const entryFavorite = document.getElementById('entryFavorite');
 
+  // Sidebar & Folder elements
+  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+  const foldersSidebar = document.getElementById('foldersSidebar');
+  const sidebarQuickViews = document.getElementById('sidebarQuickViews');
+  const countAll = document.getElementById('countAll');
+  const countFavorites = document.getElementById('countFavorites');
+  const countUnorganized = document.getElementById('countUnorganized');
+  const newFolderBtn = document.getElementById('newFolderBtn');
+  const sidebarFoldersList = document.getElementById('sidebarFoldersList');
+  const activeFolderBanner = document.getElementById('activeFolderBanner');
+  const folderBannerIcon = document.getElementById('folderBannerIcon');
+  const folderBannerTitle = document.getElementById('folderBannerTitle');
+  const folderBannerCount = document.getElementById('folderBannerCount');
+  const editFolderBtn = document.getElementById('editFolderBtn');
+  const deleteFolderBtn = document.getElementById('deleteFolderBtn');
+
+  // Folder modal elements
+  const folderModalBackdrop = document.getElementById('folderModalBackdrop');
+  const folderModalTitle = document.getElementById('folderModalTitle');
+  const folderModalClose = document.getElementById('folderModalClose');
+  const folderForm = document.getElementById('folderForm');
+  const folderNameInput = document.getElementById('folderNameInput');
+  const folderIconInput = document.getElementById('folderIconInput');
+  const folderColorInput = document.getElementById('folderColorInput');
+  const cancelFolderBtn = document.getElementById('cancelFolderBtn');
+  const saveFolderBtn = document.getElementById('saveFolderBtn');
+
   // ── State ──────────────────────────────────────────────
+  const STORAGE_FOLDERS_KEY = 'appDirectory_folders';
+  const SIDEBAR_STATE_KEY = 'appDirectory_sidebarCollapsed';
   const FILTER_MODE_KEY = 'app_directory_cat_filter_mode';
+
+  const DEFAULT_FOLDERS = [
+    { id: 'f-work', name: 'Work', icon: '💼', color: '#0a84ff', dateAdded: '2026-01-01T00:00:00.000Z' },
+    { id: 'f-personal', name: 'Personal', icon: '🏠', color: '#10b981', dateAdded: '2026-01-01T00:00:00.000Z' },
+    { id: 'f-research', name: 'Research', icon: '🔬', color: '#88c0d0', dateAdded: '2026-01-01T00:00:00.000Z' }
+  ];
+
   let entries = [];
+  let folders = [];
+  let activeFolderId = 'all'; // 'all', 'favorites', 'unorganized', or folder id
+  let editingFolderId = null;
   let editingId = null;
   let selectedCategories = []; // categories selected in the modal form
   let selectedFilterCategories = new Set(); // categories checked in the filter dropdown
@@ -1149,6 +1189,294 @@
     showToast('Reset all themes & colors to default!');
   }
 
+  // ── Folders & Collections Hierarchy (Issue #6) ────────
+
+  function loadFolders() {
+    try {
+      const raw = localStorage.getItem(STORAGE_FOLDERS_KEY);
+      if (raw) {
+        folders = JSON.parse(raw);
+        if (!Array.isArray(folders)) folders = [...DEFAULT_FOLDERS];
+      } else {
+        folders = [...DEFAULT_FOLDERS];
+        saveFolders(folders, false);
+      }
+    } catch {
+      folders = [...DEFAULT_FOLDERS];
+    }
+  }
+
+  function saveFolders(data = folders, notify = true) {
+    folders = data;
+    localStorage.setItem(STORAGE_FOLDERS_KEY, JSON.stringify(folders));
+    if (notify) notifyOtherTabs('SYNC_DATA');
+  }
+
+  function initSidebar() {
+    const isCollapsed = localStorage.getItem(SIDEBAR_STATE_KEY) === 'true';
+    if (foldersSidebar) {
+      foldersSidebar.classList.toggle('collapsed', isCollapsed);
+    }
+  }
+
+  function toggleSidebar() {
+    if (!foldersSidebar) return;
+    foldersSidebar.classList.toggle('collapsed');
+    const isCollapsed = foldersSidebar.classList.contains('collapsed');
+    localStorage.setItem(SIDEBAR_STATE_KEY, isCollapsed);
+  }
+
+  function renderFoldersSidebar() {
+    if (!sidebarFoldersList) return;
+
+    // Calculate item counts
+    const diskList = entries;
+    const allTotal = diskList.length;
+    const favTotal = diskList.filter(e => e.isFavorite).length;
+    const unorgTotal = diskList.filter(e => !e.folderId).length;
+
+    if (countAll) countAll.textContent = allTotal;
+    if (countFavorites) countFavorites.textContent = favTotal;
+    if (countUnorganized) countUnorganized.textContent = unorgTotal;
+
+    // Quick views active state & drop targets
+    if (sidebarQuickViews) {
+      sidebarQuickViews.querySelectorAll('.sidebar-nav-item').forEach(item => {
+        const fid = item.getAttribute('data-folder-id');
+        item.classList.toggle('active', fid === activeFolderId);
+        setupFolderDropTarget(item, fid);
+      });
+    }
+
+    // Render Custom Folders
+    sidebarFoldersList.innerHTML = '';
+    folders.forEach(folder => {
+      const folderCount = diskList.filter(e => e.folderId === folder.id).length;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = `sidebar-nav-item ${activeFolderId === folder.id ? 'active' : ''}`;
+      item.setAttribute('data-folder-id', folder.id);
+
+      item.innerHTML = `
+        <span class="sidebar-item-icon">${escapeHtml(folder.icon || '📁')}</span>
+        <span class="sidebar-item-name">${escapeHtml(folder.name)}</span>
+        <span class="sidebar-item-count">${folderCount}</span>
+        <div class="sidebar-item-actions">
+          <button type="button" class="sidebar-action-btn edit-folder-action" title="Edit folder">✏️</button>
+          <button type="button" class="sidebar-action-btn delete-folder-action" title="Delete folder">🗑️</button>
+        </div>
+      `;
+
+      // Select folder
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.edit-folder-action') || e.target.closest('.delete-folder-action')) return;
+        setActiveFolder(folder.id);
+      });
+
+      // Edit folder
+      const editBtn = item.querySelector('.edit-folder-action');
+      if (editBtn) {
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openFolderModal(folder.id);
+        });
+      }
+
+      // Delete folder
+      const delBtn = item.querySelector('.delete-folder-action');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteFolder(folder.id);
+        });
+      }
+
+      // Drag & drop target
+      setupFolderDropTarget(item, folder.id);
+
+      sidebarFoldersList.appendChild(item);
+    });
+
+    updateActiveFolderBanner();
+  }
+
+  function setupFolderDropTarget(element, targetFolderId) {
+    element.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      element.classList.add('drag-over');
+    });
+
+    element.addEventListener('dragleave', () => {
+      element.classList.remove('drag-over');
+    });
+
+    element.addEventListener('drop', (e) => {
+      e.preventDefault();
+      element.classList.remove('drag-over');
+      const entryId = e.dataTransfer.getData('text/plain');
+      if (!entryId) return;
+
+      const diskList = getLatestStoredEntries();
+      const entry = diskList.find(item => item.id === entryId);
+      if (!entry) return;
+
+      if (targetFolderId === 'favorites') {
+        entry.isFavorite = true;
+        entry.dateModified = new Date().toISOString();
+        saveEntries(diskList);
+        render();
+        showToast(`Pinned "${entry.name}" to Favorites ⭐`);
+      } else if (targetFolderId === 'unorganized') {
+        entry.folderId = null;
+        entry.dateModified = new Date().toISOString();
+        saveEntries(diskList);
+        render();
+        showToast(`Moved "${entry.name}" to Unorganized`);
+      } else if (targetFolderId === 'all') {
+        // No folder change needed
+      } else {
+        const folder = folders.find(f => f.id === targetFolderId);
+        entry.folderId = targetFolderId;
+        entry.dateModified = new Date().toISOString();
+        saveEntries(diskList);
+        render();
+        showToast(`Moved "${entry.name}" to ${folder ? folder.name : 'folder'} 📁`);
+      }
+    });
+  }
+
+  function setActiveFolder(folderId) {
+    activeFolderId = folderId;
+    renderFoldersSidebar();
+    renderCardsOnly();
+  }
+
+  function updateActiveFolderBanner() {
+    if (!activeFolderBanner) return;
+    if (activeFolderId && activeFolderId.startsWith('f-')) {
+      const folder = folders.find(f => f.id === activeFolderId);
+      if (folder) {
+        const folderCount = entries.filter(e => e.folderId === folder.id).length;
+        if (folderBannerIcon) folderBannerIcon.textContent = folder.icon || '📁';
+        if (folderBannerTitle) folderBannerTitle.textContent = folder.name;
+        if (folderBannerCount) folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? 's' : ''}`;
+        activeFolderBanner.style.display = 'flex';
+        return;
+      }
+    }
+    activeFolderBanner.style.display = 'none';
+  }
+
+  function populateFolderSelect(selectedId = '') {
+    if (!entryFolder) return;
+    entryFolder.innerHTML = '<option value="">📂 None (Unorganized)</option>';
+    folders.forEach(folder => {
+      const opt = document.createElement('option');
+      opt.value = folder.id;
+      opt.textContent = `${folder.icon || '📁'} ${folder.name}`;
+      if (selectedId && folder.id === selectedId) {
+        opt.selected = true;
+      }
+      entryFolder.appendChild(opt);
+    });
+  }
+
+  function openFolderModal(folderId = null) {
+    editingFolderId = folderId;
+    if (folderId) {
+      const folder = folders.find(f => f.id === folderId);
+      if (folder) {
+        folderModalTitle.textContent = 'Edit Folder';
+        folderNameInput.value = folder.name || '';
+        folderIconInput.value = folder.icon || '📁';
+        folderColorInput.value = folder.color || '#0a84ff';
+      }
+    } else {
+      folderModalTitle.textContent = 'New Folder';
+      folderNameInput.value = '';
+      folderIconInput.value = '📁';
+      folderColorInput.value = '#0a84ff';
+    }
+    folderModalBackdrop.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => folderNameInput.focus(), 60);
+  }
+
+  function closeFolderModal() {
+    folderModalBackdrop.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function saveFolderForm(e) {
+    e.preventDefault();
+    const name = folderNameInput.value.trim();
+    if (!name) {
+      folderNameInput.focus();
+      return;
+    }
+    const icon = folderIconInput.value.trim() || '📁';
+    const color = folderColorInput.value || '#0a84ff';
+
+    if (editingFolderId) {
+      const folder = folders.find(f => f.id === editingFolderId);
+      if (folder) {
+        folder.name = name;
+        folder.icon = icon;
+        folder.color = color;
+        folder.dateModified = new Date().toISOString();
+        showToast(`Updated folder "${name}"`);
+      }
+    } else {
+      const newFolder = {
+        id: `f-${Date.now()}`,
+        name,
+        icon,
+        color,
+        dateAdded: new Date().toISOString()
+      };
+      folders.push(newFolder);
+      showToast(`Created folder "${name}"`);
+    }
+
+    saveFolders();
+    closeFolderModal();
+    renderFoldersSidebar();
+    renderCardsOnly();
+  }
+
+  function deleteFolder(folderId) {
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return;
+
+    const diskList = getLatestStoredEntries();
+    const count = diskList.filter(e => e.folderId === folderId).length;
+
+    if (!confirm(`Delete folder "${folder.name}"? Contained websites (${count}) will be moved to Unorganized.`)) {
+      return;
+    }
+
+    // Move sites to unorganized
+    diskList.forEach(entry => {
+      if (entry.folderId === folderId) {
+        entry.folderId = null;
+        entry.dateModified = new Date().toISOString();
+      }
+    });
+
+    folders = folders.filter(f => f.id !== folderId);
+    saveFolders();
+    saveEntries(diskList);
+
+    if (activeFolderId === folderId) {
+      activeFolderId = 'all';
+    }
+
+    renderFoldersSidebar();
+    render();
+    showToast(`Deleted folder "${folder.name}"`);
+  }
+
   // ── Toast ──────────────────────────────────────────────
 
   function showToast(message) {
@@ -1172,6 +1500,7 @@
       saveBtn.textContent = 'Update';
       entryName.value = entry.name || '';
       entryUrl.value = entry.url || '';
+      populateFolderSelect(entry.folderId || '');
       selectedCategories = [...(entry.categories || [])];
       entryIcon.value = entry.iconUrl || '';
       entryDescription.value = entry.description || '';
@@ -1180,6 +1509,8 @@
       modalTitle.textContent = 'Add Website';
       saveBtn.textContent = 'Save';
       entryForm.reset();
+      const defaultFid = activeFolderId && activeFolderId.startsWith('f-') ? activeFolderId : '';
+      populateFolderSelect(defaultFid);
       selectedCategories = [];
     }
 
@@ -1214,6 +1545,7 @@
       url: ensureProtocol(data.url),
       description: data.description || '',
       iconUrl: rawIcon,
+      folderId: data.folderId || null,
       categories: data.categories || [],
       dateAdded: now,
       dateModified: now,
@@ -1262,6 +1594,7 @@
         url: ensureProtocol(data.url),
         description: data.description || '',
         iconUrl: rawIcon,
+        folderId: data.folderId || null,
         categories: data.categories || [],
         dateAdded: new Date().toISOString(),
         dateModified: new Date().toISOString(),
@@ -1275,6 +1608,7 @@
       target.url = ensureProtocol(data.url);
       target.description = data.description || '';
       target.iconUrl = rawIcon;
+      target.folderId = data.folderId !== undefined ? data.folderId : (target.folderId || null);
       target.categories = data.categories || [];
       target.isFavorite = data.isFavorite || false;
       target.dateModified = new Date().toISOString();
@@ -1620,6 +1954,15 @@
       }
     }
 
+    // Active Folder / Collection Filter
+    if (activeFolderId === 'favorites') {
+      filtered = filtered.filter(e => e.isFavorite);
+    } else if (activeFolderId === 'unorganized') {
+      filtered = filtered.filter(e => !e.folderId);
+    } else if (activeFolderId && activeFolderId !== 'all') {
+      filtered = filtered.filter(e => e.folderId === activeFolderId);
+    }
+
     // Sort — favorites always first
     filtered.sort((a, b) => {
       // Favorites pinned to top
@@ -1662,6 +2005,17 @@
     const card = document.createElement('div');
     card.className = 'card';
     card.setAttribute('data-id', entry.id);
+    card.setAttribute('draggable', 'true');
+
+    // Drag and Drop into Folders
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', entry.id);
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('is-dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+    });
 
     const pendingIcon = pendingIcons.get(entry.id);
     if (pendingIcon) {
@@ -1669,6 +2023,7 @@
     }
 
     const domain = getDomain(entry.url);
+    const folder = entry.folderId ? folders.find(f => f.id === entry.folderId) : null;
 
     card.innerHTML = `
       <button class="card-favorite ${entry.isFavorite ? 'active' : ''}" title="${entry.isFavorite ? 'Unpin from favorites' : 'Pin to favorites'}">
@@ -1700,6 +2055,7 @@
       </div>
       ${entry.description ? `<div class="card-description">${escapeHtml(entry.description)}</div>` : ''}
       <div class="card-meta">
+        ${folder ? `<span class="tag folder-tag" style="background: rgba(10,132,255,0.12); color: var(--accent); border: 1px solid rgba(10,132,255,0.25);" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
         ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
         <span class="meta-item" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
         ${entry.visitCount > 0 ? `
@@ -1809,6 +2165,7 @@
   }
 
   function render() {
+    renderFoldersSidebar();
     populateCategories();
     renderCardsOnly();
   }
@@ -1876,13 +2233,18 @@
 
   function getExportJson() {
     const list = getLatestStoredEntries();
-    if (list.length === 0) {
+    if (list.length === 0 && folders.length === 0) {
       showToast('Nothing to export.');
       return null;
     }
     const timestamp = getBackupTimestampString();
+    const exportObject = {
+      version: 2,
+      folders: folders,
+      entries: list
+    };
     return {
-      json: JSON.stringify(list, null, 2),
+      json: JSON.stringify(exportObject, null, 2),
       baseName: `app-directory-backup-${timestamp}`,
       filename: `app-directory-backup-${timestamp}.json`
     };
@@ -2011,25 +2373,48 @@
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = JSON.parse(e.target.result);
-        if (!Array.isArray(data)) throw new Error('Invalid format');
+        const parsed = JSON.parse(e.target.result);
+        let importedEntries = [];
+        let importedFolders = [];
+
+        if (Array.isArray(parsed)) {
+          // Legacy format (array of entries)
+          importedEntries = parsed;
+        } else if (parsed && typeof parsed === 'object') {
+          // Modern format with folders and entries
+          importedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+          importedFolders = Array.isArray(parsed.folders) ? parsed.folders : [];
+        } else {
+          throw new Error('Invalid format');
+        }
 
         // Validate entries
-        const valid = data.filter(e => e.name && e.url);
-        if (valid.length === 0) {
-          showToast('No valid entries found in file.');
+        const valid = importedEntries.filter(item => item && item.name && item.url);
+        if (valid.length === 0 && importedFolders.length === 0) {
+          showToast('No valid entries or folders found in file.');
           return;
+        }
+
+        // Import / merge folders
+        if (importedFolders.length > 0) {
+          importedFolders.forEach(f => {
+            if (f && f.id && f.name) {
+              if (!folders.some(existing => existing.id === f.id)) {
+                folders.push(f);
+              }
+            }
+          });
+          saveFolders(folders, false);
         }
 
         // Merge: skip duplicates by URL against fresh disk storage
         const diskList = getLatestStoredEntries();
-        const existingUrls = new Set(diskList.map(e => e.url.toLowerCase()));
+        const existingUrls = new Set(diskList.map(item => item.url.toLowerCase()));
         let imported = 0;
 
         valid.forEach(item => {
           const url = ensureProtocol(item.url).toLowerCase();
           if (!existingUrls.has(url)) {
-            // Handle both legacy 'category' and new 'categories' format
             let cats = item.categories || [];
             if (!Array.isArray(cats) || cats.length === 0) {
               if (item.category && typeof item.category === 'string') {
@@ -2044,6 +2429,7 @@
               url: ensureProtocol(item.url),
               description: item.description || '',
               iconUrl: item.iconUrl || getFaviconUrl(item.url),
+              folderId: item.folderId || null,
               categories: cats,
               dateAdded: item.dateAdded || new Date().toISOString(),
               dateModified: item.dateModified || new Date().toISOString(),
@@ -2057,7 +2443,9 @@
         });
 
         saveEntries(diskList);
+        renderFoldersSidebar();
         render();
+        cacheExistingIconsOffline();
         showToast(`Imported ${imported} new site${imported !== 1 ? 's' : ''} (${valid.length - imported} duplicate${valid.length - imported !== 1 ? 's' : ''} skipped).`);
       } catch {
         showToast('Error: Invalid JSON file.');
@@ -2429,6 +2817,7 @@
     const data = {
       name: entryName.value.trim(),
       url: entryUrl.value.trim(),
+      folderId: entryFolder ? (entryFolder.value || null) : null,
       categories: [...selectedCategories],
       iconUrl: entryIcon.value.trim(),
       description: entryDescription.value.trim(),
@@ -2463,6 +2852,7 @@
       closeModal();
       closeCatModal();
       closeThemeModal();
+      closeFolderModal();
       if (catFilterDropdown) catFilterDropdown.classList.remove('open');
       if (exportSplitGroup) exportSplitGroup.classList.remove('open');
     }
@@ -3070,10 +3460,66 @@
     });
   }
 
+  // ── Sidebar & Folder Event Listeners ────────────────────
+
+  if (sidebarToggleBtn) {
+    sidebarToggleBtn.addEventListener('click', toggleSidebar);
+  }
+
+  if (newFolderBtn) {
+    newFolderBtn.addEventListener('click', () => openFolderModal());
+  }
+
+  if (editFolderBtn) {
+    editFolderBtn.addEventListener('click', () => {
+      if (activeFolderId && activeFolderId.startsWith('f-')) {
+        openFolderModal(activeFolderId);
+      }
+    });
+  }
+
+  if (deleteFolderBtn) {
+    deleteFolderBtn.addEventListener('click', () => {
+      if (activeFolderId && activeFolderId.startsWith('f-')) {
+        deleteFolder(activeFolderId);
+      }
+    });
+  }
+
+  if (folderForm) {
+    folderForm.addEventListener('submit', saveFolderForm);
+  }
+
+  if (folderModalClose) {
+    folderModalClose.addEventListener('click', closeFolderModal);
+  }
+
+  if (cancelFolderBtn) {
+    cancelFolderBtn.addEventListener('click', closeFolderModal);
+  }
+
+  if (folderModalBackdrop) {
+    folderModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === folderModalBackdrop) closeFolderModal();
+    });
+  }
+
+  // Quick Emoji Presets
+  const emojiBtns = document.querySelectorAll('.emoji-preset-btn');
+  emojiBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (folderIconInput) {
+        folderIconInput.value = btn.textContent.trim();
+      }
+    });
+  });
+
   // ── Initialize ─────────────────────────────────────────
 
   initTheme();
+  initSidebar();
   updateModeToggleUI();
+  loadFolders();
   loadEntries();
   render();
   cacheExistingIconsOffline();
