@@ -264,10 +264,13 @@
         </div>
         <div class="form-group">
           <label for="entryFolder">Folder / Collection <span class="optional">(Organize into folder)</span></label>
-          <select id="entryFolder" class="form-select">
-            <option value="">📂 None (Unorganized)</option>
-            <!-- Populated dynamically by JS -->
-          </select>
+          <div class="folder-select-row">
+            <select id="entryFolder" class="form-select">
+              <option value="">📂 None (Unorganized)</option>
+              <!-- Populated dynamically by JS -->
+            </select>
+            <button type="button" class="btn btn-ghost btn-sm" id="inlineNewFolderBtn" title="Create a new folder collection">+ New Folder</button>
+          </div>
         </div>
         <div class="form-group">
           <label for="entryDescription">Description</label>

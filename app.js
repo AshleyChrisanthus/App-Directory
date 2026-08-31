@@ -149,6 +149,7 @@
   const categorySuggestionsPopup = document.getElementById('categorySuggestionsPopup');
   const categoryTags = document.getElementById('categoryTags');
   const entryFolder = document.getElementById('entryFolder');
+  const inlineNewFolderBtn = document.getElementById('inlineNewFolderBtn');
   const entryIcon = document.getElementById('entryIcon');
   const entryIconPreview = document.getElementById('entryIconPreview');
   const uploadIconBtn = document.getElementById('uploadIconBtn');
@@ -1413,8 +1414,11 @@
     });
   }
 
-  function openFolderModal(folderId = null) {
+  let inlineFolderCallback = null;
+
+  function openFolderModal(folderId = null, onCreatedCallback = null) {
     editingFolderId = folderId;
+    inlineFolderCallback = typeof onCreatedCallback === 'function' ? onCreatedCallback : null;
     if (folderId) {
       const folder = folders.find(f => f.id === folderId);
       if (folder) {
@@ -1436,7 +1440,11 @@
 
   function closeFolderModal() {
     folderModalBackdrop.classList.remove('active');
-    document.body.style.overflow = '';
+    const isMainModalActive = modalBackdrop && modalBackdrop.classList.contains('active');
+    if (!isMainModalActive) {
+      document.body.style.overflow = '';
+    }
+    inlineFolderCallback = null;
   }
 
   function saveFolderForm(e) {
@@ -1448,6 +1456,8 @@
     }
     const icon = folderIconInput.value.trim() || '📁';
     const color = folderColorInput.value || '#0a84ff';
+
+    let createdFolderId = null;
 
     if (editingFolderId) {
       const folder = folders.find(f => f.id === editingFolderId);
@@ -1467,13 +1477,19 @@
         dateAdded: new Date().toISOString()
       };
       folders.push(newFolder);
-      showToast(`Created folder "${name}"`);
+      createdFolderId = newFolder.id;
+      showToast(`Created folder "${name}" 📁`);
     }
 
     saveFolders();
+    const cb = inlineFolderCallback;
     closeFolderModal();
     renderFoldersSidebar();
     renderCardsOnly();
+
+    if (createdFolderId && typeof cb === 'function') {
+      cb(createdFolderId);
+    }
   }
 
   function deleteFolder(folderId) {
@@ -3508,6 +3524,14 @@
 
   if (newFolderBtn) {
     newFolderBtn.addEventListener('click', () => openFolderModal());
+  }
+
+  if (inlineNewFolderBtn) {
+    inlineNewFolderBtn.addEventListener('click', () => {
+      openFolderModal(null, (newFolderId) => {
+        populateFolderSelect(newFolderId);
+      });
+    });
   }
 
   if (editFolderBtn) {
