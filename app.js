@@ -156,6 +156,8 @@
   const inlineNewFolderBtn = document.getElementById('inlineNewFolderBtn');
   const entryIcon = document.getElementById('entryIcon');
   const entryIconPreview = document.getElementById('entryIconPreview');
+  const iconCandidatesWrapper = document.getElementById('iconCandidatesWrapper');
+  const iconCandidatesGrid = document.getElementById('iconCandidatesGrid');
   const uploadIconBtn = document.getElementById('uploadIconBtn');
   const iconFileInput = document.getElementById('iconFileInput');
   const entryDescription = document.getElementById('entryDescription');
@@ -2217,12 +2219,111 @@
     };
   }
 
+  // ── Multi-Source Icon Candidate Picker ──────────────────
+
+  let selectedCandidateId = 'google';
+
+  function getCandidateSources(url, scrapedIconUrl = '') {
+    if (!url) return [];
+    const targetUrl = ensureProtocol(url.trim());
+    const domain = getDomain(targetUrl);
+    if (!domain) return [];
+
+    let origin = '';
+    try {
+      origin = new URL(targetUrl).origin;
+    } catch {
+      origin = `https://${domain}`;
+    }
+
+    return [
+      {
+        id: 'google',
+        name: 'Google HD',
+        iconSrc: `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(targetUrl)}&size=128`,
+        tag: '🌐'
+      },
+      {
+        id: 'apple',
+        name: 'Touch Icon',
+        iconSrc: scrapedIconUrl || `${origin}/apple-touch-icon.png`,
+        tag: '🍎'
+      },
+      {
+        id: 'ddg',
+        name: 'DuckDuckGo',
+        iconSrc: `https://icons.duckduckgo.com/ip3/${domain}.ico`,
+        tag: '🦆'
+      },
+      {
+        id: 'clearbit',
+        name: 'Brand Logo',
+        iconSrc: `https://logo.clearbit.com/${domain}`,
+        tag: '🏢'
+      }
+    ];
+  }
+
+  function renderIconCandidates(url, scrapedIconUrl = '', forceSelectedId = null) {
+    if (!iconCandidatesGrid || !iconCandidatesWrapper) return;
+    if (!url || (!url.includes('.') && !url.startsWith('localhost'))) {
+      iconCandidatesWrapper.style.display = 'none';
+      return;
+    }
+
+    const candidates = getCandidateSources(url, scrapedIconUrl);
+    if (candidates.length === 0) {
+      iconCandidatesWrapper.style.display = 'none';
+      return;
+    }
+
+    if (forceSelectedId) {
+      selectedCandidateId = forceSelectedId;
+    } else if (!selectedCandidateId) {
+      selectedCandidateId = 'google';
+    }
+
+    iconCandidatesWrapper.style.display = 'flex';
+    iconCandidatesGrid.innerHTML = '';
+
+    candidates.forEach(cand => {
+      const card = document.createElement('div');
+      const isActive = cand.id === selectedCandidateId;
+      card.className = `icon-candidate-card ${isActive ? 'is-active' : ''}`;
+      card.setAttribute('data-candidate-id', cand.id);
+
+      card.innerHTML = `
+        ${isActive ? '<div class="candidate-check-badge">✓</div>' : ''}
+        <div class="candidate-icon-box">
+          <img src="${escapeHtml(cand.iconSrc)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
+        </div>
+        <span class="candidate-source-name" title="${cand.name}">${cand.tag} ${cand.name}</span>
+      `;
+
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        selectedCandidateId = cand.id;
+        if (entryIcon) entryIcon.value = cand.iconSrc;
+        if (entryIconPreview) {
+          entryIconPreview.innerHTML = `<img src="${escapeHtml(cand.iconSrc)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`;
+        }
+        renderIconCandidates(url, scrapedIconUrl, cand.id);
+      });
+
+      iconCandidatesGrid.appendChild(card);
+    });
+  }
+
   async function autoFillUrlMetadata(force = false) {
     if (!entryUrl) return;
     const rawUrl = entryUrl.value.trim();
     if (!rawUrl || (!rawUrl.includes('.') && !rawUrl.startsWith('localhost'))) {
+      if (iconCandidatesWrapper) iconCandidatesWrapper.style.display = 'none';
       return;
     }
+
+    // Immediately render candidate options with Google HD selected by default in position 1
+    renderIconCandidates(rawUrl, '', selectedCandidateId || 'google');
 
     if (!force && rawUrl === lastAutoDetectedUrl) {
       return;
@@ -2253,11 +2354,17 @@
           if (entryDescription) entryDescription.value = meta.description;
         }
 
+        // Re-render candidates with any scraped high-res icon
+        renderIconCandidates(rawUrl, meta.iconUrl, selectedCandidateId || 'google');
+
         const currentIcon = entryIcon ? entryIcon.value.trim() : '';
-        if (meta.iconUrl && (force || !currentIcon)) {
-          if (entryIcon) entryIcon.value = meta.iconUrl;
+        if (force || !currentIcon) {
+          // Google HD is default candidate in position 1
+          const googleCand = getCandidateSources(rawUrl, meta.iconUrl).find(c => c.id === 'google');
+          const defaultSrc = googleCand ? googleCand.iconSrc : meta.iconUrl;
+          if (entryIcon) entryIcon.value = defaultSrc;
           if (entryIconPreview) {
-            entryIconPreview.innerHTML = `<img src="${escapeHtml(meta.iconUrl)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`;
+            entryIconPreview.innerHTML = `<img src="${escapeHtml(defaultSrc)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`;
           }
         }
 
@@ -2286,6 +2393,7 @@
   function openModal(id = null) {
     editingId = id;
     lastAutoDetectedUrl = '';
+    selectedCandidateId = 'google';
     if (urlAutofillStatus) urlAutofillStatus.style.display = 'none';
 
     if (id) {
@@ -2300,6 +2408,7 @@
       entryIcon.value = entry.iconUrl || '';
       entryDescription.value = entry.description || '';
       entryFavorite.checked = entry.isFavorite || false;
+      renderIconCandidates(entry.url, entry.iconUrl, 'google');
     } else {
       modalTitle.textContent = 'Add Website';
       saveBtn.textContent = 'Save';
@@ -2307,6 +2416,7 @@
       const defaultFid = activeFolderId && activeFolderId.startsWith('f-') ? activeFolderId : '';
       populateFolderSelect(defaultFid);
       selectedCategories = [];
+      if (iconCandidatesWrapper) iconCandidatesWrapper.style.display = 'none';
     }
 
     if (entryCategory) entryCategory.value = '';
@@ -2557,23 +2667,54 @@
     }
   }
 
+  async function fetchMultiSourceBestIcon(url) {
+    if (!url) return null;
+    const targetUrl = ensureProtocol(url.trim());
+    const domain = getDomain(targetUrl);
+    if (!domain) return null;
+
+    let origin = '';
+    try {
+      origin = new URL(targetUrl).origin;
+    } catch {
+      origin = `https://${domain}`;
+    }
+
+    const sources = [
+      `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(targetUrl)}&size=128`,
+      `${origin}/apple-touch-icon.png`,
+      `https://logo.clearbit.com/${domain}`,
+      `https://icons.duckduckgo.com/ip3/${domain}.ico`
+    ];
+
+    for (const src of sources) {
+      try {
+        const dataUrl = await urlToDataUrl(src);
+        if (dataUrl && dataUrl.length > 250) {
+          return dataUrl;
+        }
+      } catch {}
+    }
+
+    return null;
+  }
+
   async function refreshEntryIcon(id, btnElement = null) {
     const diskList = getLatestStoredEntries();
     const entry = diskList.find(e => e.id === id);
     if (!entry) return;
 
     if (btnElement) btnElement.classList.add('is-spinning');
-    showToast(`Checking for updated icon for "${entry.name}"...`);
+    showToast(`Checking for updated icon for "${entry.name}" across multiple sources...`);
 
     try {
-      const freshUrl = getFaviconUrl(entry.url);
-      const candidateDataUrl = await urlToDataUrl(freshUrl);
+      const candidateDataUrl = await fetchMultiSourceBestIcon(entry.url);
 
       if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
         pendingIcons.set(id, candidateDataUrl);
         updatePendingIconsUI();
         updateCardPendingState(id);
-        showToast(`New icon found for "${entry.name}"! Click "✓ Accept" to apply.`);
+        showToast(`New HD icon found for "${entry.name}"! Click "✓ Accept" to apply.`);
       } else {
         showToast(`Icon for "${entry.name}" is already up to date.`);
       }
@@ -2605,7 +2746,7 @@
       refreshProgressBar.style.display = 'block';
       if (refreshProgressFill) refreshProgressFill.style.width = '0%';
       if (refreshProgressCount) refreshProgressCount.textContent = `0 / ${diskList.length}`;
-      if (refreshProgressLabel) refreshProgressLabel.textContent = 'Checking for updated icons in parallel...';
+      if (refreshProgressLabel) refreshProgressLabel.textContent = 'Checking for updated icons in parallel across multiple sources...';
     }
 
     let foundCount = 0;
@@ -2613,8 +2754,7 @@
 
     await runPool(diskList, concurrency, async (entry) => {
       try {
-        const freshUrl = getFaviconUrl(entry.url);
-        const candidateDataUrl = await urlToDataUrl(freshUrl);
+        const candidateDataUrl = await fetchMultiSourceBestIcon(entry.url);
         if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
           pendingIcons.set(entry.id, candidateDataUrl);
           foundCount++;

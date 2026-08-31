@@ -1515,6 +1515,114 @@ select:focus {
   flex: 1;
 }
 
+/* ========================================
+   Multi-Source Icon Candidate Picker
+   ======================================== */
+
+.icon-candidates-wrapper {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.icon-candidates-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.icon-candidates-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.icon-candidate-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 6px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  border: 1.5px solid var(--border-light);
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+  min-height: 68px;
+}
+
+.icon-candidate-card:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.icon-candidate-card.is-active {
+  border-color: var(--accent);
+  background: rgba(10, 132, 255, 0.08);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.candidate-icon-box {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--input-bg);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+
+.candidate-icon-box img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.candidate-source-name {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.icon-candidate-card.is-active .candidate-source-name {
+  color: var(--accent);
+}
+
+.candidate-check-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
