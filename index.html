@@ -58,6 +58,9 @@
             </button>
           </div>
         </div>
+        <button id="themeCustomizerBtn" class="btn btn-icon" title="Customize theme & colors">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+        </button>
         <button id="themeToggle" class="btn btn-icon" title="Toggle theme">
           <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -238,6 +241,192 @@
           <!-- Category rows rendered by JS -->
         </div>
         <div class="cat-modal-empty" id="catEmptyMsg" style="display:none;">No categories in use yet.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme & Color Customizer Modal -->
+  <div class="modal-backdrop" id="themeModalBackdrop">
+    <div class="modal modal-lg" id="themeModal">
+      <div class="modal-header">
+        <div class="modal-title-with-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
+          <h2>Customize Theme & Colors</h2>
+        </div>
+        <button class="btn btn-icon modal-close" id="themeModalClose" title="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Tabs Navigation -->
+      <div class="theme-tabs-nav">
+        <button type="button" class="theme-tab-btn active" data-tab="palettesTab">🎨 Presets</button>
+        <button type="button" class="theme-tab-btn" data-tab="granularTab">🎛️ UI Colors</button>
+        <button type="button" class="theme-tab-btn" data-tab="tagColorsTab">🏷️ Tag Colors</button>
+        <button type="button" class="theme-tab-btn" data-tab="exportThemeTab">💾 Import / Export</button>
+      </div>
+
+      <div class="theme-modal-body">
+        <!-- Tab 1: Presets & Palettes -->
+        <div class="theme-tab-pane active" id="palettesTab">
+          <p class="theme-hint">Choose a handcrafted theme preset or fine-tune individual colors in the tabs above.</p>
+          <div class="preset-palettes-grid" id="presetPalettesGrid">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Tab 2: Fine UI Colors -->
+        <div class="theme-tab-pane" id="granularTab">
+          <p class="theme-hint">Fine-tune every visual component with real-time live preview.</p>
+          
+          <div class="color-picker-sections">
+            <!-- Accent & Brand -->
+            <div class="color-section-group">
+              <h4 class="color-section-title">Brand & Accent</h4>
+              <div class="color-picker-grid">
+                <div class="color-picker-item">
+                  <label for="colorAccent">Primary Accent</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorAccent" data-var="--accent">
+                    <input type="text" class="color-hex-input" id="hexAccent" placeholder="#0a84ff">
+                  </div>
+                </div>
+                <div class="color-picker-item">
+                  <label for="colorAccentHover">Accent Hover</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorAccentHover" data-var="--accent-hover">
+                    <input type="text" class="color-hex-input" id="hexAccentHover" placeholder="#409cff">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Backgrounds & Surfaces -->
+            <div class="color-section-group">
+              <h4 class="color-section-title">Backgrounds & Surfaces</h4>
+              <div class="color-picker-grid">
+                <div class="color-picker-item">
+                  <label for="colorBgPrimary">Page Background</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorBgPrimary" data-var="--bg-primary">
+                    <input type="text" class="color-hex-input" id="hexBgPrimary" placeholder="#0d0d0f">
+                  </div>
+                </div>
+                <div class="color-picker-item">
+                  <label for="colorCardBg">Card / Surface</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorCardBg" data-var="--card-bg">
+                    <input type="text" class="color-hex-input" id="hexCardBg" placeholder="#1c1c1e">
+                  </div>
+                </div>
+                <div class="color-picker-item">
+                  <label for="colorBgSecondary">Nav / Header Bar</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorBgSecondary" data-var="--bg-secondary">
+                    <input type="text" class="color-hex-input" id="hexBgSecondary" placeholder="#1c1c1e">
+                  </div>
+                </div>
+                <div class="color-picker-item">
+                  <label for="colorBgHover">Hover Highlight</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorBgHover" data-var="--bg-hover">
+                    <input type="text" class="color-hex-input" id="hexBgHover" placeholder="#3a3a3c">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Text & Borders -->
+            <div class="color-section-group">
+              <h4 class="color-section-title">Text & Borders</h4>
+              <div class="color-picker-grid">
+                <div class="color-picker-item">
+                  <label for="colorTextPrimary">Primary Text</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorTextPrimary" data-var="--text-primary">
+                    <input type="text" class="color-hex-input" id="hexTextPrimary" placeholder="#f5f5f7">
+                  </div>
+                </div>
+                <div class="color-picker-item">
+                  <label for="colorTextSecondary">Secondary Text</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorTextSecondary" data-var="--text-secondary">
+                    <input type="text" class="color-hex-input" id="hexTextSecondary" placeholder="#a1a1a6">
+                  </div>
+                </div>
+                <div class="color-picker-item">
+                  <label for="colorBorder">Borders & Outlines</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorBorder" data-var="--border-light">
+                    <input type="text" class="color-hex-input" id="hexBorder" placeholder="#2c2c2e">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Global Tags -->
+            <div class="color-section-group">
+              <h4 class="color-section-title">Default Tag Badges</h4>
+              <div class="color-picker-grid">
+                <div class="color-picker-item">
+                  <label for="colorTagText">Tag Text Color</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorTagText" data-var="--tag-text">
+                    <input type="text" class="color-hex-input" id="hexTagText" placeholder="#0a84ff">
+                  </div>
+                </div>
+                <div class="color-picker-item">
+                  <label for="colorTagBg">Tag Background</label>
+                  <div class="color-input-wrapper">
+                    <input type="color" id="colorTagBg" data-var="--tag-bg">
+                    <input type="text" class="color-hex-input" id="hexTagBg" placeholder="#1c2c3e">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Per-Category Tag Colors -->
+        <div class="theme-tab-pane" id="tagColorsTab">
+          <div class="cat-colors-header">
+            <p class="theme-hint">Assign custom colors to individual categories for instant visual differentiation.</p>
+            <div class="cat-colors-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="autoPaletteCatsBtn" title="Auto-generate distinct harmonious colors for all categories">
+                ✨ Auto-Colorize
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" id="resetCatColorsBtn" title="Reset all category colors to default">
+                Reset Tags
+              </button>
+            </div>
+          </div>
+          <div id="categoryColorsList" class="category-colors-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Tab 4: Import / Export / Reset -->
+        <div class="theme-tab-pane" id="exportThemeTab">
+          <p class="theme-hint">Export your custom theme configuration or import a theme from another device.</p>
+          <div class="theme-io-section">
+            <div class="theme-io-card">
+              <h4>Export Current Theme</h4>
+              <p>Copy your complete theme configuration JSON to your clipboard.</p>
+              <button type="button" class="btn btn-primary" id="copyThemeJsonBtn">📋 Copy Theme JSON</button>
+            </div>
+            <div class="theme-io-card">
+              <h4>Import Custom Theme</h4>
+              <p>Paste a theme JSON configuration below to apply it.</p>
+              <textarea id="importThemeJsonInput" rows="4" placeholder='{"theme": "dark", "colors": {"--accent": "#0a84ff", ...}}'></textarea>
+              <button type="button" class="btn btn-ghost" id="applyThemeJsonBtn">Apply Theme JSON</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer theme-modal-footer">
+        <button type="button" class="btn btn-ghost" id="resetAllThemeBtn">↺ Reset All to Default</button>
+        <button type="button" class="btn btn-primary" id="saveThemeModalBtn">Done</button>
       </div>
     </div>
   </div>

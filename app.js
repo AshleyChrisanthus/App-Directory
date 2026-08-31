@@ -107,6 +107,18 @@
   const cancelBtn = document.getElementById('cancelBtn');
   const saveBtn = document.getElementById('saveBtn');
   const themeToggle = document.getElementById('themeToggle');
+  const themeCustomizerBtn = document.getElementById('themeCustomizerBtn');
+  const themeModalBackdrop = document.getElementById('themeModalBackdrop');
+  const themeModalClose = document.getElementById('themeModalClose');
+  const saveThemeModalBtn = document.getElementById('saveThemeModalBtn');
+  const resetAllThemeBtn = document.getElementById('resetAllThemeBtn');
+  const presetPalettesGrid = document.getElementById('presetPalettesGrid');
+  const categoryColorsList = document.getElementById('categoryColorsList');
+  const autoPaletteCatsBtn = document.getElementById('autoPaletteCatsBtn');
+  const resetCatColorsBtn = document.getElementById('resetCatColorsBtn');
+  const copyThemeJsonBtn = document.getElementById('copyThemeJsonBtn');
+  const applyThemeJsonBtn = document.getElementById('applyThemeJsonBtn');
+  const importThemeJsonInput = document.getElementById('importThemeJsonInput');
   const refreshAllBtn = document.getElementById('refreshAllBtn');
   const acceptAllIconsBtn = document.getElementById('acceptAllIconsBtn');
   const pendingIconsCount = document.getElementById('pendingIconsCount');
@@ -366,6 +378,7 @@
         syncFromStorage();
       } else if (event.data && event.data.type === 'SYNC_THEME') {
         initTheme();
+        renderCardsOnly();
       }
     };
   } catch (_) {}
@@ -597,12 +610,264 @@
     }
   }
 
-  // ── Theme ──────────────────────────────────────────────
+  // ── Theme & Granular Color Customizer ─────────────────
+
+  const THEME_KEY = 'appDirectory_theme';
+  const CUSTOM_THEME_KEY = 'appDirectory_customTheme';
+  const CAT_COLORS_KEY = 'appDirectory_categoryColors';
+
+  let customThemeColors = {};
+  let categoryColors = {};
+
+  const THEME_PRESETS = [
+    {
+      id: 'default-dark',
+      name: 'Default Dark',
+      theme: 'dark',
+      desc: 'Sleek dark glassmorphism',
+      colors: {
+        '--bg-primary': '#0d0d0f',
+        '--bg-secondary': '#1c1c1e',
+        '--card-bg': '#1c1c1e',
+        '--bg-hover': '#3a3a3c',
+        '--text-primary': '#f5f5f7',
+        '--text-secondary': '#a1a1a6',
+        '--border-light': '#2c2c2e',
+        '--accent': '#0a84ff',
+        '--accent-hover': '#409cff',
+        '--tag-bg': 'rgba(10,132,255,0.15)',
+        '--tag-text': '#0a84ff'
+      },
+      swatches: ['#0d0d0f', '#1c1c1e', '#0a84ff', '#f5f5f7']
+    },
+    {
+      id: 'default-light',
+      name: 'Default Light',
+      theme: 'light',
+      desc: 'Clean & crisp light theme',
+      colors: {
+        '--bg-primary': '#f5f5f7',
+        '--bg-secondary': '#ffffff',
+        '--card-bg': '#ffffff',
+        '--bg-hover': '#e8e8ec',
+        '--text-primary': '#1d1d1f',
+        '--text-secondary': '#6e6e73',
+        '--border-light': '#e5e5ea',
+        '--accent': '#0071e3',
+        '--accent-hover': '#0077ed',
+        '--tag-bg': 'rgba(0,113,227,0.1)',
+        '--tag-text': '#0071e3'
+      },
+      swatches: ['#f5f5f7', '#ffffff', '#0071e3', '#1d1d1f']
+    },
+    {
+      id: 'midnight-sapphire',
+      name: 'Midnight Sapphire',
+      theme: 'dark',
+      desc: 'Deep navy obsidian & glowing sapphire',
+      colors: {
+        '--bg-primary': '#0b1329',
+        '--bg-secondary': '#111c44',
+        '--card-bg': '#152259',
+        '--bg-hover': '#1e2f75',
+        '--text-primary': '#f0f9ff',
+        '--text-secondary': '#94a3b8',
+        '--border-light': '#1e293b',
+        '--accent': '#38bdf8',
+        '--accent-hover': '#7dd3fc',
+        '--tag-bg': 'rgba(56,189,248,0.15)',
+        '--tag-text': '#38bdf8'
+      },
+      swatches: ['#0b1329', '#152259', '#38bdf8', '#f0f9ff']
+    },
+    {
+      id: 'cyberpunk-neon',
+      name: 'Cyberpunk Neon',
+      theme: 'dark',
+      desc: 'Onyx black with electric fuchsia',
+      colors: {
+        '--bg-primary': '#09090b',
+        '--bg-secondary': '#18181b',
+        '--card-bg': '#18181b',
+        '--bg-hover': '#27272a',
+        '--text-primary': '#fafafa',
+        '--text-secondary': '#a1a1aa',
+        '--border-light': '#27272a',
+        '--accent': '#ec4899',
+        '--accent-hover': '#f472b6',
+        '--tag-bg': 'rgba(236,72,153,0.18)',
+        '--tag-text': '#f472b6'
+      },
+      swatches: ['#09090b', '#18181b', '#ec4899', '#a855f7']
+    },
+    {
+      id: 'emerald-forest',
+      name: 'Emerald Forest',
+      theme: 'dark',
+      desc: 'Deep pine woods & vibrant mint',
+      colors: {
+        '--bg-primary': '#041c14',
+        '--bg-secondary': '#062c20',
+        '--card-bg': '#0b3b2c',
+        '--bg-hover': '#124e3c',
+        '--text-primary': '#ecfdf5',
+        '--text-secondary': '#a7f3d0',
+        '--border-light': '#064e3b',
+        '--accent': '#10b981',
+        '--accent-hover': '#34d399',
+        '--tag-bg': 'rgba(16,185,129,0.18)',
+        '--tag-text': '#34d399'
+      },
+      swatches: ['#041c14', '#0b3b2c', '#10b981', '#ecfdf5']
+    },
+    {
+      id: 'sunset-amber',
+      name: 'Sunset Amber',
+      theme: 'dark',
+      desc: 'Warm volcanic charcoal & amber flame',
+      colors: {
+        '--bg-primary': '#1c1917',
+        '--bg-secondary': '#292524',
+        '--card-bg': '#292524',
+        '--bg-hover': '#44403c',
+        '--text-primary': '#fafaf9',
+        '--text-secondary': '#a8a29e',
+        '--border-light': '#44403c',
+        '--accent': '#f97316',
+        '--accent-hover': '#fb923c',
+        '--tag-bg': 'rgba(249,115,22,0.18)',
+        '--tag-text': '#fb923c'
+      },
+      swatches: ['#1c1917', '#292524', '#f97316', '#fafaf9']
+    },
+    {
+      id: 'rose-velvet',
+      name: 'Rose Velvet',
+      theme: 'dark',
+      desc: 'Plum night with rosé highlights',
+      colors: {
+        '--bg-primary': '#1a101f',
+        '--bg-secondary': '#291830',
+        '--card-bg': '#291830',
+        '--bg-hover': '#3d2348',
+        '--text-primary': '#fff1f2',
+        '--text-secondary': '#fda4af',
+        '--border-light': '#4c1d35',
+        '--accent': '#f43f5e',
+        '--accent-hover': '#fb7185',
+        '--tag-bg': 'rgba(244,63,94,0.18)',
+        '--tag-text': '#fb7185'
+      },
+      swatches: ['#1a101f', '#291830', '#f43f5e', '#fff1f2']
+    },
+    {
+      id: 'nordic-frost',
+      name: 'Nordic Frost',
+      theme: 'dark',
+      desc: 'Polar slate grey with arctic frost cyan',
+      colors: {
+        '--bg-primary': '#242933',
+        '--bg-secondary': '#2e3440',
+        '--card-bg': '#2e3440',
+        '--bg-hover': '#3b4252',
+        '--text-primary': '#eceff4',
+        '--text-secondary': '#d8dee9',
+        '--border-light': '#3b4252',
+        '--accent': '#88c0d0',
+        '--accent-hover': '#81a1c1',
+        '--tag-bg': 'rgba(136,192,208,0.18)',
+        '--tag-text': '#88c0d0'
+      },
+      swatches: ['#242933', '#2e3440', '#88c0d0', '#eceff4']
+    }
+  ];
+
+  function hexToRgb(hex) {
+    if (!hex) return null;
+    hex = hex.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map(c => c + c).join('');
+    }
+    if (hex.length !== 6) return null;
+    const num = parseInt(hex, 16);
+    return {
+      r: (num >> 16) & 255,
+      g: (num >> 8) & 255,
+      b: num & 255
+    };
+  }
+
+  function rgbToHex(r, g, b) {
+    return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+
+  function hslToHex(h, s, l) {
+    s /= 100;
+    l /= 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => {
+      const k = (n + h / 30) % 12;
+      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      return Math.round(255 * color).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+  }
+
+  function getCategoryTagStyle(categoryName) {
+    if (!categoryName) return '';
+    const color = categoryColors[categoryName.toLowerCase()];
+    if (!color) return '';
+    const rgb = hexToRgb(color);
+    if (!rgb) return `style="color: ${color};"`;
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const bgAlpha = isDark ? 0.20 : 0.12;
+    const borderAlpha = isDark ? 0.40 : 0.25;
+    return `style="--tag-color: ${color}; color: ${color}; background: rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${bgAlpha}); border: 1px solid rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${borderAlpha});"`;
+  }
 
   function initTheme() {
     const saved = localStorage.getItem(THEME_KEY);
     const theme = saved || 'dark';
     document.documentElement.setAttribute('data-theme', theme);
+
+    // Load custom theme CSS variables
+    try {
+      const custom = localStorage.getItem(CUSTOM_THEME_KEY);
+      if (custom) {
+        customThemeColors = JSON.parse(custom) || {};
+        applyCustomThemeProperties(customThemeColors);
+      }
+    } catch {
+      customThemeColors = {};
+    }
+
+    // Load custom category colors
+    try {
+      const catCols = localStorage.getItem(CAT_COLORS_KEY);
+      if (catCols) {
+        categoryColors = JSON.parse(catCols) || {};
+      }
+    } catch {
+      categoryColors = {};
+    }
+  }
+
+  function applyCustomThemeProperties(colorsObj) {
+    const root = document.documentElement;
+    Object.entries(colorsObj).forEach(([prop, val]) => {
+      if (val) {
+        root.style.setProperty(prop, val);
+      }
+    });
+  }
+
+  function clearCustomThemeProperties() {
+    const root = document.documentElement;
+    [
+      '--bg-primary', '--bg-secondary', '--bg-tertiary', '--card-bg',
+      '--bg-hover', '--text-primary', '--text-secondary', '--border-light',
+      '--accent', '--accent-hover', '--tag-bg', '--tag-text'
+    ].forEach(prop => root.style.removeProperty(prop));
   }
 
   function toggleTheme() {
@@ -610,7 +875,184 @@
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem(THEME_KEY, next);
+
+    if (Object.keys(customThemeColors).length > 0) {
+      applyCustomThemeProperties(customThemeColors);
+    }
     notifyOtherTabs('SYNC_THEME');
+    renderCardsOnly();
+  }
+
+  function openThemeModal() {
+    renderPresetPalettes();
+    syncColorPickersFromDOM();
+    renderCategoryColorsList();
+    themeModalBackdrop.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeThemeModal() {
+    themeModalBackdrop.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function renderPresetPalettes() {
+    if (!presetPalettesGrid) return;
+    presetPalettesGrid.innerHTML = '';
+
+    THEME_PRESETS.forEach(preset => {
+      const card = document.createElement('div');
+      card.className = 'palette-card';
+      card.innerHTML = `
+        <div class="palette-preview-bar">
+          ${preset.swatches.map(c => `<div class="palette-swatch" style="background: ${c};"></div>`).join('')}
+        </div>
+        <div class="palette-name">${escapeHtml(preset.name)}</div>
+        <div class="palette-desc">${escapeHtml(preset.desc)}</div>
+      `;
+      card.addEventListener('click', () => {
+        applyPreset(preset);
+      });
+      presetPalettesGrid.appendChild(card);
+    });
+  }
+
+  function applyPreset(preset) {
+    document.documentElement.setAttribute('data-theme', preset.theme);
+    localStorage.setItem(THEME_KEY, preset.theme);
+    customThemeColors = { ...preset.colors };
+    clearCustomThemeProperties();
+    applyCustomThemeProperties(customThemeColors);
+    localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(customThemeColors));
+
+    syncColorPickersFromDOM();
+    notifyOtherTabs('SYNC_THEME');
+    renderCardsOnly();
+    showToast(`Applied "${preset.name}" theme!`);
+  }
+
+  function syncColorPickersFromDOM() {
+    const computed = getComputedStyle(document.documentElement);
+    const pickers = [
+      { id: 'colorAccent', hexId: 'hexAccent', prop: '--accent' },
+      { id: 'colorAccentHover', hexId: 'hexAccentHover', prop: '--accent-hover' },
+      { id: 'colorBgPrimary', hexId: 'hexBgPrimary', prop: '--bg-primary' },
+      { id: 'colorCardBg', hexId: 'hexCardBg', prop: '--card-bg' },
+      { id: 'colorBgSecondary', hexId: 'hexBgSecondary', prop: '--bg-secondary' },
+      { id: 'colorBgHover', hexId: 'hexBgHover', prop: '--bg-hover' },
+      { id: 'colorTextPrimary', hexId: 'hexTextPrimary', prop: '--text-primary' },
+      { id: 'colorTextSecondary', hexId: 'hexTextSecondary', prop: '--text-secondary' },
+      { id: 'colorBorder', hexId: 'hexBorder', prop: '--border-light' },
+      { id: 'colorTagText', hexId: 'hexTagText', prop: '--tag-text' },
+      { id: 'colorTagBg', hexId: 'hexTagBg', prop: '--tag-bg' }
+    ];
+
+    pickers.forEach(({ id, hexId, prop }) => {
+      const colorInput = document.getElementById(id);
+      const hexInput = document.getElementById(hexId);
+      if (!colorInput || !hexInput) return;
+
+      let val = customThemeColors[prop] || computed.getPropertyValue(prop).trim();
+      if (val.startsWith('#')) {
+        colorInput.value = val;
+        hexInput.value = val;
+      } else if (val.startsWith('rgb')) {
+        const match = val.match(/\d+/g);
+        if (match && match.length >= 3) {
+          const hex = rgbToHex(parseInt(match[0]), parseInt(match[1]), parseInt(match[2]));
+          colorInput.value = hex;
+          hexInput.value = val;
+        }
+      } else {
+        hexInput.value = val;
+      }
+    });
+  }
+
+  function renderCategoryColorsList() {
+    if (!categoryColorsList) return;
+    const cats = getAllCategories();
+    if (cats.length === 0) {
+      categoryColorsList.innerHTML = '<p class="cat-modal-empty" style="grid-column: 1/-1;">No categories in use yet.</p>';
+      return;
+    }
+
+    categoryColorsList.innerHTML = '';
+    cats.forEach(cat => {
+      const color = categoryColors[cat.toLowerCase()] || '#0a84ff';
+      const hasCustom = !!categoryColors[cat.toLowerCase()];
+
+      const row = document.createElement('div');
+      row.className = 'cat-color-row';
+      row.innerHTML = `
+        <div class="cat-color-name-wrap">
+          <span class="cat-color-name">${escapeHtml(cat)}</span>
+          <span class="cat-color-preview-pill" ${getCategoryTagStyle(cat)}>Preview</span>
+        </div>
+        <div class="cat-color-picker-wrap">
+          <input type="color" value="${color}" title="Choose color for ${escapeHtml(cat)}">
+          ${hasCustom ? `<button type="button" class="cat-color-clear-btn" title="Reset to default">✕</button>` : ''}
+        </div>
+      `;
+
+      const picker = row.querySelector('input[type="color"]');
+      picker.addEventListener('input', (e) => {
+        categoryColors[cat.toLowerCase()] = e.target.value;
+        localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(categoryColors));
+        const pill = row.querySelector('.cat-color-preview-pill');
+        if (pill) {
+          pill.outerHTML = `<span class="cat-color-preview-pill" ${getCategoryTagStyle(cat)}>Preview</span>`;
+        }
+        renderCardsOnly();
+      });
+
+      const clearBtn = row.querySelector('.cat-color-clear-btn');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          delete categoryColors[cat.toLowerCase()];
+          localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(categoryColors));
+          renderCategoryColorsList();
+          renderCardsOnly();
+        });
+      }
+
+      categoryColorsList.appendChild(row);
+    });
+  }
+
+  function autoColorizeAllCategories() {
+    const cats = getAllCategories();
+    if (cats.length === 0) {
+      showToast('No categories to colorize.');
+      return;
+    }
+
+    cats.forEach((cat, idx) => {
+      const hue = Math.round((idx * 360) / cats.length);
+      const hex = hslToHex(hue, 75, 55);
+      categoryColors[cat.toLowerCase()] = hex;
+    });
+
+    localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(categoryColors));
+    renderCategoryColorsList();
+    renderCardsOnly();
+    showToast(`Colorized ${cats.length} categories!`);
+  }
+
+  function resetAllThemeSettings() {
+    customThemeColors = {};
+    categoryColors = {};
+    localStorage.removeItem(CUSTOM_THEME_KEY);
+    localStorage.removeItem(CAT_COLORS_KEY);
+    clearCustomThemeProperties();
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem(THEME_KEY, 'dark');
+
+    syncColorPickersFromDOM();
+    renderCategoryColorsList();
+    renderCardsOnly();
+    notifyOtherTabs('SYNC_THEME');
+    showToast('Reset all themes & colors to default!');
   }
 
   // ── Toast ──────────────────────────────────────────────
@@ -1164,7 +1606,7 @@
       </div>
       ${entry.description ? `<div class="card-description">${escapeHtml(entry.description)}</div>` : ''}
       <div class="card-meta">
-        ${(entry.categories || []).map(cat => `<span class="tag">${escapeHtml(cat)}</span>`).join('')}
+        ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
         <span class="meta-item" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
         ${entry.visitCount > 0 ? `
           <span class="meta-dot"></span>
@@ -1541,6 +1983,11 @@
     selectedCategories.forEach(cat => {
       const chip = document.createElement('span');
       chip.className = 'tag-chip';
+      const customStyle = getCategoryTagStyle(cat);
+      if (customStyle) {
+        const match = customStyle.match(/style="([^"]+)"/);
+        if (match) chip.setAttribute('style', match[1]);
+      }
       chip.innerHTML = `${escapeHtml(cat)}<button type="button" class="tag-chip-remove" title="Remove">&times;</button>`;
       chip.querySelector('.tag-chip-remove').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1706,6 +2153,11 @@
         selectedFilterCategories.delete(oldName);
         selectedFilterCategories.add(newName);
       }
+      if (categoryColors[oldName.toLowerCase()]) {
+        categoryColors[newName.toLowerCase()] = categoryColors[oldName.toLowerCase()];
+        delete categoryColors[oldName.toLowerCase()];
+        localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(categoryColors));
+      }
       saveEntries(diskList);
       render();
       showToast(`Renamed "${oldName}" → "${newName}" (${updated} site${updated !== 1 ? 's' : ''} updated)`);
@@ -1721,6 +2173,11 @@
       entry.categories = (entry.categories || []).filter(c => c !== catName);
       entry.dateModified = new Date().toISOString();
     });
+
+    if (categoryColors[catName.toLowerCase()]) {
+      delete categoryColors[catName.toLowerCase()];
+      localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(categoryColors));
+    }
 
     selectedFilterCategories.delete(catName);
     saveEntries(diskList);
@@ -1762,7 +2219,7 @@
       const row = document.createElement('div');
       row.className = 'cat-row';
       row.innerHTML = `
-        <span class="cat-row-name">${escapeHtml(cat)}</span>
+        <span class="cat-row-name" ${getCategoryTagStyle(cat)} style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:600;">${escapeHtml(cat)}</span>
         <span class="cat-row-count">${count} site${count !== 1 ? 's' : ''}</span>
         <div class="cat-row-actions">
           <button class="btn btn-ghost rename-btn" title="Rename">✏️</button>
@@ -1911,6 +2368,7 @@
     if (e.key === 'Escape') {
       closeModal();
       closeCatModal();
+      closeThemeModal();
       if (catFilterDropdown) catFilterDropdown.classList.remove('open');
       if (exportSplitGroup) exportSplitGroup.classList.remove('open');
     }
@@ -2385,6 +2843,135 @@
           };
           reader.readAsDataURL(file);
         }
+      }
+    });
+  }
+
+  // ── Theme Customizer Event Listeners ────────────────────
+
+  if (themeCustomizerBtn) {
+    themeCustomizerBtn.addEventListener('click', openThemeModal);
+  }
+
+  if (themeModalClose) {
+    themeModalClose.addEventListener('click', closeThemeModal);
+  }
+
+  if (saveThemeModalBtn) {
+    saveThemeModalBtn.addEventListener('click', closeThemeModal);
+  }
+
+  if (themeModalBackdrop) {
+    themeModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === themeModalBackdrop) closeThemeModal();
+    });
+  }
+
+  // Theme Customizer Tabs
+  document.querySelectorAll('.theme-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.theme-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.theme-tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const tabId = btn.getAttribute('data-tab');
+      const targetPane = document.getElementById(tabId);
+      if (targetPane) targetPane.classList.add('active');
+    });
+  });
+
+  // Granular color pickers
+  document.querySelectorAll('.color-picker-item input[type="color"]').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const prop = input.getAttribute('data-var');
+      const hex = e.target.value;
+      customThemeColors[prop] = hex;
+      document.documentElement.style.setProperty(prop, hex);
+      const hexInput = input.parentElement.querySelector('.color-hex-input');
+      if (hexInput) hexInput.value = hex;
+      localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(customThemeColors));
+      notifyOtherTabs('SYNC_THEME');
+      renderCardsOnly();
+    });
+  });
+
+  document.querySelectorAll('.color-hex-input').forEach(input => {
+    input.addEventListener('change', (e) => {
+      let val = e.target.value.trim();
+      if (!val.startsWith('#') && (val.length === 3 || val.length === 6)) val = '#' + val;
+      const colorPicker = input.parentElement.querySelector('input[type="color"]');
+      const prop = colorPicker ? colorPicker.getAttribute('data-var') : null;
+      if (prop && (val.length === 4 || val.length === 7)) {
+        customThemeColors[prop] = val;
+        if (colorPicker) colorPicker.value = val;
+        document.documentElement.style.setProperty(prop, val);
+        localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(customThemeColors));
+        notifyOtherTabs('SYNC_THEME');
+        renderCardsOnly();
+      }
+    });
+  });
+
+  if (autoPaletteCatsBtn) {
+    autoPaletteCatsBtn.addEventListener('click', autoColorizeAllCategories);
+  }
+
+  if (resetCatColorsBtn) {
+    resetCatColorsBtn.addEventListener('click', () => {
+      categoryColors = {};
+      localStorage.removeItem(CAT_COLORS_KEY);
+      renderCategoryColorsList();
+      renderCardsOnly();
+      showToast('Reset category tag colors!');
+    });
+  }
+
+  if (resetAllThemeBtn) {
+    resetAllThemeBtn.addEventListener('click', resetAllThemeSettings);
+  }
+
+  if (copyThemeJsonBtn) {
+    copyThemeJsonBtn.addEventListener('click', async () => {
+      const themeConfig = {
+        theme: document.documentElement.getAttribute('data-theme') || 'dark',
+        customColors: customThemeColors,
+        categoryColors: categoryColors
+      };
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(themeConfig, null, 2));
+        showToast('Theme JSON copied to clipboard!');
+      } catch {
+        showToast('Failed to copy theme to clipboard.');
+      }
+    });
+  }
+
+  if (applyThemeJsonBtn && importThemeJsonInput) {
+    applyThemeJsonBtn.addEventListener('click', () => {
+      const raw = importThemeJsonInput.value.trim();
+      if (!raw) return;
+      try {
+        const config = JSON.parse(raw);
+        if (config.theme) {
+          document.documentElement.setAttribute('data-theme', config.theme);
+          localStorage.setItem(THEME_KEY, config.theme);
+        }
+        if (config.customColors) {
+          customThemeColors = config.customColors;
+          clearCustomThemeProperties();
+          applyCustomThemeProperties(customThemeColors);
+          localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(customThemeColors));
+        }
+        if (config.categoryColors) {
+          categoryColors = config.categoryColors;
+          localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(categoryColors));
+        }
+        syncColorPickersFromDOM();
+        renderCategoryColorsList();
+        renderCardsOnly();
+        notifyOtherTabs('SYNC_THEME');
+        showToast('Custom theme imported successfully!');
+      } catch {
+        showToast('Error: Invalid theme JSON format.');
       }
     });
   }

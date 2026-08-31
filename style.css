@@ -1589,8 +1589,374 @@ select:focus {
 }
 
 /* ========================================
-   Toast
+   Theme & Color Customizer Modal
    ======================================== */
+
+.modal-lg {
+  max-width: 680px;
+}
+
+.modal-title-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-title-with-icon svg {
+  color: var(--accent);
+}
+
+.theme-tabs-nav {
+  display: flex;
+  gap: 6px;
+  padding: 16px 24px 0;
+  border-bottom: 1px solid var(--border-light);
+  overflow-x: auto;
+}
+
+.theme-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.theme-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.theme-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.theme-modal-body {
+  padding: 18px 24px 24px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.theme-tab-pane {
+  display: none;
+  animation: fadeIn 0.15s ease;
+}
+
+.theme-tab-pane.active {
+  display: block;
+}
+
+.theme-hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+/* Tab 1: Preset Palettes */
+.preset-palettes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.palette-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+}
+
+.palette-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border);
+  background: var(--bg-hover);
+}
+
+.palette-card.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.palette-preview-bar {
+  display: flex;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.palette-swatch {
+  flex: 1;
+  height: 100%;
+}
+
+.palette-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.palette-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* Tab 2: Granular Color Pickers */
+.color-picker-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.color-section-group {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  border: 1px solid var(--border-light);
+}
+
+.color-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 16px;
+}
+
+.color-picker-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.color-picker-item label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.color-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 4px 8px;
+  transition: border-color var(--transition);
+}
+
+.color-input-wrapper:focus-within {
+  border-color: var(--input-focus);
+}
+
+.color-input-wrapper input[type="color"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.color-input-wrapper input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-input-wrapper input[type="color"]::-webkit-color-swatch {
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 4px;
+}
+
+.color-hex-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: monospace;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  outline: none;
+}
+
+/* Tab 3: Per-Category Custom Tag Colors */
+.cat-colors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.cat-colors-header .theme-hint {
+  margin-bottom: 0;
+}
+
+.cat-colors-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.category-colors-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.cat-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  gap: 10px;
+}
+
+.cat-color-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cat-color-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-color-preview-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cat-color-picker-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.cat-color-picker-wrap input[type="color"] {
+  -webkit-appearance: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cat-color-picker-wrap input[type="color"]::-webkit-color-swatch {
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 4px;
+}
+
+.cat-color-clear-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 2px;
+  line-height: 1;
+}
+
+.cat-color-clear-btn:hover {
+  color: var(--danger);
+}
+
+/* Tab 4: Import / Export */
+.theme-io-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.theme-io-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.theme-io-card h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.theme-io-card p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.theme-io-card textarea {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.theme-io-card textarea:focus {
+  outline: none;
+  border-color: var(--input-focus);
+}
+
+.theme-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-light);
+}
 
 .toast-container {
   position: fixed;
