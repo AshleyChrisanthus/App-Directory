@@ -37,7 +37,7 @@
   --toast-bg: #1d1d1f;
   --toast-text: #ffffff;
   --input-bg: #f5f5f7;
-  --input-border: #d2d2d7;
+  --input-border: #e5e5ea;
   --input-focus: #0071e3;
   --scrollbar-thumb: #c7c7cc;
   --tag-bg: rgba(0,113,227,0.1);
@@ -68,8 +68,8 @@
   --modal-backdrop: rgba(0,0,0,0.6);
   --toast-bg: #f5f5f7;
   --toast-text: #1d1d1f;
-  --input-bg: #2c2c2e;
-  --input-border: #3a3a3c;
+  --input-bg: #0d0d0f;
+  --input-border: #2c2c2e;
   --input-focus: #0a84ff;
   --scrollbar-thumb: #48484a;
   --tag-bg: rgba(10,132,255,0.15);
@@ -1143,7 +1143,9 @@ select:focus {
 }
 
 .modal {
-  background: var(--modal-bg);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius);
   width: 100%;
   max-width: 520px;
@@ -1151,7 +1153,7 @@ select:focus {
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
   transform: translateY(20px) scale(0.97);
-  transition: transform 0.25s ease;
+  transition: transform 0.25s ease, background var(--transition), border-color var(--transition);
 }
 
 .modal-backdrop.active .modal {
@@ -1162,7 +1164,8 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px 0;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .modal-header h2 {
@@ -1208,13 +1211,13 @@ select:focus {
 .form-group textarea,
 .form-group select {
   background: var(--input-bg);
-  border: 1px solid var(--input-border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   font-family: var(--font-sans);
   font-size: 0.9rem;
   color: var(--text-primary);
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), background var(--transition);
   width: 100%;
 }
 
@@ -1253,12 +1256,15 @@ select:focus {
 }
 
 .tag-input-wrapper {
-  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
   background: var(--input-bg);
-  border: 1px solid var(--input-border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 8px;
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), background var(--transition);
 }
 
 .tag-input-wrapper:focus-within {
@@ -1430,12 +1436,13 @@ select:focus {
   height: 36px;
   border-radius: var(--radius-sm);
   background: var(--input-bg);
-  border: 1px solid var(--input-border);
+  border: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
+  transition: border-color var(--transition), background var(--transition);
 }
 
 .icon-preview-box img {
@@ -1485,11 +1492,11 @@ select:focus {
   align-items: center;
   gap: 8px;
   background: var(--input-bg);
-  border: 1px solid var(--input-border);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   margin-bottom: 12px;
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), background var(--transition);
 }
 
 .cat-modal-search-box:focus-within {
@@ -1529,8 +1536,9 @@ select:focus {
   gap: 8px;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
-  transition: background var(--transition);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  transition: background var(--transition), border-color var(--transition);
 }
 
 .cat-row:hover {
@@ -1667,8 +1675,8 @@ select:focus {
 .palette-card {
   display: flex;
   flex-direction: column;
-  background: var(--bg-tertiary);
-  border: 2px solid transparent;
+  background: var(--input-bg);
+  border: 2px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 12px;
   cursor: pointer;
@@ -1678,7 +1686,7 @@ select:focus {
 
 .palette-card:hover {
   transform: translateY(-2px);
-  border-color: var(--border);
+  border-color: var(--accent);
   background: var(--bg-hover);
 }
 
@@ -1722,7 +1730,7 @@ select:focus {
 }
 
 .color-section-group {
-  background: var(--bg-tertiary);
+  background: var(--input-bg);
   border-radius: var(--radius-sm);
   padding: 14px 16px;
   border: 1px solid var(--border-light);
@@ -1836,7 +1844,7 @@ select:focus {
   justify-content: space-between;
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
+  background: var(--input-bg);
   border: 1px solid var(--border-light);
   gap: 10px;
 }
@@ -1911,7 +1919,7 @@ select:focus {
 }
 
 .theme-io-card {
-  background: var(--bg-tertiary);
+  background: var(--input-bg);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
   padding: 16px;
@@ -1933,8 +1941,8 @@ select:focus {
 
 .theme-io-card textarea {
   width: 100%;
-  background: var(--input-bg);
-  border: 1px solid var(--border);
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
   border-radius: 6px;
   padding: 8px 12px;
   font-family: monospace;
@@ -1954,6 +1962,7 @@ select:focus {
   justify-content: space-between;
   padding: 16px 24px;
   border-top: 1px solid var(--border-light);
+  background: var(--card-bg);
 }
 
 .toast-container {
@@ -2256,8 +2265,9 @@ select:focus {
 }
 
 .emoji-preset-btn {
-  background: var(--bg-secondary);
+  background: var(--input-bg);
   border: 1px solid var(--border-light);
+  color: var(--text-primary);
   border-radius: 6px;
   font-size: 1.1rem;
   padding: 4px 6px;

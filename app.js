@@ -990,12 +990,23 @@
         root.style.setProperty(prop, val);
       }
     });
+    if (colorsObj['--card-bg']) {
+      root.style.setProperty('--modal-bg', colorsObj['--card-bg']);
+    }
+    if (colorsObj['--bg-primary']) {
+      root.style.setProperty('--input-bg', colorsObj['--bg-primary']);
+    }
+    if (colorsObj['--border-light']) {
+      root.style.setProperty('--input-border', colorsObj['--border-light']);
+      root.style.setProperty('--card-border', colorsObj['--border-light']);
+    }
   }
 
   function clearCustomThemeProperties() {
     const root = document.documentElement;
     [
       '--bg-primary', '--bg-secondary', '--bg-tertiary', '--card-bg',
+      '--modal-bg', '--input-bg', '--input-border', '--card-border',
       '--bg-hover', '--text-primary', '--text-secondary', '--border-light',
       '--accent', '--accent-hover', '--tag-bg', '--tag-text'
     ].forEach(prop => root.style.removeProperty(prop));
