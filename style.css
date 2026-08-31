@@ -1156,6 +1156,10 @@ select:focus {
   transition: transform 0.25s ease, background var(--transition), border-color var(--transition);
 }
 
+.modal-sm {
+  max-width: 440px;
+}
+
 .modal-backdrop.active .modal {
   transform: translateY(0) scale(1);
 }
@@ -2251,17 +2255,35 @@ select:focus {
   border: 1px dashed var(--accent);
 }
 
-/* Folder Modal Emoji Suggestions */
-.folder-emoji-picker-row {
+/* Folder Modal Form & Emoji Suggestions */
+#folderForm {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.folder-icon-color-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.folder-icon-input {
+  width: 52px;
+  height: 40px;
+  text-align: center;
+  font-size: 1.3rem;
+  padding: 4px 6px !important;
+  flex-shrink: 0;
 }
 
 .folder-emoji-suggestions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
 }
 
 .emoji-preset-btn {
@@ -2269,16 +2291,52 @@ select:focus {
   border: 1px solid var(--border-light);
   color: var(--text-primary);
   border-radius: 6px;
-  font-size: 1.1rem;
-  padding: 4px 6px;
+  font-size: 1.15rem;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: all 0.15s;
+  padding: 0;
+  transition: all 0.15s ease;
 }
 
 .emoji-preset-btn:hover {
   background: var(--bg-hover);
   transform: scale(1.15);
   border-color: var(--accent);
+}
+
+.folder-color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.folder-color-input {
+  -webkit-appearance: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.folder-color-input::-webkit-color-swatch {
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 6px;
+}
+
+.folder-color-hint {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
 }
 
 /* ========================================

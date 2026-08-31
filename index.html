@@ -301,28 +301,27 @@
           <label for="folderNameInput">Folder Name <span class="required">*</span></label>
           <input type="text" id="folderNameInput" placeholder="e.g. Work Projects" required autocomplete="off">
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="folderIconInput">Icon / Emoji</label>
-            <div class="folder-emoji-picker-row">
-              <input type="text" id="folderIconInput" value="📁" maxlength="4" style="width: 54px; text-align: center; font-size: 1.2rem;">
-              <div class="folder-emoji-suggestions" id="folderEmojiSuggestions">
-                <button type="button" class="emoji-preset-btn">📁</button>
-                <button type="button" class="emoji-preset-btn">💼</button>
-                <button type="button" class="emoji-preset-btn">🏠</button>
-                <button type="button" class="emoji-preset-btn">🔬</button>
-                <button type="button" class="emoji-preset-btn">🛠️</button>
-                <button type="button" class="emoji-preset-btn">🎨</button>
-                <button type="button" class="emoji-preset-btn">⚡</button>
-                <button type="button" class="emoji-preset-btn">📚</button>
-              </div>
+        <div class="form-group">
+          <label for="folderIconInput">Icon / Emoji</label>
+          <div class="folder-icon-color-row">
+            <input type="text" id="folderIconInput" class="folder-icon-input" value="📁" maxlength="4">
+            <div class="folder-emoji-suggestions" id="folderEmojiSuggestions">
+              <button type="button" class="emoji-preset-btn">📁</button>
+              <button type="button" class="emoji-preset-btn">💼</button>
+              <button type="button" class="emoji-preset-btn">🏠</button>
+              <button type="button" class="emoji-preset-btn">🔬</button>
+              <button type="button" class="emoji-preset-btn">🛠️</button>
+              <button type="button" class="emoji-preset-btn">🎨</button>
+              <button type="button" class="emoji-preset-btn">⚡</button>
+              <button type="button" class="emoji-preset-btn">📚</button>
             </div>
           </div>
-          <div class="form-group">
-            <label for="folderColorInput">Color Accent</label>
-            <div class="cat-color-picker-wrap" style="height: 42px;">
-              <input type="color" id="folderColorInput" value="#0a84ff" title="Choose folder accent color">
-            </div>
+        </div>
+        <div class="form-group">
+          <label for="folderColorInput">Color Accent</label>
+          <div class="folder-color-picker-row">
+            <input type="color" id="folderColorInput" class="folder-color-input" value="#0a84ff" title="Choose folder accent color">
+            <span class="folder-color-hint">Signature accent color for folder collection</span>
           </div>
         </div>
         <div class="form-actions">
