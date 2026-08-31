@@ -2550,6 +2550,294 @@ select:focus {
   flex-shrink: 0;
 }
 
+#healthModalBackdrop {
+  z-index: 1050;
+}
+
+/* ========================================
+   Website Health Checker Modal
+   ======================================== */
+
+.health-modal-body {
+  padding: 16px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.health-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.health-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  text-align: center;
+}
+
+.health-stat-num {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.health-stat-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.health-stat-card.stat-healthy .health-stat-num {
+  color: #10b981;
+}
+
+.health-stat-card.stat-broken .health-stat-num {
+  color: #ef4444;
+}
+
+.health-stat-card.stat-untested .health-stat-num {
+  color: var(--text-tertiary);
+}
+
+.health-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.health-progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.health-progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-light);
+  overflow: hidden;
+}
+
+.health-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #0a84ff);
+  transition: width 0.2s ease;
+  border-radius: 999px;
+}
+
+.health-controls-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.health-search-box {
+  max-width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+}
+
+.health-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.health-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.health-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition);
+}
+
+.health-item-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.health-item-row.is-broken {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.health-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.health-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.health-item-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.health-item-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.health-item-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-item-url {
+  font-size: 0.76rem;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.health-status-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.health-status-badge.healthy {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.health-status-badge.broken {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.health-status-badge.untested {
+  background: var(--bg-primary);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-light);
+}
+
+.health-status-badge.checking {
+  background: rgba(10, 132, 255, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(10, 132, 255, 0.3);
+  animation: pulseHealth 1.2s infinite;
+}
+
+@keyframes pulseHealth {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.health-actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.health-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all var(--transition);
+}
+
+.health-action-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+
+.health-action-btn.btn-delete:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.card-health-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  width: fit-content;
+}
+
+.card-health-pill.broken {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
 /* ========================================
    Responsive
    ======================================== */

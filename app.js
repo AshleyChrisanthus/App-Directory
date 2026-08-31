@@ -121,6 +121,7 @@
   const applyThemeJsonBtn = document.getElementById('applyThemeJsonBtn');
   const importThemeJsonInput = document.getElementById('importThemeJsonInput');
   const refreshAllBtn = document.getElementById('refreshAllBtn');
+  const healthCheckBtn = document.getElementById('healthCheckBtn');
   const acceptAllIconsBtn = document.getElementById('acceptAllIconsBtn');
   const pendingIconsCount = document.getElementById('pendingIconsCount');
   const dismissAllIconsBtn = document.getElementById('dismissAllIconsBtn');
@@ -165,6 +166,8 @@
   const countAll = document.getElementById('countAll');
   const countFavorites = document.getElementById('countFavorites');
   const countUnorganized = document.getElementById('countUnorganized');
+  const sidebarBrokenView = document.getElementById('sidebarBrokenView');
+  const countBroken = document.getElementById('countBroken');
   const newFolderBtn = document.getElementById('newFolderBtn');
   const sidebarFoldersList = document.getElementById('sidebarFoldersList');
   const activeFolderBanner = document.getElementById('activeFolderBanner');
@@ -203,6 +206,26 @@
   const addBmEmpty = document.getElementById('addBmEmpty');
   const cancelAddBmBtn = document.getElementById('cancelAddBmBtn');
   const confirmAddBmBtn = document.getElementById('confirmAddBmBtn');
+
+  // Health Modal elements
+  const healthModalBackdrop = document.getElementById('healthModalBackdrop');
+  const healthModalClose = document.getElementById('healthModalClose');
+  const healthStatTotal = document.getElementById('healthStatTotal');
+  const healthStatHealthy = document.getElementById('healthStatHealthy');
+  const healthStatBroken = document.getElementById('healthStatBroken');
+  const healthStatUntested = document.getElementById('healthStatUntested');
+  const healthProgressWrap = document.getElementById('healthProgressWrap');
+  const healthProgressStatusText = document.getElementById('healthProgressStatusText');
+  const healthProgressPercent = document.getElementById('healthProgressPercent');
+  const healthProgressFill = document.getElementById('healthProgressFill');
+  const healthSearchInput = document.getElementById('healthSearchInput');
+  const healthSearchClear = document.getElementById('healthSearchClear');
+  const healthFilterPills = document.getElementById('healthFilterPills');
+  const healthList = document.getElementById('healthList');
+  const healthEmpty = document.getElementById('healthEmpty');
+  const healthStopBtn = document.getElementById('healthStopBtn');
+  const healthScanBrokenBtn = document.getElementById('healthScanBrokenBtn');
+  const healthScanAllBtn = document.getElementById('healthScanAllBtn');
 
   // ── State ──────────────────────────────────────────────
   const STORAGE_FOLDERS_KEY = 'appDirectory_folders';
@@ -1266,10 +1289,15 @@
     const allTotal = diskList.length;
     const favTotal = diskList.filter(e => e.isFavorite).length;
     const unorgTotal = diskList.filter(e => !e.folderId).length;
+    const brokenTotal = diskList.filter(e => e.health && e.health.status === 'broken').length;
 
     if (countAll) countAll.textContent = allTotal;
     if (countFavorites) countFavorites.textContent = favTotal;
     if (countUnorganized) countUnorganized.textContent = unorgTotal;
+    if (countBroken) countBroken.textContent = brokenTotal;
+    if (sidebarBrokenView) {
+      sidebarBrokenView.style.display = brokenTotal > 0 ? 'flex' : 'none';
+    }
 
     // Quick views active state & drop targets
     if (sidebarQuickViews) {
@@ -1365,7 +1393,7 @@
         saveEntries(diskList);
         render();
         showToast(`Moved "${entry.name}" to Unorganized`);
-      } else if (targetFolderId === 'all') {
+      } else if (targetFolderId === 'all' || targetFolderId === 'broken') {
         // No folder change needed
       } else {
         const folder = folders.find(f => f.id === targetFolderId);
@@ -1412,6 +1440,14 @@
       if (folderBannerIcon) folderBannerIcon.textContent = '📂';
       if (folderBannerTitle) folderBannerTitle.textContent = 'Unorganized';
       if (folderBannerCount) folderBannerCount.textContent = `${unorgCount} site${unorgCount !== 1 ? 's' : ''}`;
+      if (bannerActions) bannerActions.style.display = 'none';
+      activeFolderBanner.style.display = 'flex';
+      return;
+    } else if (activeFolderId === 'broken') {
+      const brokenCount = entries.filter(e => e.health && e.health.status === 'broken').length;
+      if (folderBannerIcon) folderBannerIcon.textContent = '⚠️';
+      if (folderBannerTitle) folderBannerTitle.textContent = 'Broken / Offline Links';
+      if (folderBannerCount) folderBannerCount.textContent = `${brokenCount} site${brokenCount !== 1 ? 's' : ''}`;
       if (bannerActions) bannerActions.style.display = 'none';
       activeFolderBanner.style.display = 'flex';
       return;
@@ -1715,6 +1751,342 @@
     render();
     renderFoldersSidebar();
     showToast(`Moved ${movedCount} bookmark${movedCount !== 1 ? 's' : ''} to "${folder ? folder.name : 'folder'}" 📁`);
+  }
+
+  // ── Website Health & Broken Link Checker ────────────────
+
+  let isHealthScanning = false;
+  let healthAbortRequested = false;
+  let healthFilter = 'all'; // 'all', 'broken', 'healthy', 'untested'
+  let healthSearchQuery = '';
+  let currentlyCheckingIds = new Set();
+
+  async function checkUrlHealth(url) {
+    if (!url) return { status: 'broken', error: 'Empty URL', statusCode: null, lastChecked: new Date().toISOString() };
+    let targetUrl = url.trim();
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+    try {
+      // Direct reachability test (no-cors mode)
+      await fetch(targetUrl, {
+        method: 'GET',
+        mode: 'no-cors',
+        signal: controller.signal,
+        cache: 'no-cache'
+      });
+      clearTimeout(timeoutId);
+      return { status: 'healthy', statusCode: 200, error: null, lastChecked: new Date().toISOString() };
+    } catch (err) {
+      clearTimeout(timeoutId);
+
+      // Secondary image/favicon probe before concluding broken
+      try {
+        const domain = getDomain(targetUrl);
+        if (domain) {
+          const imgAlive = await new Promise((resolve) => {
+            const img = new Image();
+            const timer = setTimeout(() => resolve(false), 2500);
+            img.onload = () => { clearTimeout(timer); resolve(true); };
+            img.onerror = () => { clearTimeout(timer); resolve(false); };
+            img.src = `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(targetUrl)}&size=32`;
+          });
+          if (imgAlive) {
+            return { status: 'healthy', statusCode: 200, error: null, lastChecked: new Date().toISOString() };
+          }
+        }
+      } catch {
+        // Ignore fallback error
+      }
+
+      const isAborted = err.name === 'AbortError';
+      return {
+        status: 'broken',
+        statusCode: isAborted ? 408 : 0,
+        error: isAborted ? 'Connection timed out (6s)' : 'DNS error or host unreachable',
+        lastChecked: new Date().toISOString()
+      };
+    }
+  }
+
+  function openHealthModal() {
+    healthSearchQuery = '';
+    healthFilter = 'all';
+    if (healthSearchInput) healthSearchInput.value = '';
+    if (healthSearchClear) healthSearchClear.style.display = 'none';
+
+    if (healthFilterPills) {
+      healthFilterPills.querySelectorAll('.pill-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-health') === 'all');
+      });
+    }
+
+    updateHealthSummaryCards();
+    renderHealthModalList();
+
+    if (healthModalBackdrop) {
+      healthModalBackdrop.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+  }
+
+  function closeHealthModal() {
+    if (isHealthScanning) {
+      stopHealthScan();
+    }
+    if (healthModalBackdrop) {
+      healthModalBackdrop.classList.remove('active');
+    }
+    document.body.style.overflow = '';
+  }
+
+  function updateHealthSummaryCards() {
+    const list = getLatestStoredEntries();
+    const total = list.length;
+    const healthy = list.filter(e => e.health && e.health.status === 'healthy').length;
+    const broken = list.filter(e => e.health && e.health.status === 'broken').length;
+    const untested = list.filter(e => !e.health || e.health.status === 'untested').length;
+
+    if (healthStatTotal) healthStatTotal.textContent = total;
+    if (healthStatHealthy) healthStatHealthy.textContent = healthy;
+    if (healthStatBroken) healthStatBroken.textContent = broken;
+    if (healthStatUntested) healthStatUntested.textContent = untested;
+  }
+
+  function getFilteredHealthEntries() {
+    const list = getLatestStoredEntries();
+    let res = [...list];
+
+    if (healthFilter === 'broken') {
+      res = res.filter(e => e.health && e.health.status === 'broken');
+    } else if (healthFilter === 'healthy') {
+      res = res.filter(e => e.health && e.health.status === 'healthy');
+    } else if (healthFilter === 'untested') {
+      res = res.filter(e => !e.health || e.health.status === 'untested');
+    }
+
+    if (healthSearchQuery) {
+      const q = healthSearchQuery.toLowerCase();
+      res = res.filter(e =>
+        (e.name || '').toLowerCase().includes(q) ||
+        (e.url || '').toLowerCase().includes(q)
+      );
+    }
+
+    return res;
+  }
+
+  function renderHealthModalList() {
+    if (!healthList) return;
+    const filtered = getFilteredHealthEntries();
+    updateHealthSummaryCards();
+
+    if (filtered.length === 0) {
+      healthList.innerHTML = '';
+      if (healthEmpty) healthEmpty.style.display = 'block';
+      return;
+    }
+
+    if (healthEmpty) healthEmpty.style.display = 'none';
+    healthList.innerHTML = '';
+
+    filtered.forEach(entry => {
+      const row = document.createElement('div');
+      const isChecking = currentlyCheckingIds.has(entry.id);
+      const isBroken = !isChecking && entry.health && entry.health.status === 'broken';
+      const isHealthy = !isChecking && entry.health && entry.health.status === 'healthy';
+
+      row.className = `health-item-row ${isBroken ? 'is-broken' : ''}`;
+
+      let statusBadgeHtml = '<span class="health-status-badge untested">⚪ Untested</span>';
+      if (isChecking) {
+        statusBadgeHtml = '<span class="health-status-badge checking">⚡ Testing…</span>';
+      } else if (isHealthy) {
+        statusBadgeHtml = '<span class="health-status-badge healthy" title="Tested ' + (entry.health.lastChecked ? timeAgo(entry.health.lastChecked) : '') + '">🟢 Healthy</span>';
+      } else if (isBroken) {
+        statusBadgeHtml = '<span class="health-status-badge broken" title="' + escapeHtml(entry.health.error || 'Dead link') + '">⚠️ ' + escapeHtml(entry.health.error || 'Broken') + '</span>';
+      }
+
+      const domain = getDomain(entry.url);
+      const iconSrc = entry.iconUrl || entry.icon || '';
+      const iconHtml = iconSrc
+        ? `<img src="${escapeHtml(iconSrc)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
+        : '<span class="icon-fallback">🌐</span>';
+
+      row.innerHTML = `
+        <div class="health-item-left">
+          <div class="health-item-icon">
+            ${iconHtml}
+          </div>
+          <div class="health-item-info">
+            <div class="health-item-name">${escapeHtml(entry.name)}</div>
+            <div class="health-item-url">${escapeHtml(domain || entry.url)}</div>
+          </div>
+        </div>
+        <div class="health-item-right">
+          ${statusBadgeHtml}
+          <div class="health-actions-cell">
+            <button type="button" class="health-action-btn health-retest-btn" title="Re-test this link">🔄</button>
+            <button type="button" class="health-action-btn health-edit-btn" title="Edit website URL">✏️</button>
+            <button type="button" class="health-action-btn health-visit-btn" title="Open website in new tab">↗️</button>
+            <button type="button" class="health-action-btn btn-delete health-delete-btn" title="Delete bookmark">🗑️</button>
+          </div>
+        </div>
+      `;
+
+      // Retest
+      const retestBtn = row.querySelector('.health-retest-btn');
+      if (retestBtn) {
+        retestBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          testSingleBookmarkHealth(entry.id);
+        });
+      }
+
+      // Edit
+      const editBtn = row.querySelector('.health-edit-btn');
+      if (editBtn) {
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeHealthModal();
+          openModal(entry.id);
+        });
+      }
+
+      // Visit
+      const visitBtn = row.querySelector('.health-visit-btn');
+      if (visitBtn) {
+        visitBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          window.open(entry.url, '_blank', 'noopener,noreferrer');
+        });
+      }
+
+      // Delete
+      const deleteBtn = row.querySelector('.health-delete-btn');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`Delete bookmark "${entry.name}"?`)) {
+            deleteEntry(entry.id);
+            renderHealthModalList();
+          }
+        });
+      }
+
+      healthList.appendChild(row);
+    });
+  }
+
+  async function testSingleBookmarkHealth(entryId) {
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find(e => e.id === entryId);
+    if (!entry) return;
+
+    currentlyCheckingIds.add(entryId);
+    renderHealthModalList();
+
+    const result = await checkUrlHealth(entry.url);
+    entry.health = result;
+    entry.dateModified = new Date().toISOString();
+
+    currentlyCheckingIds.delete(entryId);
+    saveEntries(diskList);
+    renderHealthModalList();
+    renderCardsOnly();
+    renderFoldersSidebar();
+    showToast(`"${entry.name}": ${result.status === 'healthy' ? '🟢 Healthy' : '⚠️ ' + result.error}`);
+  }
+
+  async function startHealthScan(onlyBroken = false) {
+    if (isHealthScanning) return;
+    const diskList = getLatestStoredEntries();
+    let targets = diskList;
+    if (onlyBroken) {
+      targets = diskList.filter(e => e.health && e.health.status === 'broken');
+    }
+
+    if (targets.length === 0) {
+      showToast('No links match the scan criteria.');
+      return;
+    }
+
+    isHealthScanning = true;
+    healthAbortRequested = false;
+
+    if (healthProgressWrap) healthProgressWrap.style.display = 'flex';
+    if (healthStopBtn) healthStopBtn.style.display = 'inline-flex';
+    if (healthScanAllBtn) healthScanAllBtn.disabled = true;
+    if (healthScanBrokenBtn) healthScanBrokenBtn.disabled = true;
+
+    const total = targets.length;
+    let completed = 0;
+
+    // Batch worker pool (concurrency 4)
+    const queue = [...targets];
+    const workerCount = Math.min(4, queue.length);
+
+    async function worker() {
+      while (queue.length > 0 && !healthAbortRequested) {
+        const item = queue.shift();
+        if (!item) break;
+
+        currentlyCheckingIds.add(item.id);
+        if (healthProgressStatusText) {
+          healthProgressStatusText.textContent = `Checking ${item.name || item.url} (${completed + 1}/${total})…`;
+        }
+
+        const healthRes = await checkUrlHealth(item.url);
+        item.health = healthRes;
+        item.dateModified = new Date().toISOString();
+
+        currentlyCheckingIds.delete(item.id);
+        completed++;
+
+        const pct = Math.round((completed / total) * 100);
+        if (healthProgressPercent) healthProgressPercent.textContent = `${pct}%`;
+        if (healthProgressFill) healthProgressFill.style.width = `${pct}%`;
+
+        saveEntries(diskList);
+        renderHealthModalList();
+        renderCardsOnly();
+        renderFoldersSidebar();
+      }
+    }
+
+    const workers = [];
+    for (let i = 0; i < workerCount; i++) {
+      workers.push(worker());
+    }
+
+    await Promise.all(workers);
+
+    isHealthScanning = false;
+    currentlyCheckingIds.clear();
+
+    if (healthProgressWrap) healthProgressWrap.style.display = 'none';
+    if (healthStopBtn) healthStopBtn.style.display = 'none';
+    if (healthScanAllBtn) healthScanAllBtn.disabled = false;
+    if (healthScanBrokenBtn) healthScanBrokenBtn.disabled = false;
+
+    updateHealthSummaryCards();
+    renderHealthModalList();
+    render();
+
+    const brokenCount = diskList.filter(e => e.health && e.health.status === 'broken').length;
+    if (healthAbortRequested) {
+      showToast('Link scan paused.');
+    } else {
+      showToast(`Scan complete! ${brokenCount > 0 ? `⚠️ Found ${brokenCount} broken link${brokenCount !== 1 ? 's' : ''}` : '🟢 All tested links are healthy!'}`);
+    }
+  }
+
+  function stopHealthScan() {
+    healthAbortRequested = true;
   }
 
   // ── Toast ──────────────────────────────────────────────
@@ -2199,6 +2571,8 @@
       filtered = filtered.filter(e => e.isFavorite);
     } else if (activeFolderId === 'unorganized') {
       filtered = filtered.filter(e => !e.folderId);
+    } else if (activeFolderId === 'broken') {
+      filtered = filtered.filter(e => e.health && e.health.status === 'broken');
     } else if (activeFolderId && activeFolderId !== 'all') {
       filtered = filtered.filter(e => e.folderId === activeFolderId);
     }
@@ -2294,6 +2668,11 @@
         ` : ''}
       </div>
       ${entry.description ? `<div class="card-description">${escapeHtml(entry.description)}</div>` : ''}
+      ${entry.health && entry.health.status === 'broken' ? `
+        <div class="card-health-pill broken" title="${escapeHtml(entry.health.error || 'Website unreachable or dead link')}">
+          ⚠️ Offline / Dead
+        </div>
+      ` : ''}
       <div class="card-meta">
         ${folder ? `<span class="tag folder-tag" style="background: rgba(10,132,255,0.12); color: var(--accent); border: 1px solid rgba(10,132,255,0.25);" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
         ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
@@ -3837,6 +4216,63 @@
 
   if (confirmAddBmBtn) {
     confirmAddBmBtn.addEventListener('click', confirmMoveBookmarksToFolder);
+  }
+
+  // ── Health Checker Event Listeners ──────────────────────
+
+  if (healthCheckBtn) {
+    healthCheckBtn.addEventListener('click', openHealthModal);
+  }
+
+  if (healthModalClose) {
+    healthModalClose.addEventListener('click', closeHealthModal);
+  }
+
+  if (healthModalBackdrop) {
+    healthModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === healthModalBackdrop) closeHealthModal();
+    });
+  }
+
+  if (healthStopBtn) {
+    healthStopBtn.addEventListener('click', stopHealthScan);
+  }
+
+  if (healthScanAllBtn) {
+    healthScanAllBtn.addEventListener('click', () => startHealthScan(false));
+  }
+
+  if (healthScanBrokenBtn) {
+    healthScanBrokenBtn.addEventListener('click', () => startHealthScan(true));
+  }
+
+  if (healthSearchInput) {
+    healthSearchInput.addEventListener('input', () => {
+      healthSearchQuery = healthSearchInput.value.trim();
+      if (healthSearchClear) healthSearchClear.style.display = healthSearchQuery ? 'block' : 'none';
+      renderHealthModalList();
+    });
+  }
+
+  if (healthSearchClear) {
+    healthSearchClear.addEventListener('click', () => {
+      healthSearchInput.value = '';
+      healthSearchQuery = '';
+      healthSearchClear.style.display = 'none';
+      renderHealthModalList();
+      healthSearchInput.focus();
+    });
+  }
+
+  if (healthFilterPills) {
+    healthFilterPills.querySelectorAll('.pill-filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        healthFilterPills.querySelectorAll('.pill-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        healthFilter = btn.getAttribute('data-health') || 'all';
+        renderHealthModalList();
+      });
+    });
   }
 
   // ── Header Logo Reset ──────────────────────────────────

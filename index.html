@@ -22,6 +22,10 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           <span class="btn-label">Refresh Icons</span>
         </button>
+        <button id="healthCheckBtn" class="btn btn-ghost" title="Check website health & broken links">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span class="btn-label">Check Links</span>
+        </button>
         <button id="acceptAllIconsBtn" class="btn btn-success" style="display: none;" title="Accept all proposed icon updates">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           <span class="btn-label">Accept All (<span id="pendingIconsCount">0</span>)</span>
@@ -162,6 +166,11 @@
             <span class="sidebar-item-icon">📂</span>
             <span class="sidebar-item-name">Unorganized</span>
             <span class="sidebar-item-count" id="countUnorganized">0</span>
+          </button>
+          <button type="button" class="sidebar-nav-item" data-folder-id="broken" id="sidebarBrokenView" style="display: none;">
+            <span class="sidebar-item-icon">⚠️</span>
+            <span class="sidebar-item-name">Broken Links</span>
+            <span class="sidebar-item-count" id="countBroken">0</span>
           </button>
         </div>
       </div>
@@ -388,6 +397,84 @@
       <div class="modal-footer theme-modal-footer">
         <button type="button" class="btn btn-ghost" id="cancelAddBmBtn">Cancel</button>
         <button type="button" class="btn btn-primary" id="confirmAddBmBtn" disabled>Move Selected (0) Bookmarks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Health & Broken Link Checker Modal -->
+  <div class="modal-backdrop" id="healthModalBackdrop">
+    <div class="modal modal-lg" id="healthModal">
+      <div class="modal-header">
+        <div class="modal-title-with-icon">
+          <span style="font-size: 1.3rem;">🩺</span>
+          <h2>Website Health & Broken Link Checker</h2>
+        </div>
+        <button class="btn btn-icon modal-close" id="healthModalClose" title="Close">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="health-modal-body">
+        <!-- Summary Stats Cards -->
+        <div class="health-summary-grid">
+          <div class="health-stat-card">
+            <span class="health-stat-num" id="healthStatTotal">0</span>
+            <span class="health-stat-label">Total Links</span>
+          </div>
+          <div class="health-stat-card stat-healthy">
+            <span class="health-stat-num" id="healthStatHealthy">0</span>
+            <span class="health-stat-label">🟢 Healthy</span>
+          </div>
+          <div class="health-stat-card stat-broken">
+            <span class="health-stat-num" id="healthStatBroken">0</span>
+            <span class="health-stat-label">⚠️ Broken / Dead</span>
+          </div>
+          <div class="health-stat-card stat-untested">
+            <span class="health-stat-num" id="healthStatUntested">0</span>
+            <span class="health-stat-label">⚪ Untested</span>
+          </div>
+        </div>
+
+        <!-- Scan Progress Bar (Active during scan) -->
+        <div class="health-progress-wrap" id="healthProgressWrap" style="display: none;">
+          <div class="health-progress-info">
+            <span id="healthProgressStatusText">Checking link health…</span>
+            <span id="healthProgressPercent">0%</span>
+          </div>
+          <div class="health-progress-bar-bg">
+            <div class="health-progress-bar-fill" id="healthProgressFill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Controls -->
+        <div class="health-controls-row">
+          <div class="search-box health-search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="healthSearchInput" placeholder="Search checked websites…" autocomplete="off">
+            <button type="button" class="search-clear-btn" id="healthSearchClear" style="display:none;" title="Clear search">✕</button>
+          </div>
+          <div class="health-filter-pills" id="healthFilterPills">
+            <button type="button" class="pill-filter-btn active" data-health="all">All Sites</button>
+            <button type="button" class="pill-filter-btn" data-health="broken">⚠️ Broken / Dead Only</button>
+            <button type="button" class="pill-filter-btn" data-health="healthy">🟢 Healthy Only</button>
+            <button type="button" class="pill-filter-btn" data-health="untested">⚪ Untested</button>
+          </div>
+        </div>
+
+        <!-- Results List -->
+        <div class="health-list" id="healthList">
+          <!-- Populated dynamically by JS -->
+        </div>
+
+        <div class="empty-state health-empty" id="healthEmpty" style="display:none; padding: 32px 16px;">
+          <div class="empty-icon">🩺</div>
+          <h3 style="font-size: 1.05rem; margin-bottom: 4px;">No matching websites found</h3>
+          <p style="font-size: 0.85rem; color: var(--text-tertiary);">Try adjusting your search query or filter pills.</p>
+        </div>
+      </div>
+      <div class="modal-footer theme-modal-footer">
+        <button type="button" class="btn btn-ghost" id="healthStopBtn" style="display: none;">Cancel Scan</button>
+        <button type="button" class="btn btn-secondary" id="healthScanBrokenBtn">Re-scan Broken</button>
+        <button type="button" class="btn btn-primary" id="healthScanAllBtn">⚡ Scan All Links</button>
       </div>
     </div>
   </div>
