@@ -2149,6 +2149,19 @@
     }
   }
 
+  function cleanDescription(rawDesc) {
+    if (!rawDesc) return '';
+    let desc = rawDesc.trim();
+    if (typeof document !== 'undefined') {
+      try {
+        const txt = document.createElement('textarea');
+        txt.innerHTML = desc;
+        if (txt.value) desc = txt.value;
+      } catch {}
+    }
+    return desc.replace(/\s+/g, ' ').trim();
+  }
+
   async function fetchWebsiteMetadata(url) {
     if (!url) return null;
     let targetUrl = url.trim();
@@ -2157,19 +2170,49 @@
     }
 
     const domain = getDomain(targetUrl);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+    // 1. Primary Engine: Microlink API (Structured Rich Link Metadata & Descriptions)
     try {
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-      const res = await fetch(proxyUrl, { signal: controller.signal, cache: 'no-cache' });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
+      const mUrl = `https://api.microlink.io?url=${encodeURIComponent(targetUrl)}`;
+      const res = await fetch(mUrl, { signal: controller.signal });
       clearTimeout(timeoutId);
 
       if (res.ok) {
-        const data = await res.json();
-        if (data && data.contents) {
+        const json = await res.json();
+        if (json && json.status === 'success' && json.data) {
+          const rawTitle = json.data.title || '';
+          const cleanedTitle = cleanPageTitle(rawTitle, domain) || fallbackTitleFromUrl(targetUrl);
+          const rawDesc = json.data.description || '';
+          const description = cleanDescription(rawDesc);
+          const scrapedIcon = json.data.logo?.url || json.data.icon?.url || '';
+
+          if (cleanedTitle || description) {
+            return {
+              title: cleanedTitle,
+              description,
+              iconUrl: scrapedIcon,
+              url: targetUrl
+            };
+          }
+        }
+      }
+    } catch {}
+
+    // 2. Secondary Engine: Codetabs HTML CORS Proxy
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+      const res = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const html = await res.text();
+        if (html && html.length > 50) {
           const parser = new DOMParser();
-          const doc = parser.parseFromString(data.contents, 'text/html');
+          const doc = parser.parseFromString(html, 'text/html');
 
           const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
           const twTitle = doc.querySelector('meta[name="twitter:title"]')?.getAttribute('content');
@@ -2180,7 +2223,7 @@
           const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute('content');
           const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content');
           const twDesc = doc.querySelector('meta[name="twitter:description"]')?.getAttribute('content');
-          const description = (ogDesc || metaDesc || twDesc || '').trim();
+          const description = cleanDescription(ogDesc || metaDesc || twDesc || '');
 
           const iconLink = doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') ||
                            doc.querySelector('link[rel="icon"]')?.getAttribute('href') ||
@@ -2189,32 +2232,27 @@
           if (iconLink) {
             try {
               resolvedIcon = new URL(iconLink, targetUrl).href;
-            } catch {
-              resolvedIcon = '';
-            }
-          }
-          if (!resolvedIcon) {
-            resolvedIcon = `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(targetUrl)}&size=128`;
+            } catch {}
           }
 
-          return {
-            title: cleanedTitle,
-            description,
-            iconUrl: resolvedIcon,
-            url: targetUrl
-          };
+          if (cleanedTitle || description) {
+            return {
+              title: cleanedTitle,
+              description,
+              iconUrl: resolvedIcon,
+              url: targetUrl
+            };
+          }
         }
       }
-    } catch {
-      clearTimeout(timeoutId);
-    }
+    } catch {}
 
+    // 3. Fallback: Local domain title formatting
     const fallbackTitle = fallbackTitleFromUrl(targetUrl);
-    const fallbackIcon = `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(targetUrl)}&size=128`;
     return {
       title: fallbackTitle,
       description: '',
-      iconUrl: fallbackIcon,
+      iconUrl: '',
       url: targetUrl
     };
   }
