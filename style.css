@@ -1157,7 +1157,7 @@ select:focus {
 }
 
 .modal-sm {
-  max-width: 440px;
+  max-width: 460px;
 }
 
 .modal-backdrop.active .modal {
@@ -2263,19 +2263,24 @@ select:focus {
   gap: 16px;
 }
 
-.folder-icon-color-row {
+.folder-icon-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
+.form-group input[type="text"].folder-icon-input,
+.form-group input.folder-icon-input,
 .folder-icon-input {
-  width: 52px;
-  height: 40px;
-  text-align: center;
-  font-size: 1.3rem;
-  padding: 4px 6px !important;
-  flex-shrink: 0;
+  width: 48px !important;
+  min-width: 48px !important;
+  max-width: 48px !important;
+  height: 42px !important;
+  text-align: center !important;
+  font-size: 1.3rem !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
 }
 
 .folder-emoji-suggestions {
@@ -2292,13 +2297,14 @@ select:focus {
   color: var(--text-primary);
   border-radius: 6px;
   font-size: 1.15rem;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  flex-shrink: 0;
   transition: all 0.15s ease;
 }
 
@@ -2320,8 +2326,8 @@ select:focus {
 
 .folder-color-input {
   -webkit-appearance: none;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   cursor: pointer;
