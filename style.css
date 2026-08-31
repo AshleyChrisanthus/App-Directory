@@ -1312,14 +1312,14 @@ select:focus {
 .tag-input-wrapper {
   position: relative;
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
   background: var(--input-bg);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-sm);
-  padding: 8px;
+  padding: 10px 12px;
   transition: border-color var(--transition), background var(--transition);
+  width: 100%;
 }
 
 .tag-input-wrapper:focus-within {
@@ -1330,10 +1330,11 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  width: 100%;
 }
 
 .tag-input-tags:not(:empty) {
-  margin-bottom: 8px;
+  margin-bottom: 2px;
 }
 
 .tag-input-tags:empty {
@@ -1380,14 +1381,16 @@ select:focus {
 .tag-input-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  width: 100%;
 }
 
 .tag-input-row input {
   flex: 1;
+  min-width: 0;
   border: none !important;
   background: transparent !important;
-  padding: 4px 4px !important;
+  padding: 4px 0 !important;
   font-size: 0.875rem !important;
   color: var(--text-primary) !important;
   outline: none;
@@ -1395,6 +1398,16 @@ select:focus {
 
 .tag-input-row input::placeholder {
   color: var(--text-tertiary);
+}
+
+#addCategoryBtn {
+  flex-shrink: 0;
+  margin-left: auto;
+  min-width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Modern Autocomplete Suggestions Popup */
