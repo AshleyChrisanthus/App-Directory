@@ -1551,8 +1551,19 @@
   let addBmSourceFilter = 'all';
 
   function openAddBookmarksModal() {
-    if (!activeFolderId || !activeFolderId.startsWith('f-')) return;
-    const folder = folders.find(f => f.id === activeFolderId);
+    let folder = folders.find(f => f.id === activeFolderId);
+    if (!folder) {
+      if (folders.length > 0) {
+        setActiveFolder(folders[0].id);
+        folder = folders.find(f => f.id === activeFolderId);
+      } else {
+        openFolderModal(null, (newFolderId) => {
+          setActiveFolder(newFolderId);
+          openAddBookmarksModal();
+        });
+        return;
+      }
+    }
     if (!folder) return;
 
     selectedBookmarksToMove.clear();
@@ -1645,11 +1656,16 @@
 
       const domain = getDomain(entry.url);
 
+      const iconSrc = entry.iconUrl || entry.icon || '';
+      const iconHtml = iconSrc
+        ? `<img src="${escapeHtml(iconSrc)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
+        : '<span class="icon-fallback">🌐</span>';
+
       row.innerHTML = `
         <div class="add-bm-item-left">
           <input type="checkbox" class="add-bm-checkbox" ${isSelected ? 'checked' : ''}>
           <div class="add-bm-item-icon">
-            <img src="${escapeHtml(entry.icon || getDefaultIcon(entry.name))}" alt="" onerror="this.src='${getDefaultIcon(entry.name)}'">
+            ${iconHtml}
           </div>
           <div class="add-bm-item-info">
             <div class="add-bm-item-name">${escapeHtml(entry.name)}</div>
@@ -1681,8 +1697,8 @@
   }
 
   function confirmMoveBookmarksToFolder() {
-    if (selectedBookmarksToMove.size === 0 || !activeFolderId || !activeFolderId.startsWith('f-')) return;
     const folder = folders.find(f => f.id === activeFolderId);
+    if (selectedBookmarksToMove.size === 0 || !folder) return;
     const diskList = getLatestStoredEntries();
     let movedCount = 0;
 
