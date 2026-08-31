@@ -612,7 +612,6 @@
 
   // ── Theme & Granular Color Customizer ─────────────────
 
-  const THEME_KEY = 'appDirectory_theme';
   const CUSTOM_THEME_KEY = 'appDirectory_customTheme';
   const CAT_COLORS_KEY = 'appDirectory_categoryColors';
 
