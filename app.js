@@ -1365,6 +1365,8 @@
 
   function updateActiveFolderBanner() {
     if (!activeFolderBanner) return;
+    const bannerActions = document.getElementById('folderBannerActions');
+
     if (activeFolderId && activeFolderId.startsWith('f-')) {
       const folder = folders.find(f => f.id === activeFolderId);
       if (folder) {
@@ -1372,10 +1374,28 @@
         if (folderBannerIcon) folderBannerIcon.textContent = folder.icon || '📁';
         if (folderBannerTitle) folderBannerTitle.textContent = folder.name;
         if (folderBannerCount) folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? 's' : ''}`;
+        if (bannerActions) bannerActions.style.display = 'flex';
         activeFolderBanner.style.display = 'flex';
         return;
       }
+    } else if (activeFolderId === 'favorites') {
+      const favCount = entries.filter(e => e.isFavorite).length;
+      if (folderBannerIcon) folderBannerIcon.textContent = '⭐';
+      if (folderBannerTitle) folderBannerTitle.textContent = 'Favorites';
+      if (folderBannerCount) folderBannerCount.textContent = `${favCount} site${favCount !== 1 ? 's' : ''}`;
+      if (bannerActions) bannerActions.style.display = 'none';
+      activeFolderBanner.style.display = 'flex';
+      return;
+    } else if (activeFolderId === 'unorganized') {
+      const unorgCount = entries.filter(e => !e.folderId).length;
+      if (folderBannerIcon) folderBannerIcon.textContent = '📂';
+      if (folderBannerTitle) folderBannerTitle.textContent = 'Unorganized';
+      if (folderBannerCount) folderBannerCount.textContent = `${unorgCount} site${unorgCount !== 1 ? 's' : ''}`;
+      if (bannerActions) bannerActions.style.display = 'none';
+      activeFolderBanner.style.display = 'flex';
+      return;
     }
+
     activeFolderBanner.style.display = 'none';
   }
 
@@ -3475,6 +3495,15 @@
 
   if (sidebarToggleBtn) {
     sidebarToggleBtn.addEventListener('click', toggleSidebar);
+  }
+
+  if (sidebarQuickViews) {
+    sidebarQuickViews.querySelectorAll('.sidebar-nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const fid = item.getAttribute('data-folder-id');
+        if (fid) setActiveFolder(fid);
+      });
+    });
   }
 
   if (newFolderBtn) {
