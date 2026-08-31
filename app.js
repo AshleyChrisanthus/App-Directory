@@ -3825,9 +3825,7 @@
 
   // ── Header Logo Reset ──────────────────────────────────
   function resetToAllBookmarks() {
-    activeFolderId = 'all';
-    searchInput.value = '';
-    searchQuery = '';
+    if (searchInput) searchInput.value = '';
     if (searchClearBtn) searchClearBtn.style.display = 'none';
     selectedFilterCategories.clear();
     const catCheckboxes = document.querySelectorAll('.cat-filter-checkbox');
@@ -3835,13 +3833,16 @@
     const catSearch = document.getElementById('catFilterSearchInput');
     if (catSearch) catSearch.value = '';
     updateCatFilterLabel();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    renderFoldersSidebar();
+    setActiveFolder('all');
     render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   if (headerLogo) {
-    headerLogo.addEventListener('click', resetToAllBookmarks);
+    headerLogo.addEventListener('click', (e) => {
+      e.preventDefault();
+      resetToAllBookmarks();
+    });
   }
 
   // ── Initialize ─────────────────────────────────────────
