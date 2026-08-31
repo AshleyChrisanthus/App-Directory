@@ -82,6 +82,7 @@
   ];
 
   // ── DOM Elements ───────────────────────────────────────
+  const headerLogo = document.getElementById('headerLogo');
   const grid = document.getElementById('grid');
   const emptyState = document.getElementById('emptyState');
   const searchInput = document.getElementById('searchInput');
@@ -3577,6 +3578,27 @@
       }
     });
   });
+
+  // ── Header Logo Reset ──────────────────────────────────
+  function resetToAllBookmarks() {
+    activeFolderId = 'all';
+    searchInput.value = '';
+    searchQuery = '';
+    if (searchClearBtn) searchClearBtn.style.display = 'none';
+    selectedFilterCategories.clear();
+    const catCheckboxes = document.querySelectorAll('.cat-filter-checkbox');
+    catCheckboxes.forEach(cb => { cb.checked = false; });
+    const catSearch = document.getElementById('catFilterSearchInput');
+    if (catSearch) catSearch.value = '';
+    updateCatFilterLabel();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    renderFoldersSidebar();
+    render();
+  }
+
+  if (headerLogo) {
+    headerLogo.addEventListener('click', resetToAllBookmarks);
+  }
 
   // ── Initialize ─────────────────────────────────────────
 
