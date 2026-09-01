@@ -1934,47 +1934,69 @@
 
   function renderEmojiCategoryTabs() {
     if (!emojiCategoryTabs) return;
-    emojiCategoryTabs.innerHTML = '';
 
-    // "All" tab
-    const allTab = document.createElement('button');
-    allTab.type = 'button';
-    allTab.className = `emoji-category-tab ${activeEmojiCategoryId === 'all' ? 'is-active' : ''}`;
-    allTab.textContent = '🌟';
-    allTab.title = 'All Emojis';
-    allTab.addEventListener('click', () => {
-      activeEmojiCategoryId = 'all';
-      renderEmojiCategoryTabs();
-      renderEmojiGrid(activeEmojiCategoryId, emojiSearchInput ? emojiSearchInput.value : '');
-    });
-    emojiCategoryTabs.appendChild(allTab);
-
-    // "Recent" tab
-    const recentTab = document.createElement('button');
-    recentTab.type = 'button';
-    recentTab.className = `emoji-category-tab ${activeEmojiCategoryId === 'recent' ? 'is-active' : ''}`;
-    recentTab.textContent = '🕒';
-    recentTab.title = 'Recent Emojis';
-    recentTab.addEventListener('click', () => {
-      activeEmojiCategoryId = 'recent';
-      renderEmojiCategoryTabs();
-      renderEmojiGrid(activeEmojiCategoryId, emojiSearchInput ? emojiSearchInput.value : '');
-    });
-    emojiCategoryTabs.appendChild(recentTab);
-
-    // Standard category tabs
-    EMOJI_CATEGORIES.forEach(cat => {
-      const tab = document.createElement('button');
-      tab.type = 'button';
-      tab.className = `emoji-category-tab ${activeEmojiCategoryId === cat.id ? 'is-active' : ''}`;
-      tab.textContent = cat.icon;
-      tab.title = cat.name;
-      tab.addEventListener('click', () => {
-        activeEmojiCategoryId = cat.id;
-        renderEmojiCategoryTabs();
-        renderEmojiGrid(activeEmojiCategoryId, emojiSearchInput ? emojiSearchInput.value : '');
+    // Build tabs if empty
+    if (emojiCategoryTabs.children.length === 0) {
+      // "All" tab
+      const allTab = document.createElement('button');
+      allTab.type = 'button';
+      allTab.className = 'emoji-category-tab is-active';
+      allTab.setAttribute('data-cat', 'all');
+      allTab.textContent = '🌟';
+      allTab.title = 'All Emojis';
+      allTab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        activeEmojiCategoryId = 'all';
+        updateActiveCategoryTab();
+        renderEmojiGrid('all', emojiSearchInput ? emojiSearchInput.value : '');
       });
-      emojiCategoryTabs.appendChild(tab);
+      emojiCategoryTabs.appendChild(allTab);
+
+      // "Recent" tab
+      const recentTab = document.createElement('button');
+      recentTab.type = 'button';
+      recentTab.className = 'emoji-category-tab';
+      recentTab.setAttribute('data-cat', 'recent');
+      recentTab.textContent = '🕒';
+      recentTab.title = 'Recent Emojis';
+      recentTab.addEventListener('click', (e) => {
+        e.stopPropagation();
+        activeEmojiCategoryId = 'recent';
+        updateActiveCategoryTab();
+        renderEmojiGrid('recent', emojiSearchInput ? emojiSearchInput.value : '');
+      });
+      emojiCategoryTabs.appendChild(recentTab);
+
+      // Standard category tabs
+      EMOJI_CATEGORIES.forEach(cat => {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'emoji-category-tab';
+        tab.setAttribute('data-cat', cat.id);
+        tab.textContent = cat.icon;
+        tab.title = cat.name;
+        tab.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeEmojiCategoryId = cat.id;
+          updateActiveCategoryTab();
+          renderEmojiGrid(cat.id, emojiSearchInput ? emojiSearchInput.value : '');
+        });
+        emojiCategoryTabs.appendChild(tab);
+      });
+    }
+
+    updateActiveCategoryTab();
+  }
+
+  function updateActiveCategoryTab() {
+    if (!emojiCategoryTabs) return;
+    const tabs = emojiCategoryTabs.querySelectorAll('.emoji-category-tab');
+    tabs.forEach(t => {
+      if (t.getAttribute('data-cat') === activeEmojiCategoryId) {
+        t.classList.add('is-active');
+      } else {
+        t.classList.remove('is-active');
+      }
     });
   }
 
@@ -5269,6 +5291,12 @@
         folderIconInput.focus();
         folderIconInput.select();
       }
+    });
+  }
+
+  if (emojiPickerPopover) {
+    emojiPickerPopover.addEventListener('click', (e) => {
+      e.stopPropagation();
     });
   }
 
