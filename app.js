@@ -1410,6 +1410,9 @@
       item.type = 'button';
       item.className = `sidebar-nav-item ${activeFolderId === folder.id ? 'active' : ''}`;
       item.setAttribute('data-folder-id', folder.id);
+      if (folder.color) {
+        item.style.setProperty('--folder-color', folder.color);
+      }
 
       item.innerHTML = `
         <span class="sidebar-item-icon">${escapeHtml(folder.icon || '📁')}</span>
@@ -1509,11 +1512,13 @@
   function updateActiveFolderBanner() {
     if (!activeFolderBanner) return;
     const bannerActions = document.getElementById('folderBannerActions');
+    activeFolderBanner.style.removeProperty('--folder-color');
 
     if (activeFolderId && activeFolderId.startsWith('f-')) {
       const folder = folders.find(f => f.id === activeFolderId);
       if (folder) {
         const folderCount = entries.filter(e => e.folderId === folder.id).length;
+        activeFolderBanner.style.setProperty('--folder-color', folder.color || '#0a84ff');
         if (folderBannerIcon) folderBannerIcon.textContent = folder.icon || '📁';
         if (folderBannerTitle) folderBannerTitle.textContent = folder.name;
         if (folderBannerCount) folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? 's' : ''}`;
@@ -3746,7 +3751,7 @@
         </div>
       ` : ''}
       <div class="card-meta">
-        ${folder ? `<span class="tag folder-tag" style="background: rgba(10,132,255,0.12); color: var(--accent); border: 1px solid rgba(10,132,255,0.25);" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
+        ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)} (Click to view folder)"><span>${escapeHtml(folder.icon || '📁')}</span> ${escapeHtml(folder.name)}</span>` : ''}
         ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
         <span class="meta-item" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
         ${entry.visitCount > 0 ? `
@@ -3763,6 +3768,11 @@
 
     // Click card → visit
     card.addEventListener('click', (e) => {
+      if (e.target.closest('.folder-tag')) {
+        e.stopPropagation();
+        if (folder) setActiveFolder(folder.id);
+        return;
+      }
       if (e.target.closest('.card-favorite') ||
           e.target.closest('.refresh-btn') ||
           e.target.closest('.edit-btn') ||
@@ -3819,9 +3829,12 @@
 
   function escapeHtml(str) {
     if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function renderCardsOnly() {
