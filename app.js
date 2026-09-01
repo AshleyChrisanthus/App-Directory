@@ -412,27 +412,104 @@
     return imageUrl;
   }
 
-  // Helper for parallel worker pool execution
-  async function runPool(items, concurrency, taskFn, onProgress) {
+  // ── Resilient Async Worker Queue & Circuit Breaker ──────
+
+  class DomainCircuitBreaker {
+    constructor(failureThreshold = 2) {
+      this.failureThreshold = failureThreshold;
+      this.failures = new Map(); // domain -> consecutive failure count
+      this.tripped = new Set();  // Set of tripped domain names
+    }
+
+    isTripped(domain) {
+      if (!domain) return false;
+      return this.tripped.has(domain.toLowerCase());
+    }
+
+    recordSuccess(domain) {
+      if (!domain) return;
+      const key = domain.toLowerCase();
+      this.failures.delete(key);
+    }
+
+    recordFailure(domain) {
+      if (!domain) return;
+      const key = domain.toLowerCase();
+      const count = (this.failures.get(key) || 0) + 1;
+      this.failures.set(key, count);
+      if (count >= this.failureThreshold) {
+        this.tripped.add(key);
+      }
+    }
+
+    reset() {
+      this.failures.clear();
+      this.tripped.clear();
+    }
+  }
+
+  async function fetchWithBackoff(taskFn, options = {}) {
+    const maxRetries = options.maxRetries ?? 2;
+    const baseDelay = options.baseDelay ?? 400;
+    const isTripped = options.isTripped || (() => false);
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (isTripped()) {
+        throw new Error('Circuit tripped for domain');
+      }
+
+      try {
+        return await taskFn();
+      } catch (err) {
+        if (attempt === maxRetries || isTripped()) {
+          throw err;
+        }
+        // Exponential delay with jitter: 400ms -> 800ms + random 0-150ms
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 150;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // Concurrency-controlled async worker queue with circuit-breaker integration
+  async function runWorkerQueue(items, concurrency, taskFn, onProgress, circuitBreaker = null) {
     let index = 0;
     let completed = 0;
     const total = items.length;
     if (total === 0) return;
 
-    const workerCount = Math.min(concurrency, total);
+    const workerCount = Math.min(concurrency || 4, total);
     const workers = Array.from({ length: workerCount }, async () => {
       while (index < total) {
         const i = index++;
         const item = items[i];
+        const domain = item.url ? getDomain(ensureProtocol(item.url)) : '';
+
+        // Fast-fail if domain circuit breaker is already tripped
+        if (circuitBreaker && domain && circuitBreaker.isTripped(domain)) {
+          completed++;
+          if (onProgress) onProgress(completed, total, item, true);
+          continue;
+        }
+
         try {
           await taskFn(item, i);
-        } catch (_) {}
+          if (circuitBreaker && domain) circuitBreaker.recordSuccess(domain);
+        } catch (err) {
+          if (circuitBreaker && domain) circuitBreaker.recordFailure(domain);
+        }
+
         completed++;
-        if (onProgress) onProgress(completed, total);
+        if (onProgress) onProgress(completed, total, item, false);
       }
     });
 
     await Promise.all(workers);
+  }
+
+  // Legacy runPool wrapper
+  async function runPool(items, concurrency, taskFn, onProgress) {
+    return runWorkerQueue(items, concurrency, taskFn, onProgress);
   }
 
   async function cacheExistingIconsOffline() {
@@ -2030,21 +2107,40 @@
     const total = targets.length;
     let completed = 0;
 
-    // Batch worker pool (concurrency 4)
+    // Batch worker pool (concurrency 4 with domain circuit-breaker)
     const queue = [...targets];
     const workerCount = Math.min(4, queue.length);
+    const circuitBreaker = new DomainCircuitBreaker(2);
 
     async function worker() {
       while (queue.length > 0 && !healthAbortRequested) {
         const item = queue.shift();
         if (!item) break;
 
+        const domain = item.url ? getDomain(ensureProtocol(item.url)) : '';
         currentlyCheckingIds.add(item.id);
         if (healthProgressStatusText) {
           healthProgressStatusText.textContent = `Checking ${item.name || item.url} (${completed + 1}/${total})…`;
         }
 
-        const healthRes = await checkUrlHealth(item.url);
+        let healthRes;
+        if (circuitBreaker.isTripped(domain)) {
+          // Fast-fail: skip network timeout if domain circuit is already tripped
+          healthRes = {
+            status: 'broken',
+            statusCode: 0,
+            error: 'Host unreachable (circuit tripped)',
+            lastChecked: new Date().toISOString()
+          };
+        } else {
+          healthRes = await checkUrlHealth(item.url);
+          if (healthRes.status === 'healthy') {
+            circuitBreaker.recordSuccess(domain);
+          } else {
+            circuitBreaker.recordFailure(domain);
+          }
+        }
+
         item.health = healthRes;
         item.dateModified = new Date().toISOString();
 
@@ -2788,24 +2884,31 @@
     }
 
     let foundCount = 0;
-    const concurrency = 12; // Process 12 sites concurrently in parallel
+    const concurrency = 4; // Controlled concurrency (3-4 workers) to prevent thundering herd
+    const circuitBreaker = new DomainCircuitBreaker(2);
 
-    await runPool(diskList, concurrency, async (entry) => {
-      try {
-        const candidateDataUrl = await fetchMultiSourceBestIcon(entry.url);
-        if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
-          pendingIcons.set(entry.id, candidateDataUrl);
-          foundCount++;
-          updatePendingIconsUI();
-          updateCardPendingState(entry.id); // In-place DOM update (zero flashing!)
-        }
-      } catch (_) {}
-    }, (completed, total) => {
+    await runWorkerQueue(diskList, concurrency, async (entry) => {
+      const domain = getDomain(ensureProtocol(entry.url));
+      const candidateDataUrl = await fetchWithBackoff(async () => {
+        return await fetchMultiSourceBestIcon(entry.url);
+      }, {
+        maxRetries: 1,
+        baseDelay: 400,
+        isTripped: () => circuitBreaker.isTripped(domain)
+      });
+
+      if (candidateDataUrl && candidateDataUrl !== entry.iconUrl) {
+        pendingIcons.set(entry.id, candidateDataUrl);
+        foundCount++;
+        updatePendingIconsUI();
+        updateCardPendingState(entry.id); // In-place DOM update (zero flashing!)
+      }
+    }, (completed, total, item, wasFastFailed) => {
       const pct = Math.round((completed / total) * 100);
       if (refreshProgressFill) refreshProgressFill.style.width = `${pct}%`;
       if (refreshProgressCount) refreshProgressCount.textContent = `${completed} / ${total} (${pct}%)`;
       if (refreshBtnLabel) refreshBtnLabel.textContent = `Checking (${pct}%)...`;
-    });
+    }, circuitBreaker);
 
     // Brief completion status on progress bar
     if (refreshProgressLabel) {
