@@ -328,19 +328,38 @@
           <label for="folderNameInput">Folder Name <span class="required">*</span></label>
           <input type="text" id="folderNameInput" placeholder="e.g. Work Projects" required autocomplete="off">
         </div>
-        <div class="form-group">
-          <label for="folderIconInput">Icon / Emoji</label>
-          <div class="folder-icon-row">
-            <input type="text" id="folderIconInput" class="folder-icon-input" value="📁" maxlength="4" autocomplete="off">
-            <div class="folder-emoji-suggestions" id="folderEmojiSuggestions">
-              <button type="button" class="emoji-preset-btn" title="Folder">📁</button>
-              <button type="button" class="emoji-preset-btn" title="Work">💼</button>
-              <button type="button" class="emoji-preset-btn" title="Home / Personal">🏠</button>
-              <button type="button" class="emoji-preset-btn" title="Research">🔬</button>
-              <button type="button" class="emoji-preset-btn" title="Tools">🛠️</button>
-              <button type="button" class="emoji-preset-btn" title="Design / Art">🎨</button>
-              <button type="button" class="emoji-preset-btn" title="Productivity">⚡</button>
-              <button type="button" class="emoji-preset-btn" title="Reading / Docs">📚</button>
+        <div class="form-group emoji-picker-form-group">
+          <label for="folderIconInput">Folder Icon / Emoji</label>
+          <div class="folder-icon-picker-wrap" id="folderIconPickerWrap">
+            <div class="folder-icon-row">
+              <button type="button" class="folder-icon-trigger-btn" id="folderIconTriggerBtn" title="Click to open Full Emoji Picker">
+                <span id="folderIconDisplay">📁</span>
+                <span class="picker-dropdown-arrow">▾</span>
+              </button>
+              <input type="text" id="folderIconInput" class="folder-icon-input" value="📁" maxlength="4" autocomplete="off" title="Direct emoji input (or paste)">
+              <div class="folder-emoji-quick-row" id="folderEmojiQuickRow">
+                <!-- Populated dynamically with top quick emojis & browse button -->
+              </div>
+            </div>
+
+            <!-- Full Categorized Emoji Picker Popover -->
+            <div class="emoji-picker-popover" id="emojiPickerPopover" style="display: none;">
+              <div class="emoji-picker-header">
+                <div class="emoji-search-wrap">
+                  <span class="emoji-search-icon">🔍</span>
+                  <input type="text" id="emojiSearchInput" class="emoji-search-input" placeholder="Search emojis (e.g. work, code, star, rocket)…" autocomplete="off">
+                  <button type="button" class="emoji-search-clear" id="emojiSearchClear" style="display: none;" title="Clear search">✕</button>
+                </div>
+                <div class="os-keyboard-hint" id="osKeyboardHint" title="Click to focus input for your system's native emoji keyboard">
+                  <span class="os-hint-badge">💡 <kbd id="osShortcutKey">Win + .</kbd></span>
+                </div>
+              </div>
+              <div class="emoji-category-tabs" id="emojiCategoryTabs">
+                <!-- Populated dynamically with category navigation tabs -->
+              </div>
+              <div class="emoji-grid-container" id="emojiGridContainer">
+                <!-- Populated dynamically with categorized emoji grids -->
+              </div>
             </div>
           </div>
         </div>

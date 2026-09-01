@@ -192,6 +192,19 @@
   const cancelFolderBtn = document.getElementById('cancelFolderBtn');
   const saveFolderBtn = document.getElementById('saveFolderBtn');
 
+  // Emoji Picker elements (Issue #27)
+  const folderIconPickerWrap = document.getElementById('folderIconPickerWrap');
+  const folderIconTriggerBtn = document.getElementById('folderIconTriggerBtn');
+  const folderIconDisplay = document.getElementById('folderIconDisplay');
+  const folderEmojiQuickRow = document.getElementById('folderEmojiQuickRow');
+  const emojiPickerPopover = document.getElementById('emojiPickerPopover');
+  const emojiSearchInput = document.getElementById('emojiSearchInput');
+  const emojiSearchClear = document.getElementById('emojiSearchClear');
+  const emojiCategoryTabs = document.getElementById('emojiCategoryTabs');
+  const emojiGridContainer = document.getElementById('emojiGridContainer');
+  const osKeyboardHint = document.getElementById('osKeyboardHint');
+  const osShortcutKey = document.getElementById('osShortcutKey');
+
   // Add Bookmarks to Folder Modal elements
   const addBookmarksToFolderBtn = document.getElementById('addBookmarksToFolderBtn');
   const addBookmarksModalBackdrop = document.getElementById('addBookmarksModalBackdrop');
@@ -1551,11 +1564,579 @@
     });
   }
 
+  // ── Full Categorized Emoji Library (Issue #27) ──────────
+
+  const EMOJI_CATEGORIES = [
+    {
+      id: 'smileys',
+      name: 'Smileys & People',
+      icon: '😀',
+      emojis: [
+        { e: '😀', k: 'grinning happy smile face' },
+        { e: '😃', k: 'smiley happy joy' },
+        { e: '😄', k: 'smile laugh happy' },
+        { e: '😁', k: 'beam grin smile' },
+        { e: '😆', k: 'laughing lol haha' },
+        { e: '😅', k: 'sweat smile relief' },
+        { e: '😂', k: 'joy laugh cry tears lol' },
+        { e: '🤣', k: 'rofl rolling laugh lol' },
+        { e: '😊', k: 'blush smile warm happy' },
+        { e: '😇', k: 'angel innocent halo' },
+        { e: '🙂', k: 'slight smile happy' },
+        { e: '🙃', k: 'upside down silly' },
+        { e: '😉', k: 'wink flirt' },
+        { e: '😌', k: 'relieved calm peace' },
+        { e: '😍', k: 'heart eyes love crush' },
+        { e: '🥰', k: 'smiling hearts love affection' },
+        { e: '😘', k: 'kiss blow love' },
+        { e: '😋', k: 'yum delicious food tasty' },
+        { e: '😛', k: 'tongue silly joke' },
+        { e: '😜', k: 'wink tongue crazy' },
+        { e: '🤪', k: 'zany goofy wild' },
+        { e: '😎', k: 'sunglasses cool boss' },
+        { e: '🤓', k: 'nerd glasses smart tech geek' },
+        { e: '🧐', k: 'monocle inspect curious examine' },
+        { e: '🥳', k: 'party celebrate hat horn' },
+        { e: '😏', k: 'smirk sly' },
+        { e: '🤖', k: 'robot ai bot tech machine' },
+        { e: '👻', k: 'ghost spooky halloween boo' },
+        { e: '💀', k: 'skull dead death rip' },
+        { e: '👽', k: 'alien ufo space extraterrestrial' },
+        { e: '🤠', k: 'cowboy hat western' },
+        { e: '🤝', k: 'handshake deal partner agree business' },
+        { e: '👍', k: 'thumbs up like approve good yes' },
+        { e: '🙌', k: 'hands raised celebrate praise yay' },
+        { e: '👏', k: 'clap applause bravo congrats' },
+        { e: '🔥', k: 'fire hot lit trending popular' },
+        { e: '✨', k: 'sparkles clean magic shine star' },
+        { e: '⭐', k: 'star favorite rating bookmark' },
+        { e: '💡', k: 'lightbulb idea smart think innovation' },
+        { e: '🧠', k: 'brain mind think knowledge smart learn' },
+        { e: '❤️', k: 'heart love like red' },
+        { e: '💖', k: 'sparkle heart love pink' },
+        { e: '💯', k: '100 hundred perfect score grade' }
+      ]
+    },
+    {
+      id: 'nature',
+      name: 'Animals & Nature',
+      icon: '🌲',
+      emojis: [
+        { e: '🐶', k: 'dog puppy pet canine' },
+        { e: '🐱', k: 'cat kitten feline pet' },
+        { e: '🐭', k: 'mouse rodent' },
+        { e: '🐹', k: 'hamster pet' },
+        { e: '🐰', k: 'rabbit bunny pet' },
+        { e: '🦊', k: 'fox animal wild' },
+        { e: '🐻', k: 'bear animal' },
+        { e: '🐼', k: 'panda animal cute' },
+        { e: '🐨', k: 'koala australia animal' },
+        { e: '🐯', k: 'tiger animal wild cat' },
+        { e: '🦁', k: 'lion king beast animal' },
+        { e: '🐮', k: 'cow cattle farm' },
+        { e: '🐷', k: 'pig pork farm' },
+        { e: '🐸', k: 'frog toad nature' },
+        { e: '🐵', k: 'monkey ape animal' },
+        { e: '🐔', k: 'chicken hen farm bird' },
+        { e: '🐧', k: 'penguin bird arctic linux' },
+        { e: '🐦', k: 'bird tweet twitter fly' },
+        { e: '🦆', k: 'duck bird quack' },
+        { e: '🦅', k: 'eagle bird raptor prey' },
+        { e: '🦉', k: 'owl bird night wisdom' },
+        { e: '🦇', k: 'bat night vampire' },
+        { e: '🐺', k: 'wolf animal pack' },
+        { e: '🦄', k: 'unicorn magic startup fantasy' },
+        { e: '🐝', k: 'bee honey insect bug buzz' },
+        { e: '🐛', k: 'bug caterpillar debug code insect' },
+        { e: '🦋', k: 'butterfly insect pretty wings' },
+        { e: '🕷️', k: 'spider web insect crawl' },
+        { e: '🐢', k: 'turtle tortoise slow reptile' },
+        { e: '🐍', k: 'snake python code reptile' },
+        { e: '🐙', k: 'octopus tentacle sea github' },
+        { e: '🐬', k: 'dolphin sea marine ocean' },
+        { e: '🐳', k: 'whale ocean docker container' },
+        { e: '🦈', k: 'shark fish ocean danger' },
+        { e: '🌲', k: 'evergreen tree forest nature pine' },
+        { e: '🌳', k: 'tree nature forest green' },
+        { e: '🌴', k: 'palm tree beach tropical vacation' },
+        { e: '🌱', k: 'seedling sprout plant grow spring' },
+        { e: '🌿', k: 'herb plant leaf nature organic' },
+        { e: '🍀', k: 'four leaf clover luck lucky irish' },
+        { e: '🌸', k: 'cherry blossom flower sakura spring' },
+        { e: '🌻', k: 'sunflower flower bright sun' },
+        { e: '🌺', k: 'hibiscus flower tropical' },
+        { e: '🍁', k: 'maple leaf autumn fall canada' },
+        { e: '🍄', k: 'mushroom fungus mario nature' }
+      ]
+    },
+    {
+      id: 'food',
+      name: 'Food & Drink',
+      icon: '☕',
+      emojis: [
+        { e: '🍏', k: 'green apple fruit food' },
+        { e: '🍎', k: 'red apple fruit tech food' },
+        { e: '🍌', k: 'banana fruit monkey yellow' },
+        { e: '🍉', k: 'watermelon fruit summer sweet' },
+        { e: '🍇', k: 'grapes fruit wine purple' },
+        { e: '🍓', k: 'strawberry berry fruit red' },
+        { e: '🍒', k: 'cherries fruit cherry' },
+        { e: '🍑', k: 'peach fruit' },
+        { e: '🍍', k: 'pineapple fruit tropical' },
+        { e: '🥑', k: 'avocado vegetable food healthy' },
+        { e: '🌶️', k: 'hot pepper chili spicy' },
+        { e: '🌽', k: 'corn maize vegetable' },
+        { e: '🥐', k: 'croissant bread bakery french breakfast' },
+        { e: '🍞', k: 'bread loaf bakery' },
+        { e: '🧀', k: 'cheese cheddar food swiss' },
+        { e: '🍳', k: 'cooking egg breakfast fry pan' },
+        { e: '🥓', k: 'bacon meat breakfast food' },
+        { e: '🥩', k: 'meat steak cut beef' },
+        { e: '🍗', k: 'poultry leg chicken drumstick food' },
+        { e: '🍔', k: 'hamburger burger fast food' },
+        { e: '🍟', k: 'french fries chips fast food' },
+        { e: '🍕', k: 'pizza slice cheese italian food' },
+        { e: '🥪', k: 'sandwich sub lunch food' },
+        { e: '🌮', k: 'taco mexican food' },
+        { e: '🥗', k: 'salad green healthy diet' },
+        { e: '🍝', k: 'spaghetti pasta noodle italian' },
+        { e: '🍜', k: 'ramen noodle bowl soup' },
+        { e: '🍣', k: 'sushi japanese fish food' },
+        { e: '🍦', k: 'ice cream soft serve dessert sweet' },
+        { e: '🍩', k: 'doughnut donut sweet pastry' },
+        { e: '🍪', k: 'cookie biscuit sweet chocolate chip' },
+        { e: '🎂', k: 'birthday cake celebration party dessert' },
+        { e: '🍫', k: 'chocolate bar sweet candy' },
+        { e: '🍿', k: 'popcorn movie cinema snack' },
+        { e: '☕', k: 'coffee cafe espresso hot drink tea caffeine' },
+        { e: '🍵', k: 'tea green matcha hot drink' },
+        { e: '🧋', k: 'boba bubble tea milk drink' },
+        { e: '🍺', k: 'beer drink alcohol pub pint' },
+        { e: '🍻', k: 'cheers beers pub drink toast' },
+        { e: '🍷', k: 'wine glass red alcohol drink' },
+        { e: '🍸', k: 'cocktail martini drink bar' }
+      ]
+    },
+    {
+      id: 'activities',
+      name: 'Activities & Sports',
+      icon: '🎮',
+      emojis: [
+        { e: '⚽', k: 'soccer ball football sport' },
+        { e: '🏀', k: 'basketball ball sport nba' },
+        { e: '🏈', k: 'american football nfl sport' },
+        { e: '⚾', k: 'baseball ball sport mlb' },
+        { e: '🎾', k: 'tennis ball sport court' },
+        { e: '🏐', k: 'volleyball ball sport beach' },
+        { e: '🏓', k: 'ping pong table tennis paddle' },
+        { e: '🏸', k: 'badminton racket shuttlecock sport' },
+        { e: '🥊', k: 'boxing glove fight punch sport' },
+        { e: '🎯', k: 'bullseye target goal direct hit accurate' },
+        { e: '🎮', k: 'video game controller gaming play playstation xbox' },
+        { e: '🕹️', k: 'joystick arcade retro game controller' },
+        { e: '🎲', k: 'dice game board roll chance' },
+        { e: '🧩', k: 'jigsaw puzzle piece problem solve fit' },
+        { e: '🎨', k: 'artist palette design art painting draw color creative' },
+        { e: '🎭', k: 'theater masks drama acting stage' },
+        { e: '🎪', k: 'circus tent event show' },
+        { e: '🎟️', k: 'ticket admission event entry' },
+        { e: '🏆', k: 'trophy champion win prize award first' },
+        { e: '🥇', k: 'first place medal gold winner' },
+        { e: '🥈', k: 'second place medal silver winner' },
+        { e: '🥉', k: 'third place medal bronze winner' },
+        { e: '🏅', k: 'sports medal military award' }
+      ]
+    },
+    {
+      id: 'travel',
+      name: 'Travel & Places',
+      icon: '🚀',
+      emojis: [
+        { e: '🚗', k: 'car automobile vehicle drive auto' },
+        { e: '🏎️', k: 'racing car race speed f1 fast' },
+        { e: '🚓', k: 'police car law patrol cop' },
+        { e: '🚑', k: 'ambulance emergency medical hospital' },
+        { e: '🚒', k: 'fire engine truck emergency rescue' },
+        { e: '🛵', k: 'scooter motorcycle moped vespa' },
+        { e: '🚲', k: 'bicycle bike cycle pedal ride' },
+        { e: '✈️', k: 'airplane flight airport travel fly' },
+        { e: '🛫', k: 'airplane departure takeoff flight' },
+        { e: '🛬', k: 'airplane landing arrival flight' },
+        { e: '🚀', k: 'rocket launch startup space ship speed fast blast' },
+        { e: '🛸', k: 'ufo flying saucer alien space sci-fi' },
+        { e: '🚁', k: 'helicopter chopper fly travel' },
+        { e: '⛵', k: 'sailboat boat yacht water ocean' },
+        { e: '🚢', k: 'ship boat cruise ocean vessel' },
+        { e: '⚓', k: 'anchor boat marine sea navy' },
+        { e: '🏠', k: 'house home building residence living personal' },
+        { e: '🏡', k: 'house garden home building' },
+        { e: '🏢', k: 'office building company business work agency' },
+        { e: '🏥', k: 'hospital medical doctor clinic health' },
+        { e: '🏦', k: 'bank finance building money credit' },
+        { e: '🏨', k: 'hotel building stay travel vacation' },
+        { e: '🏫', k: 'school building education study student' },
+        { e: '🏰', k: 'castle palace fairy tale fantasy royal' },
+        { e: '🗺️', k: 'world map geography travel atlas explore' },
+        { e: '🧭', k: 'compass navigate direction explore discover' },
+        { e: '⛰️', k: 'mountain nature climb peak hike' },
+        { e: '🌋', k: 'volcano mountain lava erupt' },
+        { e: '🏖️', k: 'beach umbrella sand ocean vacation sea' }
+      ]
+    },
+    {
+      id: 'objects',
+      name: 'Objects & Tech',
+      icon: '💻',
+      emojis: [
+        { e: '📁', k: 'file folder directory organize files archive collection' },
+        { e: '📂', k: 'open folder files docs directory' },
+        { e: '🗂️', k: 'card index dividers organize directory' },
+        { e: '💼', k: 'briefcase work job business portfolio career bag' },
+        { e: '💻', k: 'laptop computer code tech developer macbook pc' },
+        { e: '🖥️', k: 'desktop computer monitor display pc workstation' },
+        { e: '⌨️', k: 'keyboard type code key input' },
+        { e: '🖱️', k: 'computer mouse click pointer tech' },
+        { e: '📱', k: 'mobile phone smartphone iphone android app' },
+        { e: '☎️', k: 'telephone phone call contact support' },
+        { e: '🔋', k: 'battery charge power energy level' },
+        { e: '🔌', k: 'electric plug power connect socket adapter' },
+        { e: '💡', k: 'lightbulb idea smart think innovation creative' },
+        { e: '📚', k: 'books reading education library study school docs documentation' },
+        { e: '📖', k: 'open book reading literature novel' },
+        { e: '🔖', k: 'bookmark favorite tag mark save' },
+        { e: '🏷️', k: 'label price tag category mark' },
+        { e: '💰', k: 'money bag dollar rich cash wealth investment bank' },
+        { e: '🪙', k: 'coin currency money gold cash crypto' },
+        { e: '💵', k: 'dollar bill cash money green currency' },
+        { e: '💳', k: 'credit card payment purchase visa mastercard buy pay' },
+        { e: '💎', k: 'gem stone diamond crystal jewel valuable' },
+        { e: '⚖️', k: 'balance scale law justice legal court' },
+        { e: '🧰', k: 'toolbox tools toolkit repair fix utilities maintenance' },
+        { e: '🛠️', k: 'hammer wrench tools repair settings build dev devops' },
+        { e: '🔧', k: 'wrench tool spanner fix configure' },
+        { e: '🔨', k: 'hammer tool build construction strike' },
+        { e: '⚙️', k: 'gear settings options configuration preferences system' },
+        { e: '🛡️', k: 'shield protect defense security antivirus guard safe' },
+        { e: '🔒', k: 'lock closed private secure password secret encrypted' },
+        { e: '🔓', k: 'unlock open access public released' },
+        { e: '🔑', k: 'key password access secret auth api unlock login' },
+        { e: '🗝️', k: 'old key secret antique access unlock' },
+        { e: '🔬', k: 'microscope science research lab study biology chemistry analyze' },
+        { e: '🔭', k: 'telescope astronomy space star look explore view' },
+        { e: '🧪', k: 'test tube chemistry science experiment flask lab' },
+        { e: '💊', k: 'pill medicine pharmacy drug prescription health' },
+        { e: '📦', k: 'package box delivery shipping parcel amazon storage' },
+        { e: '📅', k: 'calendar date schedule event appointment' },
+        { e: '📊', k: 'bar chart graph stats metrics analytics insights dashboard' },
+        { e: '📈', k: 'chart increasing trend growth metrics stock up' },
+        { e: '📉', k: 'chart decreasing loss down drop decline' },
+        { e: '📋', k: 'clipboard copy paste task list checklist notes plan' },
+        { e: '📌', k: 'pushpin pin map location sticky note notice' },
+        { e: '📎', k: 'paperclip attach attachment file link' },
+        { e: '✂️', k: 'scissors cut snip tool craft edit' },
+        { e: '🗑️', k: 'wastebasket trash bin delete remove recycle' }
+      ]
+    },
+    {
+      id: 'symbols',
+      name: 'Symbols & Flags',
+      icon: '⚡',
+      emojis: [
+        { e: '⚡', k: 'high voltage lightning bolt power fast energy flash zap speed' },
+        { e: '✨', k: 'sparkles clean magic shine star ai new' },
+        { e: '⭐', k: 'star favorite rating bookmark yellow' },
+        { e: '🌟', k: 'glowing star shine bright sparkle special' },
+        { e: '💥', k: 'boom collision explosion bang blast' },
+        { e: '💫', k: 'dizzy star trail spark' },
+        { e: '❤️', k: 'red heart love like romance favorite' },
+        { e: '💙', k: 'blue heart love like' },
+        { e: '💚', k: 'green heart nature love' },
+        { e: '💜', k: 'purple heart love' },
+        { e: '🖤', k: 'black heart dark love' },
+        { e: '🤍', k: 'white heart pure love' },
+        { e: '💔', k: 'broken heart sad breakup sorrow' },
+        { e: '✅', k: 'check mark green verified done complete ok pass task' },
+        { e: '❌', k: 'cross mark red cancel no wrong fail error bad' },
+        { e: '⚠️', k: 'warning alert caution hazard attention broken' },
+        { e: '🚫', k: 'no entry forbidden banned stop proscribed' },
+        { e: '🛑', k: 'stop sign red octagonal halt pause' },
+        { e: '💯', k: '100 hundred perfect score rank full' },
+        { e: '🔔', k: 'bell notification alert alarm sound ring' },
+        { e: '🔕', k: 'bell with slash mute silent quiet no notifications' },
+        { e: '🎵', k: 'musical note song sound audio melody tune' },
+        { e: '🎶', k: 'musical notes audio soundtrack music playlist' },
+        { e: '🌐', k: 'globe with meridians world internet web online network domain' },
+        { e: '♻️', k: 'recycling symbol green environment sustainable reuse' },
+        { e: '🚩', k: 'triangular flag post mark goal priority milestone' },
+        { e: '🏁', k: 'chequered flag finish race complete win' }
+      ]
+    }
+  ];
+
+  const DEFAULT_RECENT_EMOJIS = ['📁', '💼', '🏠', '🔬', '🛠️', '🎨', '⚡', '📚'];
+  let activeEmojiCategoryId = 'all';
+
+  function getRecentEmojis() {
+    try {
+      const stored = localStorage.getItem('appDirectory_recentEmojis');
+      if (stored) {
+        const arr = JSON.parse(stored);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      }
+    } catch {}
+    return DEFAULT_RECENT_EMOJIS;
+  }
+
+  function saveRecentEmoji(emoji) {
+    if (!emoji) return;
+    let list = getRecentEmojis();
+    list = [emoji, ...list.filter(e => e !== emoji)].slice(0, 16);
+    try {
+      localStorage.setItem('appDirectory_recentEmojis', JSON.stringify(list));
+    } catch {}
+    renderFolderEmojiQuickRow();
+  }
+
+  function renderFolderEmojiQuickRow() {
+    if (!folderEmojiQuickRow) return;
+    folderEmojiQuickRow.innerHTML = '';
+    const recents = getRecentEmojis().slice(0, 6);
+
+    recents.forEach(em => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'emoji-quick-chip';
+      btn.textContent = em;
+      btn.title = `Select ${em}`;
+      btn.addEventListener('click', () => selectFolderEmoji(em));
+      folderEmojiQuickRow.appendChild(btn);
+    });
+
+    const moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.className = 'emoji-more-btn';
+    moreBtn.innerHTML = '<span>😀 More</span>';
+    moreBtn.title = 'Browse all categorized emojis';
+    moreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleEmojiPicker();
+    });
+    folderEmojiQuickRow.appendChild(moreBtn);
+  }
+
+  function selectFolderEmoji(emoji) {
+    if (!emoji) return;
+    if (folderIconInput) folderIconInput.value = emoji;
+    if (folderIconDisplay) folderIconDisplay.textContent = emoji;
+    saveRecentEmoji(emoji);
+    closeEmojiPicker();
+  }
+
+  function renderEmojiCategoryTabs() {
+    if (!emojiCategoryTabs) return;
+    emojiCategoryTabs.innerHTML = '';
+
+    // "All" tab
+    const allTab = document.createElement('button');
+    allTab.type = 'button';
+    allTab.className = `emoji-category-tab ${activeEmojiCategoryId === 'all' ? 'is-active' : ''}`;
+    allTab.textContent = '🌟';
+    allTab.title = 'All Emojis';
+    allTab.addEventListener('click', () => {
+      activeEmojiCategoryId = 'all';
+      renderEmojiCategoryTabs();
+      renderEmojiGrid(activeEmojiCategoryId, emojiSearchInput ? emojiSearchInput.value : '');
+    });
+    emojiCategoryTabs.appendChild(allTab);
+
+    // "Recent" tab
+    const recentTab = document.createElement('button');
+    recentTab.type = 'button';
+    recentTab.className = `emoji-category-tab ${activeEmojiCategoryId === 'recent' ? 'is-active' : ''}`;
+    recentTab.textContent = '🕒';
+    recentTab.title = 'Recent Emojis';
+    recentTab.addEventListener('click', () => {
+      activeEmojiCategoryId = 'recent';
+      renderEmojiCategoryTabs();
+      renderEmojiGrid(activeEmojiCategoryId, emojiSearchInput ? emojiSearchInput.value : '');
+    });
+    emojiCategoryTabs.appendChild(recentTab);
+
+    // Standard category tabs
+    EMOJI_CATEGORIES.forEach(cat => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = `emoji-category-tab ${activeEmojiCategoryId === cat.id ? 'is-active' : ''}`;
+      tab.textContent = cat.icon;
+      tab.title = cat.name;
+      tab.addEventListener('click', () => {
+        activeEmojiCategoryId = cat.id;
+        renderEmojiCategoryTabs();
+        renderEmojiGrid(activeEmojiCategoryId, emojiSearchInput ? emojiSearchInput.value : '');
+      });
+      emojiCategoryTabs.appendChild(tab);
+    });
+  }
+
+  function renderEmojiGrid(categoryId = 'all', searchQuery = '') {
+    if (!emojiGridContainer) return;
+    emojiGridContainer.innerHTML = '';
+    const q = searchQuery.trim().toLowerCase();
+
+    // 1. If searching, filter across all emojis by keywords/characters
+    if (q) {
+      const matches = [];
+      const seen = new Set();
+
+      EMOJI_CATEGORIES.forEach(cat => {
+        cat.emojis.forEach(item => {
+          if (!seen.has(item.e) && (item.e.includes(q) || item.k.toLowerCase().includes(q))) {
+            seen.add(item.e);
+            matches.push(item);
+          }
+        });
+      });
+
+      if (matches.length === 0) {
+        emojiGridContainer.innerHTML = `<div class="emoji-no-results">No emojis found matching "<strong>${escapeHtml(searchQuery)}</strong>"</div>`;
+        return;
+      }
+
+      const sec = document.createElement('div');
+      sec.className = 'emoji-category-section';
+      sec.innerHTML = `<div class="emoji-category-title">Search Results (${matches.length})</div>`;
+      const grid = document.createElement('div');
+      grid.className = 'emoji-grid';
+
+      matches.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'emoji-item-btn';
+        btn.textContent = item.e;
+        btn.title = item.k;
+        btn.addEventListener('click', () => selectFolderEmoji(item.e));
+        grid.appendChild(btn);
+      });
+
+      sec.appendChild(grid);
+      emojiGridContainer.appendChild(sec);
+      return;
+    }
+
+    // 2. Recent Only tab
+    if (categoryId === 'recent') {
+      const recents = getRecentEmojis();
+      const sec = document.createElement('div');
+      sec.className = 'emoji-category-section';
+      sec.innerHTML = `<div class="emoji-category-title">🕒 Recently Used</div>`;
+      const grid = document.createElement('div');
+      grid.className = 'emoji-grid';
+
+      recents.forEach(em => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'emoji-item-btn';
+        btn.textContent = em;
+        btn.addEventListener('click', () => selectFolderEmoji(em));
+        grid.appendChild(btn);
+      });
+
+      sec.appendChild(grid);
+      emojiGridContainer.appendChild(sec);
+      return;
+    }
+
+    // 3. Specific Category Tab
+    const categoriesToRender = categoryId === 'all'
+      ? EMOJI_CATEGORIES
+      : EMOJI_CATEGORIES.filter(c => c.id === categoryId);
+
+    // If "All", prepend Recent row
+    if (categoryId === 'all') {
+      const recents = getRecentEmojis();
+      if (recents.length > 0) {
+        const recSec = document.createElement('div');
+        recSec.className = 'emoji-category-section';
+        recSec.innerHTML = `<div class="emoji-category-title">🕒 Recent</div>`;
+        const recGrid = document.createElement('div');
+        recGrid.className = 'emoji-grid';
+        recents.slice(0, 16).forEach(em => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'emoji-item-btn';
+          btn.textContent = em;
+          btn.addEventListener('click', () => selectFolderEmoji(em));
+          recGrid.appendChild(btn);
+        });
+        recSec.appendChild(recGrid);
+        emojiGridContainer.appendChild(recSec);
+      }
+    }
+
+    categoriesToRender.forEach(cat => {
+      const sec = document.createElement('div');
+      sec.className = 'emoji-category-section';
+      sec.innerHTML = `<div class="emoji-category-title">${cat.icon} ${cat.name}</div>`;
+      const grid = document.createElement('div');
+      grid.className = 'emoji-grid';
+
+      cat.emojis.forEach(item => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'emoji-item-btn';
+        btn.textContent = item.e;
+        btn.title = item.k;
+        btn.addEventListener('click', () => selectFolderEmoji(item.e));
+        grid.appendChild(btn);
+      });
+
+      sec.appendChild(grid);
+      emojiGridContainer.appendChild(sec);
+    });
+  }
+
+  function openEmojiPicker() {
+    if (!emojiPickerPopover) return;
+    activeEmojiCategoryId = 'all';
+    if (emojiSearchInput) emojiSearchInput.value = '';
+    if (emojiSearchClear) emojiSearchClear.style.display = 'none';
+
+    renderEmojiCategoryTabs();
+    renderEmojiGrid('all', '');
+    emojiPickerPopover.style.display = 'flex';
+
+    if (osShortcutKey) {
+      const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform || '');
+      osShortcutKey.textContent = isMac ? 'Cmd + Ctrl + Space' : 'Win + .';
+    }
+
+    setTimeout(() => {
+      if (emojiSearchInput) emojiSearchInput.focus();
+    }, 60);
+  }
+
+  function closeEmojiPicker() {
+    if (emojiPickerPopover) {
+      emojiPickerPopover.style.display = 'none';
+    }
+  }
+
+  function toggleEmojiPicker() {
+    if (!emojiPickerPopover) return;
+    if (emojiPickerPopover.style.display === 'none' || !emojiPickerPopover.style.display) {
+      openEmojiPicker();
+    } else {
+      closeEmojiPicker();
+    }
+  }
+
   let inlineFolderCallback = null;
 
   function openFolderModal(folderId = null, onCreatedCallback = null) {
     editingFolderId = folderId;
     inlineFolderCallback = typeof onCreatedCallback === 'function' ? onCreatedCallback : null;
+    closeEmojiPicker();
+
     if (folderId) {
       const folder = folders.find(f => f.id === folderId);
       if (folder) {
@@ -1563,19 +2144,24 @@
         folderNameInput.value = folder.name || '';
         folderIconInput.value = folder.icon || '📁';
         folderColorInput.value = folder.color || '#0a84ff';
+        if (folderIconDisplay) folderIconDisplay.textContent = folder.icon || '📁';
       }
     } else {
       folderModalTitle.textContent = 'New Folder';
       folderNameInput.value = '';
       folderIconInput.value = '📁';
       folderColorInput.value = '#0a84ff';
+      if (folderIconDisplay) folderIconDisplay.textContent = '📁';
     }
+
+    renderFolderEmojiQuickRow();
     folderModalBackdrop.classList.add('active');
     document.body.style.overflow = 'hidden';
     setTimeout(() => folderNameInput.focus(), 60);
   }
 
   function closeFolderModal() {
+    closeEmojiPicker();
     folderModalBackdrop.classList.remove('active');
     const isMainModalActive = modalBackdrop && modalBackdrop.classList.contains('active');
     if (!isMainModalActive) {
@@ -4632,14 +5218,69 @@
     });
   }
 
-  // Quick Emoji Presets
-  const emojiBtns = document.querySelectorAll('.emoji-preset-btn');
-  emojiBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (folderIconInput) {
-        folderIconInput.value = btn.textContent.trim();
+  // ── Emoji Picker Event Listeners (Issue #27) ────────────
+
+  if (folderIconTriggerBtn) {
+    folderIconTriggerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleEmojiPicker();
+    });
+  }
+
+  if (folderIconInput) {
+    folderIconInput.addEventListener('input', () => {
+      const val = folderIconInput.value.trim();
+      if (folderIconDisplay) {
+        folderIconDisplay.textContent = val || '📁';
       }
     });
+  }
+
+  if (emojiSearchInput) {
+    emojiSearchInput.addEventListener('input', () => {
+      const q = emojiSearchInput.value;
+      if (emojiSearchClear) {
+        emojiSearchClear.style.display = q ? 'inline-flex' : 'none';
+      }
+      renderEmojiGrid(activeEmojiCategoryId, q);
+    });
+
+    emojiSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeEmojiPicker();
+      }
+    });
+  }
+
+  if (emojiSearchClear) {
+    emojiSearchClear.addEventListener('click', () => {
+      if (emojiSearchInput) emojiSearchInput.value = '';
+      emojiSearchClear.style.display = 'none';
+      renderEmojiGrid(activeEmojiCategoryId, '');
+      if (emojiSearchInput) emojiSearchInput.focus();
+    });
+  }
+
+  if (osKeyboardHint) {
+    osKeyboardHint.addEventListener('click', () => {
+      closeEmojiPicker();
+      if (folderIconInput) {
+        folderIconInput.focus();
+        folderIconInput.select();
+      }
+    });
+  }
+
+  // Close emoji popover when clicking outside
+  document.addEventListener('click', (e) => {
+    if (emojiPickerPopover && emojiPickerPopover.style.display !== 'none') {
+      if (!emojiPickerPopover.contains(e.target) &&
+          !folderIconTriggerBtn?.contains(e.target) &&
+          !e.target.closest('.emoji-more-btn')) {
+        closeEmojiPicker();
+      }
+    }
   });
 
   // ── Add Bookmarks to Folder Event Listeners ─────────────

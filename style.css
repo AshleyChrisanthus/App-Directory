@@ -2459,15 +2459,58 @@ select:focus {
   box-sizing: border-box !important;
 }
 
-.folder-emoji-suggestions {
+.folder-icon-picker-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.folder-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.folder-icon-trigger-btn {
+  height: 42px;
+  min-width: 58px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-light);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 1.35rem;
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.folder-icon-trigger-btn:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.picker-dropdown-arrow {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.folder-emoji-quick-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   flex: 1;
+  min-width: 0;
 }
 
-.emoji-preset-btn {
+.emoji-quick-chip {
   background: var(--input-bg);
   border: 1px solid var(--border-light);
   color: var(--text-primary);
@@ -2484,10 +2527,246 @@ select:focus {
   transition: all 0.15s ease;
 }
 
-.emoji-preset-btn:hover {
+.emoji-quick-chip:hover {
   background: var(--bg-hover);
   transform: scale(1.15);
   border-color: var(--accent);
+}
+
+.emoji-more-btn {
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0 8px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.emoji-more-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ========================================
+   Full Categorized Emoji Picker Popover
+   ======================================== */
+
+.emoji-picker-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  width: 100%;
+  background: var(--card-bg);
+  border: 1.5px solid var(--border-hover);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xl), 0 12px 32px rgba(0, 0, 0, 0.28);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.emoji-picker-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-primary);
+}
+
+.emoji-search-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 0 8px;
+}
+
+.emoji-search-wrap:focus-within {
+  border-color: var(--accent);
+}
+
+.emoji-search-icon {
+  font-size: 0.85rem;
+  opacity: 0.6;
+  margin-right: 6px;
+}
+
+.emoji-search-input {
+  width: 100%;
+  border: none !important;
+  background: transparent !important;
+  padding: 7px 0 !important;
+  font-size: 0.85rem !important;
+  color: var(--text-primary) !important;
+  outline: none;
+}
+
+.emoji-search-clear {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 2px 4px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emoji-search-clear:hover {
+  color: var(--danger);
+}
+
+.os-keyboard-hint {
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.os-hint-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-light);
+  padding: 5px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all var(--transition);
+}
+
+.os-hint-badge:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.os-hint-badge kbd {
+  background: var(--input-bg);
+  border: 1px solid var(--border-hover);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: monospace;
+  font-size: 0.7rem;
+  color: var(--accent);
+}
+
+.emoji-category-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.emoji-category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.emoji-category-tab {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.emoji-category-tab:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+  transform: scale(1.12);
+}
+
+.emoji-category-tab.is-active {
+  opacity: 1;
+  background: rgba(10, 132, 255, 0.15);
+  border: 1px solid var(--accent);
+}
+
+.emoji-grid-container {
+  padding: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.emoji-category-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.emoji-category-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.emoji-item-btn {
+  height: 36px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 1.3rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+  padding: 0;
+  user-select: none;
+}
+
+.emoji-item-btn:hover {
+  background: var(--bg-hover);
+  transform: scale(1.22);
+  z-index: 2;
+}
+
+.emoji-no-results {
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
 }
 
 .folder-color-picker-row {
