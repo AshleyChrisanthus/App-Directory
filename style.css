@@ -595,33 +595,92 @@ select:focus {
   display: inline-block;
 }
 
-.custom-dropdown-btn {
+/* Unified Category Filter Group with Integrated Settings Button */
+.cat-filter-btn-group {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
   background: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
+  transition: all var(--transition);
+  min-width: 175px;
+}
+
+.cat-filter-btn-group:hover {
+  border-color: var(--border-light);
+}
+
+.custom-dropdown.open .cat-filter-btn-group {
+  border-color: var(--input-focus);
+}
+
+.cat-filter-main-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 8px 10px 8px 12px;
   font-family: var(--font-sans);
   font-size: 0.875rem;
   color: var(--text-primary);
   cursor: pointer;
-  transition: all var(--transition);
-  user-select: none;
-  min-width: 145px;
+  flex: 1;
   justify-content: space-between;
+  user-select: none;
+  transition: background var(--transition);
+  border-top-left-radius: var(--radius-sm);
+  border-bottom-left-radius: var(--radius-sm);
 }
 
-.custom-dropdown-btn:hover {
+.cat-filter-main-btn:hover {
   background: var(--bg-hover);
 }
 
-.custom-dropdown-btn.has-filter {
+.cat-filter-divider {
+  width: 1px;
+  background: var(--input-border);
+  margin: 6px 0;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+
+.cat-filter-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--transition);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.cat-filter-settings-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.cat-filter-btn-group.has-filter {
   background: var(--accent-bg);
   border-color: var(--accent);
+}
+
+.cat-filter-btn-group.has-filter .cat-filter-main-btn {
   color: var(--accent);
   font-weight: 500;
+}
+
+.cat-filter-btn-group.has-filter .cat-filter-divider {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.cat-filter-btn-group.has-filter .cat-filter-settings-btn {
+  color: var(--accent);
 }
 
 .dropdown-chevron {
@@ -632,10 +691,6 @@ select:focus {
 
 .custom-dropdown.open .dropdown-chevron {
   transform: rotate(180deg);
-}
-
-.custom-dropdown.open .custom-dropdown-btn {
-  border-color: var(--input-focus);
 }
 
 .custom-dropdown-menu {

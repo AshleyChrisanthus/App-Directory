@@ -684,16 +684,19 @@
 
   function updateCatFilterLabel() {
     if (!catFilterLabel || !catFilterBtn) return;
+    const catFilterBtnGroup = document.getElementById('catFilterBtnGroup');
     const allCats = getAllCategories();
     const count = selectedFilterCategories.size;
 
     if (count === 0 || (catFilterMode === 'union' && count === allCats.length)) {
       catFilterLabel.textContent = 'All Categories';
       catFilterBtn.classList.remove('has-filter');
+      if (catFilterBtnGroup) catFilterBtnGroup.classList.remove('has-filter');
       return;
     }
 
     catFilterBtn.classList.add('has-filter');
+    if (catFilterBtnGroup) catFilterBtnGroup.classList.add('has-filter');
     const list = Array.from(selectedFilterCategories);
 
     if (catFilterMode === 'intersect') {
@@ -4477,7 +4480,14 @@
   }
 
   // Category management modal events
-  document.getElementById('manageCategoriesBtn').addEventListener('click', openCatModal);
+  const manageCategoriesBtn = document.getElementById('manageCategoriesBtn');
+  if (manageCategoriesBtn) {
+    manageCategoriesBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (catFilterDropdown) catFilterDropdown.classList.remove('open');
+      openCatModal();
+    });
+  }
   catModalClose.addEventListener('click', closeCatModal);
   catModalBackdrop.addEventListener('click', (e) => {
     if (e.target === catModalBackdrop) closeCatModal();
