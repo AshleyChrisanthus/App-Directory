@@ -543,6 +543,49 @@ select:focus {
   border-color: var(--input-focus);
 }
 
+/* Toolbar Toggle Buttons (e.g. Pin Favorites) */
+.toolbar-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.toolbar-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.toolbar-toggle-btn .toggle-star-icon {
+  font-size: 0.95rem;
+  filter: grayscale(1) opacity(0.65);
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.toolbar-toggle-btn.active {
+  background: rgba(255, 184, 0, 0.12);
+  border-color: rgba(255, 184, 0, 0.45);
+  color: #ffb800;
+  font-weight: 600;
+  box-shadow: 0 0 10px rgba(255, 184, 0, 0.18);
+}
+
+.toolbar-toggle-btn.active .toggle-star-icon {
+  filter: none;
+  transform: scale(1.15);
+}
+
 /* ========================================
    Custom Multi-Select Dropdown
    ======================================== */

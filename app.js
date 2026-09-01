@@ -99,6 +99,7 @@
   const modeUnionBtn = document.getElementById('modeUnionBtn');
   const modeIntersectBtn = document.getElementById('modeIntersectBtn');
   const sortSelect = document.getElementById('sortSelect');
+  const pinFavoritesBtn = document.getElementById('pinFavoritesBtn');
   const addBtn = document.getElementById('addBtn');
   const modalBackdrop = document.getElementById('modalBackdrop');
   const modal = document.getElementById('modal');
@@ -248,6 +249,7 @@
   const STORAGE_FOLDERS_KEY = 'appDirectory_folders';
   const SIDEBAR_STATE_KEY = 'appDirectory_sidebarCollapsed';
   const FILTER_MODE_KEY = 'app_directory_cat_filter_mode';
+  const PIN_FAVORITES_KEY = 'appDirectory_pinFavorites';
 
   const DEFAULT_FOLDERS = [
     { id: 'f-work', name: 'Work', icon: '💼', color: '#0a84ff', dateAdded: '2026-01-01T00:00:00.000Z' },
@@ -263,6 +265,7 @@
   let selectedCategories = []; // categories selected in the modal form
   let selectedFilterCategories = new Set(); // categories checked in the filter dropdown
   let catFilterMode = localStorage.getItem(FILTER_MODE_KEY) || 'union'; // 'union' or 'intersect'
+  let pinFavorites = localStorage.getItem(PIN_FAVORITES_KEY) === 'true'; // default: false
   let pendingIcons = new Map(); // entryId => newCandidateDataUrl (icons awaiting user acceptance)
 
   // ── Utilities ──────────────────────────────────────────
@@ -3654,11 +3657,13 @@
       filtered = filtered.filter(e => e.folderId === activeFolderId);
     }
 
-    // Sort — favorites always first
+    // Sort
     filtered.sort((a, b) => {
-      // Favorites pinned to top
-      if (a.isFavorite && !b.isFavorite) return -1;
-      if (!a.isFavorite && b.isFavorite) return 1;
+      // Favorites pinned to top only if pinFavorites is enabled
+      if (pinFavorites) {
+        if (a.isFavorite && !b.isFavorite) return -1;
+        if (!a.isFavorite && b.isFavorite) return 1;
+      }
 
       let valA, valB;
 
@@ -3688,6 +3693,15 @@
     });
 
     return filtered;
+  }
+
+  function updatePinFavoritesButtonState() {
+    if (!pinFavoritesBtn) return;
+    pinFavoritesBtn.classList.toggle('active', pinFavorites);
+    pinFavoritesBtn.setAttribute('aria-pressed', String(pinFavorites));
+    pinFavoritesBtn.title = pinFavorites
+      ? 'Favorites pinned to top (Click to restore natural sort)'
+      : 'Pin favorites to the top of the list';
   }
 
   // ── Rendering ──────────────────────────────────────────
@@ -4801,7 +4815,20 @@
     });
   }
 
-  sortSelect.addEventListener('change', renderCardsOnly);
+  if (sortSelect) {
+    sortSelect.addEventListener('change', renderCardsOnly);
+  }
+
+  if (pinFavoritesBtn) {
+    updatePinFavoritesButtonState();
+    pinFavoritesBtn.addEventListener('click', () => {
+      pinFavorites = !pinFavorites;
+      localStorage.setItem(PIN_FAVORITES_KEY, String(pinFavorites));
+      updatePinFavoritesButtonState();
+      renderCardsOnly();
+      showToast(pinFavorites ? 'Favorites pinned to top ⭐' : 'Natural sort order restored');
+    });
+  }
 
   // Theme toggle
   themeToggle.addEventListener('click', toggleTheme);
