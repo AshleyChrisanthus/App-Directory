@@ -3987,12 +3987,14 @@
     const folder = entry.folderId ? folders.find(f => f.id === entry.folderId) : null;
 
     card.innerHTML = `
-      <button class="icon-card-fav ${entry.isFavorite ? 'active' : ''}" title="${entry.isFavorite ? 'Unpin from favorites' : 'Pin to favorites'}">
-        ${entry.isFavorite ? '★' : '☆'}
-      </button>
-      <div class="icon-card-actions">
-        <button class="icon-card-action-btn edit-btn" title="Edit">✏️</button>
-        <button class="icon-card-action-btn delete-btn" title="Delete">🗑️</button>
+      <div class="icon-card-header">
+        <div class="icon-card-actions">
+          <button class="icon-card-action-btn edit-btn" title="Edit">✏️</button>
+          <button class="icon-card-action-btn delete-btn" title="Delete">🗑️</button>
+        </div>
+        <button class="icon-card-fav ${entry.isFavorite ? 'active' : ''}" title="${entry.isFavorite ? 'Unpin from favorites' : 'Pin to favorites'}">
+          ${entry.isFavorite ? '★' : '☆'}
+        </button>
       </div>
       <div class="icon-card-frame">
         ${entry.iconUrl
@@ -4000,8 +4002,10 @@
           : '<span style="font-size:20px;">🌐</span>'
         }
       </div>
-      <div class="icon-card-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
-      ${folder ? `<span class="icon-card-folder-badge" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')}</span>` : ''}
+      <div class="icon-card-name" title="${escapeHtml(entry.name)}">
+        ${folder ? `<span class="icon-card-folder-dot" style="background: ${escapeHtml(folder.color || 'var(--accent)')};" title="Folder: ${escapeHtml(folder.name)}"></span>` : ''}
+        <span>${escapeHtml(entry.name)}</span>
+      </div>
     `;
 
     // Click card → visit
