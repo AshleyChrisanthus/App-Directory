@@ -4100,11 +4100,242 @@
     exportToFolderDirect(false);
   }
 
+  // ── Universal Browser Bookmarks Importer (Issue #15) ─────
+
+  function decodeHtmlEntities(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#([0-9]+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  }
+
+  function normalizeUrlForDuplicateCheck(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== 'string') return '';
+    const clean = ensureProtocol(rawUrl.trim());
+    try {
+      const parsed = new URL(clean);
+      let path = parsed.pathname;
+      if (path.length > 1 && path.endsWith('/')) {
+        path = path.slice(0, -1);
+      }
+      return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${parsed.search}${parsed.hash}`;
+    } catch {
+      return clean.toLowerCase().replace(/\/+$/, '');
+    }
+  }
+
+  function parseNetscapeBookmarks(htmlContent, existingFolders = []) {
+    const importedEntries = [];
+    const newFolders = [];
+    const folderStack = [];
+    let pendingFolderName = null;
+
+    // Standard root container folders across Chrome, Safari, Firefox, Edge to filter from categories
+    const systemFolders = new Set([
+      'bookmarks bar',
+      'bookmarksbar',
+      'bookmarks toolbar',
+      'bookmarkstoolbar',
+      'bookmarks menu',
+      'bookmarksmenu',
+      'favorites bar',
+      'favoritesbar',
+      'other bookmarks',
+      'otherbookmarks',
+      'other favorites',
+      'otherfavorites',
+      'mobile bookmarks',
+      'mobilebookmarks',
+      'imported',
+      'bookmarks'
+    ]);
+
+    // Match tags: <H3>, <DL>, </DL>, <A>, <DD>
+    const tagRegex = /<(\/?(?:H3|A|DL|DD))([^>]*)>([^<]*)/gi;
+    let match;
+    let lastEntry = null;
+
+    while ((match = tagRegex.exec(htmlContent)) !== null) {
+      const rawTag = match[1].toUpperCase();
+      const attrs = match[2];
+      const text = decodeHtmlEntities(match[3].trim());
+
+      if (rawTag === 'H3') {
+        pendingFolderName = text || 'Untitled Folder';
+        // Pre-register user folder if not a root system container
+        if (pendingFolderName && !systemFolders.has(pendingFolderName.toLowerCase())) {
+          const existsInApp = existingFolders.some(f => f.name.toLowerCase() === pendingFolderName.toLowerCase());
+          const existsInNew = newFolders.some(f => f.name.toLowerCase() === pendingFolderName.toLowerCase());
+          if (!existsInApp && !existsInNew) {
+            newFolders.push({
+              id: generateId(),
+              name: pendingFolderName,
+              icon: '📁',
+              color: null
+            });
+          }
+        }
+        lastEntry = null;
+      } else if (rawTag === 'DL') {
+        if (pendingFolderName) {
+          folderStack.push(pendingFolderName);
+          pendingFolderName = null;
+        } else {
+          folderStack.push(null);
+        }
+        lastEntry = null;
+      } else if (rawTag === '/DL') {
+        if (folderStack.length > 0) {
+          folderStack.pop();
+        }
+        lastEntry = null;
+      } else if (rawTag === 'A') {
+        const hrefMatch = attrs.match(/HREF=["']([^"']+)["']/i);
+        if (!hrefMatch) continue;
+        const rawUrl = decodeHtmlEntities(hrefMatch[1].trim());
+        if (!rawUrl || rawUrl.toLowerCase().startsWith('javascript:') || rawUrl.toLowerCase().startsWith('place:')) continue;
+
+        const title = text || rawUrl;
+
+        // Extract embedded Base64 ICON or external icon URI
+        const iconMatch = attrs.match(/ICON(?:_URI)?=["']([^"']+)["']/i);
+        let iconUrl = null;
+        if (iconMatch) {
+          iconUrl = iconMatch[1].trim();
+        }
+
+        // Extract ADD_DATE timestamp (seconds)
+        const dateMatch = attrs.match(/ADD_DATE=["']([0-9]+)["']/i);
+        let dateAdded = new Date().toISOString();
+        if (dateMatch) {
+          const sec = parseInt(dateMatch[1], 10);
+          if (!isNaN(sec) && sec > 0) {
+            dateAdded = new Date(sec * 1000).toISOString();
+          }
+        }
+
+        // Extract categories from active non-system folders in hierarchy
+        const activeFolderNames = folderStack.filter(f => f && !systemFolders.has(f.toLowerCase()));
+        const categories = [...activeFolderNames];
+
+        // Extract Firefox TAGS attribute (e.g. TAGS="dev,tools")
+        const tagsMatch = attrs.match(/TAGS=["']([^"']+)["']/i);
+        if (tagsMatch) {
+          const ffTags = decodeHtmlEntities(tagsMatch[1]).split(',').map(t => t.trim()).filter(Boolean);
+          ffTags.forEach(tag => {
+            if (!categories.some(c => c.toLowerCase() === tag.toLowerCase())) {
+              categories.push(tag);
+            }
+          });
+        }
+
+        // Map to immediate parent folder ID
+        const immediateFolderName = [...activeFolderNames].reverse()[0] || null;
+        let matchedFolderId = null;
+        if (immediateFolderName) {
+          const inApp = existingFolders.find(f => f.name.toLowerCase() === immediateFolderName.toLowerCase());
+          if (inApp) {
+            matchedFolderId = inApp.id;
+          } else {
+            const inNew = newFolders.find(f => f.name.toLowerCase() === immediateFolderName.toLowerCase());
+            if (inNew) matchedFolderId = inNew.id;
+          }
+        }
+
+        const entry = {
+          id: generateId(),
+          name: title,
+          url: ensureProtocol(rawUrl),
+          description: '',
+          iconUrl: iconUrl || getFaviconUrl(rawUrl),
+          folderId: matchedFolderId,
+          categories: categories,
+          dateAdded: dateAdded,
+          dateModified: dateAdded,
+          visitCount: 0,
+          lastVisited: null,
+          isFavorite: false
+        };
+
+        importedEntries.push(entry);
+        lastEntry = entry;
+      } else if (rawTag === 'DD' && lastEntry) {
+        lastEntry.description = text;
+      }
+    }
+
+    return { importedEntries, newFolders };
+  }
+
   function importData(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
+      const content = e.target.result;
+      const isHtml = (file.name && (file.name.endsWith('.html') || file.name.endsWith('.htm'))) ||
+        /<!doctype\s+netscape|<title>bookmarks|<h1[^>]*>bookmarks|<dl/i.test(content);
+
+      if (isHtml) {
+        // Universal Netscape Bookmarks HTML parser
+        try {
+          const { importedEntries, newFolders } = parseNetscapeBookmarks(content, folders);
+
+          if (importedEntries.length === 0 && newFolders.length === 0) {
+            showToast('No valid bookmarks found in browser export.');
+            return;
+          }
+
+          // Merge new folders
+          let addedFoldersCount = 0;
+          if (newFolders.length > 0) {
+            newFolders.forEach(nf => {
+              if (!folders.some(existing => existing.name.toLowerCase() === nf.name.toLowerCase())) {
+                folders.push(nf);
+                addedFoldersCount++;
+              }
+            });
+            if (addedFoldersCount > 0) {
+              saveFolders(folders, false);
+            }
+          }
+
+          // Merge entries: skip duplicates by normalized URL against disk storage
+          const diskList = getLatestStoredEntries();
+          const existingNormalizedUrls = new Set(diskList.map(item => normalizeUrlForDuplicateCheck(item.url)));
+          let importedCount = 0;
+
+          importedEntries.forEach(item => {
+            const norm = normalizeUrlForDuplicateCheck(item.url);
+            if (!existingNormalizedUrls.has(norm)) {
+              diskList.push(item);
+              existingNormalizedUrls.add(norm);
+              importedCount++;
+            }
+          });
+
+          saveEntries(diskList);
+          renderFoldersSidebar();
+          render();
+          cacheExistingIconsOffline();
+
+          const skippedCount = importedEntries.length - importedCount;
+          const folderPart = addedFoldersCount > 0 ? ` and ${addedFoldersCount} folder${addedFoldersCount !== 1 ? 's' : ''}` : '';
+          showToast(`Imported ${importedCount} site${importedCount !== 1 ? 's' : ''}${folderPart} from browser bookmarks (${skippedCount} duplicate${skippedCount !== 1 ? 's' : ''} skipped).`);
+        } catch (err) {
+          console.error('[Import] HTML Parse Error:', err);
+          showToast('Error: Failed to parse browser bookmarks file.');
+        }
+        return;
+      }
+
+      // Standard JSON parser
       try {
-        const parsed = JSON.parse(e.target.result);
+        const parsed = JSON.parse(content);
         let importedEntries = [];
         let importedFolders = [];
 
@@ -4138,14 +4369,14 @@
           saveFolders(folders, false);
         }
 
-        // Merge: skip duplicates by URL against fresh disk storage
+        // Merge: skip duplicates by normalized URL against fresh disk storage
         const diskList = getLatestStoredEntries();
-        const existingUrls = new Set(diskList.map(item => item.url.toLowerCase()));
+        const existingNormalizedUrls = new Set(diskList.map(item => normalizeUrlForDuplicateCheck(item.url)));
         let imported = 0;
 
         valid.forEach(item => {
-          const url = ensureProtocol(item.url).toLowerCase();
-          if (!existingUrls.has(url)) {
+          const norm = normalizeUrlForDuplicateCheck(item.url);
+          if (!existingNormalizedUrls.has(norm)) {
             let cats = item.categories || [];
             if (!Array.isArray(cats) || cats.length === 0) {
               if (item.category && typeof item.category === 'string') {
@@ -4168,7 +4399,7 @@
               lastVisited: item.lastVisited || null,
               isFavorite: item.isFavorite || false
             });
-            existingUrls.add(url);
+            existingNormalizedUrls.add(norm);
             imported++;
           }
         });
@@ -4179,7 +4410,7 @@
         cacheExistingIconsOffline();
         showToast(`Imported ${imported} new site${imported !== 1 ? 's' : ''} (${valid.length - imported} duplicate${valid.length - imported !== 1 ? 's' : ''} skipped).`);
       } catch {
-        showToast('Error: Invalid JSON file.');
+        showToast('Error: Invalid JSON or bookmarks file.');
       }
     };
     reader.readAsText(file);
@@ -5606,11 +5837,11 @@
       {
         id: 'action-import-backup',
         type: 'action',
-        title: 'Import Bookmarks from JSON',
-        subtitle: 'Restore entries, folders, and category color presets',
+        title: 'Import Bookmarks',
+        subtitle: 'Import from JSON backup or browser bookmarks.html (Chrome, Firefox, Safari, Edge)',
         icon: '📥',
-        badge: 'Backup',
-        keywords: ['import', 'restore', 'load', 'json'],
+        badge: 'Import',
+        keywords: ['import', 'restore', 'load', 'json', 'html', 'browser', 'chrome', 'firefox', 'safari', 'edge', 'bookmarks'],
         run: () => importFile && importFile.click()
       },
       {
