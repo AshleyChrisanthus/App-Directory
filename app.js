@@ -5811,21 +5811,49 @@
     floatingDismissAllBtn.addEventListener('click', dismissAllPendingIcons);
   }
 
-  // ── Smart Top Navigation Reveal on Hover / Scroll ────────
+  // ── Smart Top Navigation Reveal on Hover / Scroll (Issue #42) ────────
   let lastScrollY = window.scrollY;
   let isMouseNearTop = false;
+  let scrollDeltaAccumulator = 0;
+  let isScrollingDown = false;
+  let scrollTimeout = null;
 
   function updateTopNavReveal() {
     if (!topNavWrapper) return;
     const scrollY = window.scrollY;
-    const isScrolled = scrollY > 100;
+    const navHeight = topNavWrapper.offsetHeight || 135;
+    const scrollThreshold = navHeight + 25; // Only switch to floating mode once completely scrolled past
+    const isScrolled = scrollY > scrollThreshold;
+
+    const delta = scrollY - lastScrollY;
+    if (delta > 0) {
+      isScrollingDown = true;
+      scrollDeltaAccumulator = 0;
+    } else if (delta < 0) {
+      scrollDeltaAccumulator += Math.abs(delta);
+      if (scrollDeltaAccumulator > 15) {
+        isScrollingDown = false;
+      }
+    }
+
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      isScrollingDown = false;
+      scrollDeltaAccumulator = 0;
+    }, 150);
 
     if (isScrolled) {
       topNavWrapper.classList.add('is-scrolled');
       const isDropdownOpen = catFilterDropdown && catFilterDropdown.classList.contains('open');
       const isSearchFocused = searchInput && document.activeElement === searchInput;
 
-      if (isMouseNearTop || isDropdownOpen || isSearchFocused || scrollY < lastScrollY) {
+      // Reveal if:
+      // 1. Dropdown or search is active
+      // 2. Mouse is intentionally near the top AND user is NOT actively scrolling down
+      // 3. User has scrolled up intentionally by more than 15px
+      const shouldReveal = isDropdownOpen || isSearchFocused || (!isScrollingDown && isMouseNearTop) || (!isScrollingDown && scrollDeltaAccumulator > 15);
+
+      if (shouldReveal) {
         topNavWrapper.classList.add('is-revealed');
       } else {
         topNavWrapper.classList.remove('is-revealed');
@@ -5842,13 +5870,13 @@
   document.addEventListener('mousemove', (e) => {
     if (!topNavWrapper) return;
     const isRevealed = topNavWrapper.classList.contains('is-revealed');
-    const navHeight = topNavWrapper.offsetHeight || 130;
+    const navHeight = topNavWrapper.offsetHeight || 135;
     const threshold = isRevealed ? navHeight + 25 : 50;
 
     const wasNear = isMouseNearTop;
     isMouseNearTop = e.clientY <= threshold;
 
-    if (wasNear !== isMouseNearTop && window.scrollY > 100) {
+    if (wasNear !== isMouseNearTop && window.scrollY > (navHeight + 25) && !isScrollingDown) {
       updateTopNavReveal();
     }
   });
@@ -5856,12 +5884,14 @@
   if (topNavWrapper) {
     topNavWrapper.addEventListener('mouseenter', () => {
       isMouseNearTop = true;
-      if (window.scrollY > 100) updateTopNavReveal();
+      const navHeight = topNavWrapper.offsetHeight || 135;
+      if (window.scrollY > (navHeight + 25) && !isScrollingDown) updateTopNavReveal();
     });
     topNavWrapper.addEventListener('mouseleave', (e) => {
-      if (e.clientY > (topNavWrapper.offsetHeight || 130)) {
+      const navHeight = topNavWrapper.offsetHeight || 135;
+      if (e.clientY > navHeight) {
         isMouseNearTop = false;
-        if (window.scrollY > 100) updateTopNavReveal();
+        if (window.scrollY > (navHeight + 25)) updateTopNavReveal();
       }
     });
   }
