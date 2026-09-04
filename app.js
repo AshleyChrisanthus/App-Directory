@@ -4502,12 +4502,17 @@
       renderInsightsDashboard();
       showToast(`Filtered by category: ${cat}`);
 
-      // Smooth scroll cue down towards the filtered grid
-      if (activeCatFilterBanner) {
-        activeCatFilterBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      } else if (grid) {
-        grid.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+      // Smooth scroll cue to ensure at least the first row of items is comfortably in view
+      setTimeout(() => {
+        const firstItem = grid.querySelector('.card, .table-row, .icon-card');
+        if (firstItem) {
+          firstItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (activeCatFilterBanner) {
+          activeCatFilterBanner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (grid) {
+          grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 50);
     };
 
     insightsBody.querySelectorAll('.category-dist-segment').forEach(seg => {
