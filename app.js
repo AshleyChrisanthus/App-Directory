@@ -3197,7 +3197,12 @@
 
     modalBackdrop.classList.add('active');
     document.body.style.overflow = 'hidden';
-    setTimeout(() => entryName.focus(), 100);
+    setTimeout(() => {
+      if (entryUrl) {
+        entryUrl.focus();
+        if (entryUrl.select) entryUrl.select();
+      }
+    }, 100);
   }
 
   function closeModal() {
