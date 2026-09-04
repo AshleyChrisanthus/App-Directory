@@ -3730,6 +3730,13 @@
       card.classList.add('has-pending-icon');
     }
 
+    // Bento Ambient Spotlight Glow cursor tracker
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+      card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    });
+
     const domain = getDomain(entry.url);
     const folder = entry.folderId ? folders.find(f => f.id === entry.folderId) : null;
 
@@ -3746,7 +3753,10 @@
         </div>
         <div class="card-info">
           <div class="card-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
-          <div class="card-url" title="${escapeHtml(entry.url)}">${escapeHtml(domain)}</div>
+          <div class="card-url" title="${escapeHtml(entry.url)}">
+            <span>${escapeHtml(domain)}</span>
+            <svg class="card-url-arrow" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+          </div>
         </div>
         ${pendingIcon ? `
           <div class="card-pending-icon-box" title="New icon proposed">

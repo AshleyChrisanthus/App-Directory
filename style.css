@@ -931,26 +931,33 @@ select:focus {
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  padding: 8px 16px 40px;
+  gap: 20px;
+  padding: 10px 16px 48px;
   width: 100%;
 }
 
 /* ========================================
-   Card
+   Bento Card
    ======================================== */
 
 .card {
-  background: var(--card-bg);
+  position: relative;
+  background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--card-border);
-  border-radius: var(--radius);
-  padding: 20px;
+  border-radius: 16px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  transition: all var(--transition);
-  position: relative;
+  gap: 14px;
   cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+              background 0.28s ease;
   animation: fadeIn 0.3s ease;
 }
 
@@ -959,86 +966,223 @@ select:focus {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Bento Ambient Spotlight Glow (tracks cursor or ambient center) */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    420px circle at var(--mouse-x, 50%) var(--mouse-y, 0%),
+    color-mix(in srgb, var(--accent) 18%, transparent) 0%,
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle Inset Top-Edge Highlight Line */
+.card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.14) 20%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.14) 80%,
+    transparent
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+[data-theme="light"] .card::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(0, 0, 0, 0.05) 20%,
+    rgba(0, 0, 0, 0.08) 50%,
+    rgba(0, 0, 0, 0.05) 80%,
+    transparent
+  );
+}
+
 .card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--card-border));
+  box-shadow: 0 16px 36px -12px color-mix(in srgb, var(--accent) 25%, transparent),
+              0 6px 16px -4px rgba(0, 0, 0, 0.18),
+              0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+/* Ensure all card child nodes layer above the ambient radial glow */
+.card > * {
+  position: relative;
+  z-index: 2;
 }
 
 .card-top {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
 }
 
+/* Refined Bento Squircle Icon Frame */
 .card-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-tertiary) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-light) 75%, transparent);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   overflow: hidden;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease,
+              box-shadow 0.25s ease;
+}
+
+.card:hover .card-icon {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-light));
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.12),
+              0 4px 12px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .card-icon img {
   width: 28px;
   height: 28px;
   object-fit: contain;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card:hover .card-icon img {
+  transform: scale(1.08);
 }
 
 .card-icon .icon-fallback {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   color: var(--text-tertiary);
+  transition: transform 0.25s ease;
+}
+
+.card:hover .card-icon .icon-fallback {
+  transform: scale(1.08);
 }
 
 .card-info {
   flex: 1;
   min-width: 0;
+  padding-right: 28px; /* Breathing room for favorite pill */
 }
 
 .card-name {
-  font-size: 1rem;
+  font-size: 1.02rem;
   font-weight: 600;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+.card:hover .card-name {
+  color: var(--accent);
 }
 
 .card-url {
-  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono, monospace);
   color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 2px;
+  margin-top: 3px;
+  max-width: 100%;
+  transition: color 0.2s ease;
 }
 
+.card:hover .card-url {
+  color: var(--text-secondary);
+}
+
+.card-url-arrow {
+  opacity: 0;
+  transform: translate(-3px, 3px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.card:hover .card-url-arrow {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+
+/* Bento Frosted Favorite Star Pill */
 .card-favorite {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  background: none;
-  border: none;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-tertiary) 40%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid color-mix(in srgb, var(--border-light) 50%, transparent);
   cursor: pointer;
-  font-size: 1.1rem;
-  padding: 4px;
-  opacity: 0.4;
-  transition: all var(--transition);
-  z-index: 2;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  opacity: 0.55;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 3;
 }
 
-.card-favorite:hover,
+.card:hover .card-favorite {
+  opacity: 0.85;
+}
+
+.card-favorite:hover {
+  opacity: 1 !important;
+  transform: scale(1.15);
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .card-favorite.active {
   opacity: 1;
-  transform: scale(1.2);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
 }
 
-.card-favorite.active {
-  color: var(--favorite-color);
+.card-favorite.active:hover {
+  transform: scale(1.15);
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.2);
 }
 
 /* ========================================
@@ -1140,9 +1284,9 @@ select:focus {
 }
 
 .card-description {
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1155,6 +1299,7 @@ select:focus {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: auto;
+  padding-top: 4px;
 }
 
 .tag {
@@ -1162,14 +1307,30 @@ select:focus {
   align-items: center;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 500;
   background: var(--tag-bg);
   color: var(--tag-text);
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.tag:hover {
+  transform: translateY(-1px);
+}
+
+.tag.folder-tag {
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.tag.folder-tag:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px) scale(1.02);
 }
 
 .meta-item {
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   color: var(--text-tertiary);
 }
 
@@ -1178,23 +1339,38 @@ select:focus {
   height: 3px;
   background: var(--text-tertiary);
   border-radius: 50%;
+  opacity: 0.7;
 }
 
 .card-actions {
   display: flex;
-  gap: 4px;
+  gap: 5px;
   margin-left: auto;
 }
 
 .card-actions .btn {
   padding: 4px 8px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-light) 60%, transparent);
   opacity: 0;
-  transition: opacity var(--transition);
+  transform: translateY(2px);
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              background 0.15s ease,
+              border-color 0.15s ease;
 }
 
 .card:hover .card-actions .btn {
   opacity: 1;
+  transform: translateY(0);
+}
+
+.card-actions .btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  transform: translateY(-1px);
 }
 
 /* ========================================
