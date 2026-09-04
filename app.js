@@ -105,6 +105,11 @@
   const viewTableBtn = document.getElementById('viewTableBtn');
   const viewIconsBtn = document.getElementById('viewIconsBtn');
   let currentViewMode = localStorage.getItem('app_directory_view_layout') || 'cards';
+  const insightsToggleBtn = document.getElementById('insightsToggleBtn');
+  const insightsDrawer = document.getElementById('insightsDrawer');
+  const insightsHeaderStats = document.getElementById('insightsHeaderStats');
+  const insightsCloseBtn = document.getElementById('insightsCloseBtn');
+  const insightsBody = document.getElementById('insightsBody');
   const addBtn = document.getElementById('addBtn');
   const modalBackdrop = document.getElementById('modalBackdrop');
   const modal = document.getElementById('modal');
@@ -255,6 +260,7 @@
   const SIDEBAR_STATE_KEY = 'appDirectory_sidebarCollapsed';
   const FILTER_MODE_KEY = 'app_directory_cat_filter_mode';
   const PIN_FAVORITES_KEY = 'appDirectory_pinFavorites';
+  const INSIGHTS_STATE_KEY = 'app_directory_insights_open';
 
   const DEFAULT_FOLDERS = [
     { id: 'f-work', name: 'Work', icon: '💼', color: '#0a84ff', dateAdded: '2026-01-01T00:00:00.000Z' },
@@ -271,6 +277,7 @@
   let selectedFilterCategories = new Set(); // categories checked in the filter dropdown
   let catFilterMode = localStorage.getItem(FILTER_MODE_KEY) || 'union'; // 'union' or 'intersect'
   let pinFavorites = localStorage.getItem(PIN_FAVORITES_KEY) === 'true'; // default: false
+  let isInsightsOpen = localStorage.getItem(INSIGHTS_STATE_KEY) === 'true'; // default: false (collapsed)
   let pendingIcons = new Map(); // entryId => newCandidateDataUrl (icons awaiting user acceptance)
 
   // ── Utilities ──────────────────────────────────────────
@@ -4115,10 +4122,367 @@
     }
   }
 
+  // ── Insights & Analytics Dashboard (Issue #19) ────────
+  function toggleInsightsDrawer(openState) {
+    if (typeof openState === 'boolean') {
+      isInsightsOpen = openState;
+    } else {
+      isInsightsOpen = !isInsightsOpen;
+    }
+
+    localStorage.setItem(INSIGHTS_STATE_KEY, String(isInsightsOpen));
+
+    if (insightsToggleBtn) {
+      insightsToggleBtn.classList.toggle('active', isInsightsOpen);
+      insightsToggleBtn.setAttribute('aria-expanded', String(isInsightsOpen));
+    }
+
+    if (insightsDrawer) {
+      insightsDrawer.style.display = isInsightsOpen ? 'block' : 'none';
+    }
+
+    if (isInsightsOpen) {
+      renderInsightsDashboard();
+    }
+  }
+
+  function renderInsightsDashboard() {
+    if (!insightsDrawer || !isInsightsOpen) return;
+
+    const totalSites = entries.length;
+    let totalLaunches = 0;
+    entries.forEach(e => {
+      totalLaunches += (e.visitCount || 0);
+    });
+
+    const allCats = getAllCategories();
+    const totalFolders = folders.length;
+
+    // Header stats
+    if (insightsHeaderStats) {
+      insightsHeaderStats.innerHTML = `
+        <div class="insights-stat-pill" title="Total saved bookmarks">
+          <span>Sites:</span>
+          <span class="insights-stat-num">${totalSites}</span>
+        </div>
+        <div class="insights-stat-pill" title="Total launches / clicks">
+          <span>Launches:</span>
+          <span class="insights-stat-num">${totalLaunches}</span>
+        </div>
+        <div class="insights-stat-pill" title="Unique categories">
+          <span>Categories:</span>
+          <span class="insights-stat-num">${allCats.length}</span>
+        </div>
+        <div class="insights-stat-pill" title="Folders created">
+          <span>Folders:</span>
+          <span class="insights-stat-num">${totalFolders}</span>
+        </div>
+      `;
+    }
+
+    if (!insightsBody) return;
+
+    // Speed Dial (Top Visited) - top 6 with visitCount > 0
+    const visitedSites = [...entries]
+      .filter(e => (e.visitCount || 0) > 0)
+      .sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0))
+      .slice(0, 6);
+
+    // Recently Added - top 5
+    const recentlyAdded = [...entries]
+      .sort((a, b) => new Date(b.dateAdded || 0).getTime() - new Date(a.dateAdded || 0).getTime())
+      .slice(0, 5);
+
+    // Category Distribution
+    const catCounts = {};
+    let totalCatAssignments = 0;
+    entries.forEach(e => {
+      (e.categories || []).forEach(c => {
+        catCounts[c] = (catCounts[c] || 0) + 1;
+        totalCatAssignments++;
+      });
+    });
+
+    const sortedCats = Object.keys(catCounts)
+      .sort((a, b) => catCounts[b] - catCounts[a]);
+
+    // Dormant Links (90+ days without visit or addition)
+    const now = Date.now();
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+    const dormantEntries = entries.filter(e => {
+      if (e.lastVisited) {
+        return (now - new Date(e.lastVisited).getTime()) > NINETY_DAYS_MS;
+      }
+      if (e.dateAdded) {
+        return (now - new Date(e.dateAdded).getTime()) > NINETY_DAYS_MS && (!e.visitCount || e.visitCount === 0);
+      }
+      return false;
+    }).slice(0, 5);
+
+    let html = `<div class="insights-grid">`;
+
+    // Widget 1: Speed Dial
+    html += `
+      <div class="insight-widget">
+        <div class="insight-widget-header">
+          <div class="insight-widget-title">
+            <span>⚡</span>
+            <span>Speed Dial (Top Visited)</span>
+          </div>
+          <span class="insight-widget-badge">${visitedSites.length} site${visitedSites.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="speed-dial-grid">
+    `;
+
+    if (visitedSites.length === 0) {
+      html += `
+        <div style="grid-column: 1/-1; padding: 16px 8px; text-align: center; color: var(--text-tertiary); font-size: 0.8rem;">
+          No visits recorded yet. Launch websites from your directory to populate your Speed Dial!
+        </div>
+      `;
+    } else {
+      visitedSites.forEach(site => {
+        html += `
+          <div class="speed-dial-card" data-id="${escapeHtml(site.id)}" title="Launch ${escapeHtml(site.name)} (${site.visitCount} visits)">
+            <div class="speed-dial-icon">
+              ${site.iconUrl
+                ? `<img src="${escapeHtml(site.iconUrl)}" alt="" onerror="this.parentElement.innerHTML='🌐'">`
+                : '🌐'}
+            </div>
+            <div class="speed-dial-info">
+              <span class="speed-dial-name">${escapeHtml(site.name)}</span>
+              <span class="speed-dial-visits">🚀 ${site.visitCount} visit${site.visitCount !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    // Widget 2: Recently Added
+    html += `
+      <div class="insight-widget">
+        <div class="insight-widget-header">
+          <div class="insight-widget-title">
+            <span>🕒</span>
+            <span>Recently Added</span>
+          </div>
+          <span class="insight-widget-badge">Latest ${recentlyAdded.length}</span>
+        </div>
+        <div class="recent-list">
+    `;
+
+    if (recentlyAdded.length === 0) {
+      html += `
+        <div style="padding: 16px 8px; text-align: center; color: var(--text-tertiary); font-size: 0.8rem;">
+          No websites saved yet.
+        </div>
+      `;
+    } else {
+      recentlyAdded.forEach(site => {
+        const domain = getDomain(site.url);
+        html += `
+          <div class="recent-item" data-id="${escapeHtml(site.id)}" title="Open ${escapeHtml(site.name)}">
+            <div class="recent-left">
+              <div class="recent-icon">
+                ${site.iconUrl
+                  ? `<img src="${escapeHtml(site.iconUrl)}" alt="" onerror="this.parentElement.innerHTML='🌐'">`
+                  : '🌐'}
+              </div>
+              <div>
+                <div class="recent-name">${escapeHtml(site.name)}</div>
+                <div class="recent-domain">${escapeHtml(domain)}</div>
+              </div>
+            </div>
+            <span class="recent-date">${timeAgo(site.dateAdded)}</span>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    // Widget 3: Category Distribution
+    html += `
+      <div class="insight-widget">
+        <div class="insight-widget-header">
+          <div class="insight-widget-title">
+            <span>🏷️</span>
+            <span>Category Distribution</span>
+          </div>
+          <span class="insight-widget-badge">${sortedCats.length} active</span>
+        </div>
+        <div>
+    `;
+
+    if (sortedCats.length === 0) {
+      html += `
+        <div style="padding: 16px 8px; text-align: center; color: var(--text-tertiary); font-size: 0.8rem;">
+          No categories assigned to bookmarks yet.
+        </div>
+      `;
+    } else {
+      html += `<div class="category-dist-bar" title="Category distribution share">`;
+      sortedCats.forEach(cat => {
+        const count = catCounts[cat];
+        const pct = totalCatAssignments > 0 ? ((count / totalCatAssignments) * 100).toFixed(1) : 0;
+        const color = (categoryColors && categoryColors[cat.toLowerCase()]) || 'var(--accent)';
+        html += `
+          <div class="category-dist-segment" data-cat="${escapeHtml(cat)}" style="width: ${pct}%; background-color: ${escapeHtml(color)};" title="${escapeHtml(cat)}: ${count} (${pct}%) - Click to filter"></div>
+        `;
+      });
+      html += `</div>`;
+
+      html += `<div class="category-chips-list">`;
+      sortedCats.forEach(cat => {
+        const count = catCounts[cat];
+        const pct = totalCatAssignments > 0 ? Math.round((count / totalCatAssignments) * 100) : 0;
+        const color = (categoryColors && categoryColors[cat.toLowerCase()]) || 'var(--accent)';
+        html += `
+          <div class="category-chip-item" data-cat="${escapeHtml(cat)}" title="Filter by ${escapeHtml(cat)}">
+            <span class="category-chip-dot" style="background-color: ${escapeHtml(color)};"></span>
+            <span class="category-chip-name">${escapeHtml(cat)}</span>
+            <span class="category-chip-count">(${count})</span>
+            <span class="category-chip-pct">${pct}%</span>
+          </div>
+        `;
+      });
+      html += `</div>`;
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    // Widget 4: Dormant Bookmarks
+    html += `
+      <div class="insight-widget">
+        <div class="insight-widget-header">
+          <div class="insight-widget-title">
+            <span>💤</span>
+            <span>Dormant Links (90+ Days)</span>
+          </div>
+          <span class="insight-widget-badge">${dormantEntries.length} found</span>
+        </div>
+        <div class="dormant-list">
+    `;
+
+    if (dormantEntries.length === 0) {
+      html += `
+        <div class="dormant-empty-badge">
+          <span>✨</span>
+          <span>All clear! No dormant bookmarks unvisited for 90+ days.</span>
+        </div>
+      `;
+    } else {
+      dormantEntries.forEach(entry => {
+        const days = entry.lastVisited
+          ? Math.floor((now - new Date(entry.lastVisited).getTime()) / (24 * 60 * 60 * 1000))
+          : Math.floor((now - new Date(entry.dateAdded).getTime()) / (24 * 60 * 60 * 1000));
+        const reason = entry.lastVisited ? `Not visited in ${days}d` : `Never visited (${days}d old)`;
+
+        html += `
+          <div class="dormant-item" data-id="${escapeHtml(entry.id)}">
+            <div class="dormant-left">
+              <span style="font-size: 1rem;">💤</span>
+              <div>
+                <div class="dormant-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
+                <div class="dormant-reason">${escapeHtml(reason)}</div>
+              </div>
+            </div>
+            <div class="dormant-actions">
+              <button type="button" class="btn btn-secondary dormant-action-btn dormant-visit-btn" data-id="${escapeHtml(entry.id)}" title="Launch website">Visit</button>
+              <button type="button" class="btn btn-danger dormant-action-btn dormant-delete-btn" data-id="${escapeHtml(entry.id)}" title="Delete bookmark">Delete</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `
+        </div>
+      </div>
+    `;
+
+    html += `</div>`; // Close .insights-grid
+
+    insightsBody.innerHTML = html;
+
+    // Attach interactive event listeners inside insights drawer
+    insightsBody.querySelectorAll('.speed-dial-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const id = card.getAttribute('data-id');
+        if (id) visitEntry(id);
+      });
+    });
+
+    insightsBody.querySelectorAll('.recent-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const id = item.getAttribute('data-id');
+        if (id) visitEntry(id);
+      });
+    });
+
+    // Category click to filter
+    const handleCatFilterClick = (cat) => {
+      if (!cat) return;
+      selectedFilterCategories.clear();
+      selectedFilterCategories.add(cat);
+      if (catFilterList) {
+        catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          cb.checked = (cb.value === cat);
+        });
+      }
+      updateCatFilterLabel();
+      renderCardsOnly();
+      showToast(`Filtered by category: ${cat}`);
+    };
+
+    insightsBody.querySelectorAll('.category-dist-segment').forEach(seg => {
+      seg.addEventListener('click', () => {
+        handleCatFilterClick(seg.getAttribute('data-cat'));
+      });
+    });
+
+    insightsBody.querySelectorAll('.category-chip-item').forEach(chip => {
+      chip.addEventListener('click', () => {
+        handleCatFilterClick(chip.getAttribute('data-cat'));
+      });
+    });
+
+    // Dormant link actions
+    insightsBody.querySelectorAll('.dormant-visit-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        if (id) visitEntry(id);
+      });
+    });
+
+    insightsBody.querySelectorAll('.dormant-delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        if (id) deleteEntry(id);
+      });
+    });
+  }
+
   function render() {
     renderFoldersSidebar();
     populateCategories();
     renderCardsOnly();
+    if (isInsightsOpen) {
+      renderInsightsDashboard();
+    }
   }
 
   // ── Import / Export & Direct Folder Save ──────────────
@@ -5312,6 +5676,14 @@
     viewIconsBtn.addEventListener('click', () => setViewMode('icons'));
   }
 
+  // Insights Dashboard Drawer (Issue #19)
+  if (insightsToggleBtn) {
+    insightsToggleBtn.addEventListener('click', () => toggleInsightsDrawer());
+  }
+  if (insightsCloseBtn) {
+    insightsCloseBtn.addEventListener('click', () => toggleInsightsDrawer(false));
+  }
+
   // Theme toggle
   themeToggle.addEventListener('click', toggleTheme);
 
@@ -6130,6 +6502,16 @@
         badge: 'Layout',
         keywords: ['view', 'layout', 'icons', 'speed dial', 'minimal', 'launcher'],
         run: () => setViewMode('icons')
+      },
+      {
+        id: 'action-toggle-insights',
+        type: 'action',
+        title: isInsightsOpen ? 'Collapse Insights Dashboard' : 'Open Insights & Usage Dashboard',
+        subtitle: 'Speed Dial, site launch analytics, category distribution & dormant links',
+        icon: '📊',
+        badge: 'Dashboard',
+        keywords: ['insights', 'analytics', 'speed dial', 'stats', 'dashboard', 'usage', 'dormant', 'visits'],
+        run: () => toggleInsightsDrawer()
       }
     ];
   }
@@ -6491,6 +6873,7 @@
   initSidebar();
   updateModeToggleUI();
   setViewMode(currentViewMode);
+  toggleInsightsDrawer(isInsightsOpen);
   loadFolders();
   loadEntries();
   render();

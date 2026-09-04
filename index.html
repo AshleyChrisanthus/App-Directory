@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>App Directory</title>
-  <link rel="stylesheet" href="style.css?v=9536c84f">
+  <link rel="stylesheet" href="style.css?v=9041a000">
 </head>
 <body>
   <!-- Top Navigation Wrapper (Smart Reveal on Hover/Scroll) -->
@@ -156,6 +156,11 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
           </button>
         </div>
+        <!-- Insights Dashboard Toggle (Issue #19) -->
+        <button type="button" id="insightsToggleBtn" class="btn btn-secondary toolbar-toggle-btn" title="Toggle Insights & Analytics Dashboard" aria-expanded="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          <span class="toggle-text">Insights</span>
+        </button>
       </div>
       <div class="toolbar-right">
         <button id="addBtn" class="btn btn-primary">
@@ -223,6 +228,28 @@
           <button type="button" class="btn btn-primary btn-sm" id="addBookmarksToFolderBtn" title="Add existing bookmarks into this folder">📥 Add Bookmarks</button>
           <button type="button" class="btn btn-ghost btn-sm" id="editFolderBtn" title="Edit Folder">✏️ Edit</button>
           <button type="button" class="btn btn-danger btn-sm" id="deleteFolderBtn" title="Delete Folder">🗑️ Delete</button>
+        </div>
+      </div>
+
+      <!-- Insights & Usage Dashboard Drawer (Issue #19) -->
+      <div id="insightsDrawer" class="insights-drawer" style="display: none;">
+        <div class="insights-drawer-header">
+          <div class="insights-title-wrap">
+            <span class="insights-title-icon">📊</span>
+            <div class="insights-title-text">
+              <h3 class="insights-title">Insights & Usage Dashboard</h3>
+              <span class="insights-subtitle">Speed Dial & Directory Analytics</span>
+            </div>
+          </div>
+          <div class="insights-header-stats" id="insightsHeaderStats">
+            <!-- Dynamically populated: Total Sites, Launches, Categories, Folders -->
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm insights-close-btn" id="insightsCloseBtn" title="Collapse Dashboard">
+            <span>▲ Collapse</span>
+          </button>
+        </div>
+        <div class="insights-body" id="insightsBody">
+          <!-- Dynamically populated: Speed Dial, Recently Added, Category Distribution, Dormant Links -->
         </div>
       </div>
 
@@ -790,6 +817,6 @@
   <!-- Toast container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=0ccca6de"></script>
+  <script src="app.js?v=e64421f3"></script>
 </body>
 </html>
