@@ -5518,6 +5518,481 @@
     });
   }
 
+  // ── Spotlight Command Palette (Ctrl+K / Cmd+K) ─────────
+
+  const commandPaletteBackdrop = document.getElementById('commandPaletteBackdrop');
+  const commandPaletteModal = document.getElementById('commandPaletteModal');
+  const commandPaletteInput = document.getElementById('commandPaletteInput');
+  const commandPaletteClearBtn = document.getElementById('commandPaletteClearBtn');
+  const commandPaletteEscBadge = document.getElementById('commandPaletteEscBadge');
+  const commandPaletteResults = document.getElementById('commandPaletteResults');
+  const paletteMatchCount = document.getElementById('paletteMatchCount');
+  const cmdPaletteTrigger = document.getElementById('cmdPaletteTrigger');
+  const cmdPaletteKbdLabel = document.getElementById('cmdPaletteKbdLabel');
+
+  let isCommandPaletteOpen = false;
+  let paletteSelectedIndex = 0;
+  let paletteFlatItems = [];
+
+  // Detect OS for shortcut label (⌘K on Mac, Ctrl+K on Windows/Linux)
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || '');
+  if (cmdPaletteKbdLabel) {
+    cmdPaletteKbdLabel.textContent = isMac ? '⌘K' : 'Ctrl+K';
+  }
+
+  function getCommandPaletteActions() {
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    return [
+      {
+        id: 'action-add',
+        type: 'action',
+        title: 'Add Website',
+        subtitle: 'Save a new bookmark with title, URL, tags & icon',
+        icon: '➕',
+        badge: 'Action',
+        keywords: ['add', 'new', 'create', 'bookmark', 'website', 'url'],
+        run: () => openModal()
+      },
+      {
+        id: 'action-theme-toggle',
+        type: 'action',
+        title: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+        subtitle: isDark ? 'Toggle light appearance' : 'Toggle dark appearance',
+        icon: isDark ? '☀️' : '🌙',
+        badge: 'Theme',
+        keywords: ['theme', 'dark', 'light', 'mode', 'color', 'appearance'],
+        run: () => toggleTheme()
+      },
+      {
+        id: 'action-theme-customizer',
+        type: 'action',
+        title: 'Customize Theme & Colors',
+        subtitle: 'Edit palettes, accent colors, modal surfaces & tag styles',
+        icon: '🎨',
+        badge: 'Theme',
+        keywords: ['theme', 'customizer', 'palette', 'colors', 'accent', 'personalize'],
+        run: () => openThemeModal()
+      },
+      {
+        id: 'action-refresh-icons',
+        type: 'action',
+        title: 'Refresh All Icons',
+        subtitle: 'Batch update website favicons using multi-source HD resolver',
+        icon: '🔄',
+        badge: 'Action',
+        keywords: ['refresh', 'icon', 'favicon', 'logo', 'update'],
+        run: () => refreshAllIcons()
+      },
+      {
+        id: 'action-health-check',
+        type: 'action',
+        title: 'Check Website Health & Broken Links',
+        subtitle: 'Probe all saved bookmarks for 404s, timeouts, or dead links',
+        icon: '🏥',
+        badge: 'Health',
+        keywords: ['health', 'broken', 'dead', 'links', 'check', 'status', '404'],
+        run: () => openHealthModal()
+      },
+      {
+        id: 'action-export-backup',
+        type: 'action',
+        title: 'Export JSON Backup',
+        subtitle: 'Save directory backup directly to your exports folder',
+        icon: '💾',
+        badge: 'Backup',
+        keywords: ['export', 'backup', 'save', 'json', 'download'],
+        run: () => exportData()
+      },
+      {
+        id: 'action-import-backup',
+        type: 'action',
+        title: 'Import Bookmarks from JSON',
+        subtitle: 'Restore entries, folders, and category color presets',
+        icon: '📥',
+        badge: 'Backup',
+        keywords: ['import', 'restore', 'load', 'json'],
+        run: () => importFile && importFile.click()
+      },
+      {
+        id: 'action-manage-categories',
+        type: 'action',
+        title: 'Manage Categories & Colors',
+        subtitle: 'Rename, recolor, delete, or organize your categories',
+        icon: '🏷️',
+        badge: 'Categories',
+        keywords: ['category', 'categories', 'tags', 'colors', 'manage'],
+        run: () => openCatModal()
+      },
+      {
+        id: 'action-pin-favorites',
+        type: 'action',
+        title: pinFavorites ? 'Unpin Favorites from Top' : 'Pin Favorites to Top',
+        subtitle: pinFavorites ? 'Restore natural chronological order' : 'Bring all starred favorites to the top',
+        icon: '⭐',
+        badge: 'Sort',
+        keywords: ['favorite', 'favorites', 'pin', 'star', 'top', 'sort'],
+        run: () => {
+          pinFavorites = !pinFavorites;
+          localStorage.setItem(PIN_FAVORITES_KEY, String(pinFavorites));
+          updatePinFavoritesButtonState();
+          renderCardsOnly();
+          showToast(pinFavorites ? 'Favorites pinned to top ⭐' : 'Natural sort order restored');
+        }
+      }
+    ];
+  }
+
+  function getCommandPaletteFolders() {
+    const list = [
+      {
+        id: 'folder-all',
+        type: 'folder',
+        title: 'All Bookmarks',
+        subtitle: `View all ${entries.length} saved bookmarks`,
+        icon: '📁',
+        badge: 'View',
+        keywords: ['all', 'bookmarks', 'library'],
+        run: () => setActiveFolder('all')
+      },
+      {
+        id: 'folder-favorites',
+        type: 'folder',
+        title: 'Favorites',
+        subtitle: `View your starred favorites (${entries.filter(e => e.isFavorite).length})`,
+        icon: '⭐',
+        badge: 'View',
+        keywords: ['favorite', 'favorites', 'starred'],
+        run: () => setActiveFolder('favorites')
+      },
+      {
+        id: 'folder-unorganized',
+        type: 'folder',
+        title: 'Unorganized',
+        subtitle: `Bookmarks not in any collection (${entries.filter(e => !e.folderId).length})`,
+        icon: '📂',
+        badge: 'View',
+        keywords: ['unorganized', 'inbox', 'unsorted'],
+        run: () => setActiveFolder('unorganized')
+      }
+    ];
+
+    const brokenCount = entries.filter(e => e.health && e.health.status === 'broken').length;
+    if (brokenCount > 0) {
+      list.push({
+        id: 'folder-broken',
+        type: 'folder',
+        title: 'Broken Links',
+        subtitle: `${brokenCount} unreachable or dead links found`,
+        icon: '⚠️',
+        badge: 'Health',
+        keywords: ['broken', 'dead', 'offline', 'error'],
+        run: () => setActiveFolder('broken')
+      });
+    }
+
+    folders.forEach(f => {
+      const count = entries.filter(e => e.folderId === f.id).length;
+      list.push({
+        id: `folder-${f.id}`,
+        type: 'folder',
+        title: f.name,
+        subtitle: `Collection • ${count} site${count !== 1 ? 's' : ''}`,
+        icon: f.icon || '📁',
+        badge: 'Collection',
+        color: f.color,
+        keywords: ['folder', 'collection', f.name.toLowerCase()],
+        run: () => setActiveFolder(f.id)
+      });
+    });
+
+    return list;
+  }
+
+  function getCommandPaletteBookmarks(query) {
+    if (!query) {
+      return entries
+        .slice()
+        .sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0) || new Date(b.dateAdded) - new Date(a.dateAdded))
+        .slice(0, 6)
+        .map(entry => createBookmarkPaletteItem(entry, 'Frequent'));
+    }
+
+    const q = query.toLowerCase().trim();
+    const matched = [];
+
+    for (const entry of entries) {
+      const nameMatch = entry.name.toLowerCase().includes(q);
+      const urlMatch = entry.url.toLowerCase().includes(q);
+      const descMatch = (entry.description || '').toLowerCase().includes(q);
+      const catMatch = (entry.categories || []).some(c => c.toLowerCase().includes(q));
+
+      if (nameMatch || urlMatch || descMatch || catMatch) {
+        matched.push(createBookmarkPaletteItem(entry, 'Bookmark'));
+      }
+    }
+
+    return matched;
+  }
+
+  function createBookmarkPaletteItem(entry, badgeLabel) {
+    const domain = getDomain(entry.url);
+    const folder = entry.folderId ? folders.find(f => f.id === entry.folderId) : null;
+    return {
+      id: `bookmark-${entry.id}`,
+      type: 'bookmark',
+      title: entry.name,
+      subtitle: `${domain}${entry.description ? ` • ${entry.description}` : ''}`,
+      iconUrl: entry.iconUrl,
+      badge: folder ? folder.name : badgeLabel,
+      color: folder ? folder.color : null,
+      run: () => visitEntry(entry.id)
+    };
+  }
+
+  function openCommandPalette() {
+    if (!commandPaletteBackdrop || !commandPaletteInput) return;
+    isCommandPaletteOpen = true;
+    commandPaletteBackdrop.style.display = 'flex';
+    commandPaletteInput.value = '';
+    if (commandPaletteClearBtn) commandPaletteClearBtn.style.display = 'none';
+    paletteSelectedIndex = 0;
+    renderCommandPaletteResults('');
+    setTimeout(() => {
+      commandPaletteInput.focus();
+    }, 40);
+  }
+
+  function closeCommandPalette() {
+    if (!commandPaletteBackdrop) return;
+    isCommandPaletteOpen = false;
+    commandPaletteBackdrop.style.display = 'none';
+  }
+
+  function toggleCommandPalette() {
+    if (isCommandPaletteOpen) {
+      closeCommandPalette();
+    } else {
+      openCommandPalette();
+    }
+  }
+
+  function updatePaletteSelection() {
+    if (!commandPaletteResults) return;
+    const items = commandPaletteResults.querySelectorAll('.palette-item');
+    items.forEach((el, idx) => {
+      const isSelected = idx === paletteSelectedIndex;
+      el.classList.toggle('is-selected', isSelected);
+      if (isSelected) {
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+
+  function renderCommandPaletteResults(rawQuery) {
+    if (!commandPaletteResults) return;
+    const query = (rawQuery || '').trim().toLowerCase();
+    paletteFlatItems = [];
+
+    const allActions = getCommandPaletteActions();
+    const allFolders = getCommandPaletteFolders();
+    const bookmarks = getCommandPaletteBookmarks(query);
+
+    let filteredActions = [];
+    let filteredFolders = [];
+
+    if (!query) {
+      filteredActions = allActions;
+      filteredFolders = allFolders;
+    } else {
+      filteredActions = allActions.filter(a =>
+        a.title.toLowerCase().includes(query) ||
+        a.subtitle.toLowerCase().includes(query) ||
+        (a.keywords && a.keywords.some(k => k.includes(query)))
+      );
+      filteredFolders = allFolders.filter(f =>
+        f.title.toLowerCase().includes(query) ||
+        f.subtitle.toLowerCase().includes(query) ||
+        (f.keywords && f.keywords.some(k => k.includes(query)))
+      );
+    }
+
+    commandPaletteResults.innerHTML = '';
+
+    const sections = [];
+    if (filteredActions.length > 0) {
+      sections.push({ title: 'Quick Actions', items: filteredActions });
+    }
+    if (filteredFolders.length > 0) {
+      sections.push({ title: 'Collections & Views', items: filteredFolders });
+    }
+    if (bookmarks.length > 0) {
+      sections.push({ title: query ? 'Bookmarks' : 'Frequently Visited', items: bookmarks });
+    }
+
+    if (sections.length === 0) {
+      commandPaletteResults.innerHTML = `
+        <div class="palette-empty">
+          No matches found for "<strong>${escapeHtml(rawQuery)}</strong>"
+        </div>
+      `;
+      if (paletteMatchCount) paletteMatchCount.textContent = '0 items';
+      return;
+    }
+
+    let totalItems = 0;
+    sections.forEach(sec => {
+      const secEl = document.createElement('div');
+      secEl.className = 'palette-section';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'palette-section-title';
+      titleEl.textContent = sec.title;
+      secEl.appendChild(titleEl);
+
+      sec.items.forEach(item => {
+        const itemIdx = paletteFlatItems.length;
+        paletteFlatItems.push(item);
+        totalItems++;
+
+        const row = document.createElement('div');
+        row.className = `palette-item ${itemIdx === paletteSelectedIndex ? 'is-selected' : ''}`;
+        row.setAttribute('data-index', String(itemIdx));
+
+        const iconHtml = item.iconUrl
+          ? `<div class="palette-item-icon"><img src="${escapeHtml(item.iconUrl)}" alt="" onerror="this.parentElement.textContent='🌐'"></div>`
+          : `<div class="palette-item-icon" ${item.color ? `style="border-color: ${escapeHtml(item.color)};"` : ''}>${escapeHtml(item.icon || '⚡')}</div>`;
+
+        row.innerHTML = `
+          ${iconHtml}
+          <div class="palette-item-content">
+            <div class="palette-item-title-row">
+              <span class="palette-item-title">${escapeHtml(item.title)}</span>
+            </div>
+            <span class="palette-item-subtitle">${escapeHtml(item.subtitle)}</span>
+          </div>
+          <div class="palette-item-meta">
+            ${item.badge ? `<span class="palette-item-badge" ${item.color ? `style="color: ${escapeHtml(item.color)}; border-color: color-mix(in srgb, ${escapeHtml(item.color)} 35%, transparent);"` : ''}>${escapeHtml(item.badge)}</span>` : ''}
+            <span class="palette-item-action-hint">${item.type === 'bookmark' ? 'Open ↵' : 'Select ↵'}</span>
+          </div>
+        `;
+
+        row.addEventListener('mouseenter', () => {
+          paletteSelectedIndex = itemIdx;
+          updatePaletteSelection();
+        });
+
+        row.addEventListener('click', () => {
+          closeCommandPalette();
+          if (item.run) item.run();
+        });
+
+        secEl.appendChild(row);
+      });
+
+      commandPaletteResults.appendChild(secEl);
+    });
+
+    if (paletteMatchCount) {
+      paletteMatchCount.textContent = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
+    }
+
+    if (paletteSelectedIndex >= paletteFlatItems.length) {
+      paletteSelectedIndex = 0;
+    }
+    updatePaletteSelection();
+  }
+
+  // Global Keyboard Shortcuts
+  window.addEventListener('keydown', (e) => {
+    // Ctrl+K / Cmd+K
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      toggleCommandPalette();
+      return;
+    }
+
+    // '/' when not in input
+    if (e.key === '/' && !isCommandPaletteOpen) {
+      const tag = document.activeElement ? document.activeElement.tagName : '';
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+        e.preventDefault();
+        openCommandPalette();
+        return;
+      }
+    }
+
+    // Inside Command Palette
+    if (isCommandPaletteOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeCommandPalette();
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (paletteFlatItems.length > 0) {
+          paletteSelectedIndex = (paletteSelectedIndex + 1) % paletteFlatItems.length;
+          updatePaletteSelection();
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (paletteFlatItems.length > 0) {
+          paletteSelectedIndex = (paletteSelectedIndex - 1 + paletteFlatItems.length) % paletteFlatItems.length;
+          updatePaletteSelection();
+        }
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (paletteFlatItems.length > 0 && paletteFlatItems[paletteSelectedIndex]) {
+          const item = paletteFlatItems[paletteSelectedIndex];
+          closeCommandPalette();
+          if (item.run) item.run();
+        }
+        return;
+      }
+    }
+  });
+
+  if (commandPaletteInput) {
+    commandPaletteInput.addEventListener('input', () => {
+      if (commandPaletteClearBtn) {
+        commandPaletteClearBtn.style.display = commandPaletteInput.value.trim() ? 'flex' : 'none';
+      }
+      paletteSelectedIndex = 0;
+      renderCommandPaletteResults(commandPaletteInput.value);
+    });
+  }
+
+  if (commandPaletteClearBtn) {
+    commandPaletteClearBtn.addEventListener('click', () => {
+      commandPaletteInput.value = '';
+      commandPaletteClearBtn.style.display = 'none';
+      paletteSelectedIndex = 0;
+      renderCommandPaletteResults('');
+      commandPaletteInput.focus();
+    });
+  }
+
+  if (commandPaletteEscBadge) {
+    commandPaletteEscBadge.addEventListener('click', closeCommandPalette);
+  }
+
+  if (commandPaletteBackdrop) {
+    commandPaletteBackdrop.addEventListener('click', (e) => {
+      if (e.target === commandPaletteBackdrop) closeCommandPalette();
+    });
+  }
+
+  if (cmdPaletteTrigger) {
+    cmdPaletteTrigger.addEventListener('click', openCommandPalette);
+  }
+
   // ── Initialize ─────────────────────────────────────────
 
   initTheme();

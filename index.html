@@ -93,6 +93,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="text" id="searchInput" placeholder="Search by name or URL…" autocomplete="off">
           <button type="button" class="search-clear-btn" id="searchClearBtn" style="display: none;" title="Clear search">✕</button>
+          <button type="button" class="search-kbd-shortcut" id="cmdPaletteTrigger" title="Open Command Palette (Ctrl+K / ⌘K)"><kbd id="cmdPaletteKbdLabel">Ctrl+K</kbd></button>
         </div>
         <!-- Multi-Category Filter Dropdown with Integrated Settings -->
         <div class="custom-dropdown cat-filter-dropdown" id="catFilterDropdown">
@@ -743,6 +744,33 @@
           Accept All
         </button>
         <button type="button" class="btn btn-ghost btn-sm" id="floatingDismissAllBtn">Dismiss All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Spotlight Command Palette Modal -->
+  <div class="command-palette-backdrop" id="commandPaletteBackdrop" style="display: none;">
+    <div class="command-palette-modal" id="commandPaletteModal">
+      <div class="command-palette-header">
+        <svg class="command-palette-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="commandPaletteInput" class="command-palette-input" placeholder="Type a command or search bookmarks…" autocomplete="off" spellcheck="false">
+        <button type="button" class="command-palette-clear-btn" id="commandPaletteClearBtn" style="display: none;" title="Clear input">✕</button>
+        <kbd class="command-palette-esc-badge" id="commandPaletteEscBadge" title="Close (ESC)">ESC</kbd>
+      </div>
+      <div class="command-palette-body" id="commandPaletteResults">
+        <!-- Rendered dynamically by JS -->
+      </div>
+      <div class="command-palette-footer">
+        <div class="palette-footer-left">
+          <span class="palette-hint"><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+          <span class="palette-hint"><kbd>↵</kbd> Select</span>
+          <span class="palette-hint"><kbd>ESC</kbd> Close</span>
+        </div>
+        <div class="palette-footer-right" id="paletteMatchCount">
+          0 items
+        </div>
       </div>
     </div>
   </div>
