@@ -100,6 +100,11 @@
   const modeIntersectBtn = document.getElementById('modeIntersectBtn');
   const sortSelect = document.getElementById('sortSelect');
   const pinFavoritesBtn = document.getElementById('pinFavoritesBtn');
+  const viewModeSwitcher = document.getElementById('viewModeSwitcher');
+  const viewCardsBtn = document.getElementById('viewCardsBtn');
+  const viewTableBtn = document.getElementById('viewTableBtn');
+  const viewIconsBtn = document.getElementById('viewIconsBtn');
+  let currentViewMode = localStorage.getItem('app_directory_view_layout') || 'cards';
   const addBtn = document.getElementById('addBtn');
   const modalBackdrop = document.getElementById('modalBackdrop');
   const modal = document.getElementById('modal');
@@ -3854,6 +3859,192 @@
     return card;
   }
 
+  function renderTableRow(entry) {
+    const row = document.createElement('div');
+    row.className = 'table-row';
+    row.setAttribute('data-id', entry.id);
+    row.setAttribute('draggable', 'true');
+
+    // Drag and drop into folders
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', entry.id);
+      e.dataTransfer.effectAllowed = 'move';
+      row.classList.add('is-dragging');
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('is-dragging');
+    });
+
+    const domain = getDomain(entry.url);
+    const folder = entry.folderId ? folders.find(f => f.id === entry.folderId) : null;
+
+    row.innerHTML = `
+      <div class="table-cell-fav">
+        <button class="table-fav-btn ${entry.isFavorite ? 'active' : ''}" title="${entry.isFavorite ? 'Unpin from favorites' : 'Pin to favorites'}">
+          ${entry.isFavorite ? '★' : '☆'}
+        </button>
+      </div>
+      <div class="table-cell-icon">
+        <div class="table-icon-frame" title="${escapeHtml(entry.name)}">
+          ${entry.iconUrl
+            ? `<img src="${escapeHtml(entry.iconUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-size:12px;\\'>🌐</span>'">`
+            : '<span style="font-size:12px;">🌐</span>'
+          }
+        </div>
+      </div>
+      <div class="table-cell-main">
+        <div class="table-title-row">
+          <span class="table-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</span>
+          ${entry.health && entry.health.status === 'broken' ? '<span class="table-broken-badge">⚠️ Offline</span>' : ''}
+        </div>
+        <span class="table-domain" title="${escapeHtml(entry.url)}">
+          ${escapeHtml(domain)}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+        </span>
+      </div>
+      <div class="table-cell-tags">
+        ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
+        ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
+      </div>
+      <div class="table-cell-visits">
+        ${entry.visitCount > 0 ? `${entry.visitCount} visit${entry.visitCount !== 1 ? 's' : ''}` : '—'}
+      </div>
+      <div class="table-cell-date" title="Added: ${formatDateFull(entry.dateAdded)}">
+        ${timeAgo(entry.dateAdded)}
+      </div>
+      <div class="table-cell-actions">
+        <button class="table-action-btn refresh-btn" title="Refresh icon">🔄</button>
+        <button class="table-action-btn edit-btn" title="Edit">✏️</button>
+        <button class="table-action-btn delete-btn" title="Delete">🗑️</button>
+      </div>
+    `;
+
+    // Click row → visit
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.folder-tag')) {
+        e.stopPropagation();
+        if (folder) setActiveFolder(folder.id);
+        return;
+      }
+      if (e.target.closest('.table-fav-btn') ||
+          e.target.closest('.refresh-btn') ||
+          e.target.closest('.edit-btn') ||
+          e.target.closest('.delete-btn')) return;
+      visitEntry(entry.id);
+    });
+
+    // Favorite toggle
+    row.querySelector('.table-fav-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFavorite(entry.id);
+    });
+
+    // Refresh icon
+    const refreshBtn = row.querySelector('.refresh-btn');
+    refreshBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      refreshEntryIcon(entry.id, refreshBtn);
+    });
+
+    // Edit
+    row.querySelector('.edit-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openModal(entry.id);
+    });
+
+    // Delete
+    row.querySelector('.delete-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteEntry(entry.id);
+    });
+
+    return row;
+  }
+
+  function renderIconCard(entry) {
+    const card = document.createElement('div');
+    card.className = 'icon-card';
+    card.setAttribute('data-id', entry.id);
+    card.setAttribute('draggable', 'true');
+
+    // Drag and drop into folders
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', entry.id);
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('is-dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+    });
+
+    // Ambient Spotlight cursor tracker
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+      card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    });
+
+    const folder = entry.folderId ? folders.find(f => f.id === entry.folderId) : null;
+
+    card.innerHTML = `
+      <button class="icon-card-fav ${entry.isFavorite ? 'active' : ''}" title="${entry.isFavorite ? 'Unpin from favorites' : 'Pin to favorites'}">
+        ${entry.isFavorite ? '★' : '☆'}
+      </button>
+      <div class="icon-card-actions">
+        <button class="icon-card-action-btn edit-btn" title="Edit">✏️</button>
+        <button class="icon-card-action-btn delete-btn" title="Delete">🗑️</button>
+      </div>
+      <div class="icon-card-frame">
+        ${entry.iconUrl
+          ? `<img src="${escapeHtml(entry.iconUrl)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-size:20px;\\'>🌐</span>'">`
+          : '<span style="font-size:20px;">🌐</span>'
+        }
+      </div>
+      <div class="icon-card-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
+      ${folder ? `<span class="icon-card-folder-badge" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')}</span>` : ''}
+    `;
+
+    // Click card → visit
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.icon-card-fav') ||
+          e.target.closest('.edit-btn') ||
+          e.target.closest('.delete-btn')) return;
+      visitEntry(entry.id);
+    });
+
+    // Favorite toggle
+    card.querySelector('.icon-card-fav').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFavorite(entry.id);
+    });
+
+    // Edit
+    card.querySelector('.edit-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openModal(entry.id);
+    });
+
+    // Delete
+    card.querySelector('.delete-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteEntry(entry.id);
+    });
+
+    return card;
+  }
+
+  function setViewMode(mode) {
+    if (!['cards', 'table', 'icons'].includes(mode)) mode = 'cards';
+    currentViewMode = mode;
+    localStorage.setItem('app_directory_view_layout', mode);
+
+    if (viewCardsBtn) viewCardsBtn.classList.toggle('is-active', mode === 'cards');
+    if (viewTableBtn) viewTableBtn.classList.toggle('is-active', mode === 'table');
+    if (viewIconsBtn) viewIconsBtn.classList.toggle('is-active', mode === 'icons');
+
+    renderCardsOnly();
+  }
+
   function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -3885,14 +4076,39 @@
       return;
     }
 
-    grid.style.display = 'grid';
+    grid.style.display = currentViewMode === 'table' ? 'flex' : 'grid';
+    grid.className = 'grid view-' + currentViewMode;
     emptyState.style.display = 'none';
 
-    // Render cards
+    // Render items according to current view mode
     grid.innerHTML = '';
-    filtered.forEach(entry => {
-      grid.appendChild(renderCard(entry));
-    });
+
+    if (currentViewMode === 'table') {
+      const headerRow = document.createElement('div');
+      headerRow.className = 'table-header-row';
+      headerRow.innerHTML = `
+        <span class="th-fav"></span>
+        <span class="th-icon"></span>
+        <span class="th-name">Website</span>
+        <span class="th-tags">Folder & Categories</span>
+        <span class="th-visits">Visits</span>
+        <span class="th-date">Added</span>
+        <span class="th-actions" style="text-align: right;">Actions</span>
+      `;
+      grid.appendChild(headerRow);
+      filtered.forEach(entry => {
+        grid.appendChild(renderTableRow(entry));
+      });
+    } else if (currentViewMode === 'icons') {
+      filtered.forEach(entry => {
+        grid.appendChild(renderIconCard(entry));
+      });
+    } else {
+      // Default: Bento cards
+      filtered.forEach(entry => {
+        grid.appendChild(renderCard(entry));
+      });
+    }
   }
 
   function render() {
@@ -5081,6 +5297,17 @@
     });
   }
 
+  // View Mode Switcher (Issue #16)
+  if (viewCardsBtn) {
+    viewCardsBtn.addEventListener('click', () => setViewMode('cards'));
+  }
+  if (viewTableBtn) {
+    viewTableBtn.addEventListener('click', () => setViewMode('table'));
+  }
+  if (viewIconsBtn) {
+    viewIconsBtn.addEventListener('click', () => setViewMode('icons'));
+  }
+
   // Theme toggle
   themeToggle.addEventListener('click', toggleTheme);
 
@@ -5869,6 +6096,36 @@
           renderCardsOnly();
           showToast(pinFavorites ? 'Favorites pinned to top ⭐' : 'Natural sort order restored');
         }
+      },
+      {
+        id: 'action-view-cards',
+        type: 'action',
+        title: 'Switch to Bento Cards View',
+        subtitle: 'Rich cards with descriptions, tags, and spotlight hover glow',
+        icon: '🎴',
+        badge: 'Layout',
+        keywords: ['view', 'layout', 'cards', 'bento', 'grid'],
+        run: () => setViewMode('cards')
+      },
+      {
+        id: 'action-view-table',
+        type: 'action',
+        title: 'Switch to Compact Table View',
+        subtitle: 'High-density tabular rows for fast scanning and power users',
+        icon: '📋',
+        badge: 'Layout',
+        keywords: ['view', 'layout', 'table', 'list', 'compact', 'rows'],
+        run: () => setViewMode('table')
+      },
+      {
+        id: 'action-view-icons',
+        type: 'action',
+        title: 'Switch to Minimal Icon Grid',
+        subtitle: 'Speed Dial / app launcher style with large squircle icons',
+        icon: '📱',
+        badge: 'Layout',
+        keywords: ['view', 'layout', 'icons', 'speed dial', 'minimal', 'launcher'],
+        run: () => setViewMode('icons')
       }
     ];
   }
@@ -6229,6 +6486,7 @@
   initTheme();
   initSidebar();
   updateModeToggleUI();
+  setViewMode(currentViewMode);
   loadFolders();
   loadEntries();
   render();

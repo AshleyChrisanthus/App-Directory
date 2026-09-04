@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>App Directory</title>
-  <link rel="stylesheet" href="style.css?v=c3703b13">
+  <link rel="stylesheet" href="style.css?v=31707a15">
 </head>
 <body>
   <!-- Top Navigation Wrapper (Smart Reveal on Hover/Scroll) -->
@@ -144,6 +144,18 @@
           <span class="toggle-star-icon">⭐</span>
           <span class="toggle-text">Pin Favorites</span>
         </button>
+        <!-- Custom View Layout Switcher (Issue #16) -->
+        <div class="view-mode-switcher" id="viewModeSwitcher" role="group" aria-label="View Layout">
+          <button type="button" class="view-mode-btn is-active" id="viewCardsBtn" data-view="cards" title="Cards View (Bento Grid)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+          </button>
+          <button type="button" class="view-mode-btn" id="viewTableBtn" data-view="table" title="Compact Table View">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <button type="button" class="view-mode-btn" id="viewIconsBtn" data-view="icons" title="Minimal Icon Grid (Speed Dial)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
+          </button>
+        </div>
       </div>
       <div class="toolbar-right">
         <button id="addBtn" class="btn btn-primary">
@@ -778,6 +790,6 @@
   <!-- Toast container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=a3719b32"></script>
+  <script src="app.js?v=66de5547"></script>
 </body>
 </html>
