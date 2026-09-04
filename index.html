@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>App Directory</title>
-  <link rel="stylesheet" href="style.css?v=9041a000">
+  <link rel="stylesheet" href="style.css?v=6c1e5818">
 </head>
 <body>
   <!-- Top Navigation Wrapper (Smart Reveal on Hover/Scroll) -->
@@ -256,6 +256,12 @@
       <!-- Stats bar -->
       <div class="stats-bar">
         <span id="statsText">0 sites</span>
+      </div>
+
+      <!-- Active Category Filter Banner (Clicking insights/tags) -->
+      <div id="activeCatFilterBanner" class="active-cat-filter-banner" style="display: none;">
+        <div class="active-cat-filter-left" id="activeCatFilterBannerLeft"></div>
+        <button type="button" class="active-cat-filter-clear" id="activeCatFilterBannerClear" title="Clear category filter">✕ Clear Filter</button>
       </div>
 
       <!-- Card grid -->
@@ -817,6 +823,6 @@
   <!-- Toast container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=e64421f3"></script>
+  <script src="app.js?v=20f9a853"></script>
 </body>
 </html>

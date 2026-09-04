@@ -152,6 +152,9 @@
   const exportClipboardBtn = document.getElementById('exportClipboardBtn');
   const importFile = document.getElementById('importFile');
   const statsText = document.getElementById('statsText');
+  const activeCatFilterBanner = document.getElementById('activeCatFilterBanner');
+  const activeCatFilterBannerLeft = document.getElementById('activeCatFilterBannerLeft');
+  const activeCatFilterBannerClear = document.getElementById('activeCatFilterBannerClear');
 
   // Form fields
   const entryName = document.getElementById('entryName');
@@ -4072,12 +4075,33 @@
     // Update stats
     const total = entries.length;
     const showing = filtered.length;
+    const activeCats = Array.from(selectedFilterCategories);
+
     if (total === 0) {
       statsText.textContent = '0 sites';
     } else if (showing === total) {
       statsText.textContent = `${total} site${total !== 1 ? 's' : ''}`;
     } else {
       statsText.textContent = `Showing ${showing} of ${total} site${total !== 1 ? 's' : ''}`;
+    }
+
+    // Active Category Filter Banner
+    if (activeCatFilterBanner) {
+      if (activeCats.length > 0 && activeCats.length < getAllCategories().length) {
+        activeCatFilterBanner.style.display = 'flex';
+        if (activeCatFilterBannerLeft) {
+          activeCatFilterBannerLeft.innerHTML = `
+            <span>Filtering by category:</span>
+            ${activeCats.map(cat => {
+              const color = (categoryColors && categoryColors[cat.toLowerCase()]) || 'var(--accent)';
+              return `<span class="active-cat-filter-tag" style="background: color-mix(in srgb, ${color} 18%, transparent); color: ${color}; border: 1px solid color-mix(in srgb, ${color} 40%, transparent);">${escapeHtml(cat)}</span>`;
+            }).join(' ')}
+            <span style="color: var(--text-secondary); font-size: 0.78rem;">(${showing} website${showing !== 1 ? 's' : ''})</span>
+          `;
+        }
+      } else {
+        activeCatFilterBanner.style.display = 'none';
+      }
     }
 
     // Show/hide empty state
@@ -4310,12 +4334,18 @@
     `;
 
     // Widget 3: Category Distribution
+    const hasCategoryFilter = selectedFilterCategories.size > 0 && selectedFilterCategories.size < allCats.length;
+    const activeCategoryNames = Array.from(selectedFilterCategories);
+
     html += `
       <div class="insight-widget">
         <div class="insight-widget-header">
           <div class="insight-widget-title">
             <span>🏷️</span>
             <span>Category Distribution</span>
+            ${hasCategoryFilter ? `
+              <button type="button" class="category-dist-clear-btn" id="catDistClearBtn" title="Reset filter to show all categories">✕ Clear</button>
+            ` : ''}
           </div>
           <span class="insight-widget-badge">${sortedCats.length} active</span>
         </div>
@@ -4334,8 +4364,14 @@
         const count = catCounts[cat];
         const pct = totalCatAssignments > 0 ? ((count / totalCatAssignments) * 100).toFixed(1) : 0;
         const color = (categoryColors && categoryColors[cat.toLowerCase()]) || 'var(--accent)';
+        const isSelected = selectedFilterCategories.has(cat);
+        const segmentClasses = ['category-dist-segment'];
+        if (hasCategoryFilter) {
+          if (isSelected) segmentClasses.push('is-active');
+          else segmentClasses.push('is-dimmed');
+        }
         html += `
-          <div class="category-dist-segment" data-cat="${escapeHtml(cat)}" style="width: ${pct}%; background-color: ${escapeHtml(color)};" title="${escapeHtml(cat)}: ${count} (${pct}%) - Click to filter"></div>
+          <div class="${segmentClasses.join(' ')}" data-cat="${escapeHtml(cat)}" style="width: ${pct}%; background-color: ${escapeHtml(color)};" title="${escapeHtml(cat)}: ${count} (${pct}%) ${isSelected ? '• Currently filtered (Click to clear)' : '• Click to filter'}"></div>
         `;
       });
       html += `</div>`;
@@ -4345,9 +4381,16 @@
         const count = catCounts[cat];
         const pct = totalCatAssignments > 0 ? Math.round((count / totalCatAssignments) * 100) : 0;
         const color = (categoryColors && categoryColors[cat.toLowerCase()]) || 'var(--accent)';
+        const isSelected = selectedFilterCategories.has(cat);
+        const chipClasses = ['category-chip-item'];
+        if (hasCategoryFilter) {
+          if (isSelected) chipClasses.push('is-active');
+          else chipClasses.push('is-dimmed');
+        }
         html += `
-          <div class="category-chip-item" data-cat="${escapeHtml(cat)}" title="Filter by ${escapeHtml(cat)}">
+          <div class="${chipClasses.join(' ')}" data-cat="${escapeHtml(cat)}" style="--cat-accent: ${escapeHtml(color)};" title="${isSelected ? 'Active filter (Click to reset)' : 'Filter by ' + escapeHtml(cat)}">
             <span class="category-chip-dot" style="background-color: ${escapeHtml(color)};"></span>
+            ${isSelected ? '<span class="category-chip-check">✓</span>' : ''}
             <span class="category-chip-name">${escapeHtml(cat)}</span>
             <span class="category-chip-count">(${count})</span>
             <span class="category-chip-pct">${pct}%</span>
@@ -4431,9 +4474,22 @@
       });
     });
 
-    // Category click to filter
+    // Category click to filter with toggle and visual scroll cue
     const handleCatFilterClick = (cat) => {
       if (!cat) return;
+      if (selectedFilterCategories.has(cat) && selectedFilterCategories.size === 1) {
+        // Clicking already selected single category toggles it off
+        selectedFilterCategories.clear();
+        if (catFilterList) {
+          catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+        updateCatFilterLabel();
+        renderCardsOnly();
+        renderInsightsDashboard();
+        showToast('Cleared category filter');
+        return;
+      }
+
       selectedFilterCategories.clear();
       selectedFilterCategories.add(cat);
       if (catFilterList) {
@@ -4443,7 +4499,15 @@
       }
       updateCatFilterLabel();
       renderCardsOnly();
+      renderInsightsDashboard();
       showToast(`Filtered by category: ${cat}`);
+
+      // Smooth scroll cue down towards the filtered grid
+      if (activeCatFilterBanner) {
+        activeCatFilterBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else if (grid) {
+        grid.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     };
 
     insightsBody.querySelectorAll('.category-dist-segment').forEach(seg => {
@@ -4457,6 +4521,21 @@
         handleCatFilterClick(chip.getAttribute('data-cat'));
       });
     });
+
+    const catDistClearBtn = insightsBody.querySelector('#catDistClearBtn');
+    if (catDistClearBtn) {
+      catDistClearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedFilterCategories.clear();
+        if (catFilterList) {
+          catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+        updateCatFilterLabel();
+        renderCardsOnly();
+        renderInsightsDashboard();
+        showToast('Cleared category filter');
+      });
+    }
 
     // Dormant link actions
     insightsBody.querySelectorAll('.dormant-visit-btn').forEach(btn => {
@@ -5682,6 +5761,20 @@
   }
   if (insightsCloseBtn) {
     insightsCloseBtn.addEventListener('click', () => toggleInsightsDrawer(false));
+  }
+
+  // Active Category Filter Banner Clear Button
+  if (activeCatFilterBannerClear) {
+    activeCatFilterBannerClear.addEventListener('click', () => {
+      selectedFilterCategories.clear();
+      if (catFilterList) {
+        catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      }
+      updateCatFilterLabel();
+      renderCardsOnly();
+      if (isInsightsOpen) renderInsightsDashboard();
+      showToast('Cleared category filter');
+    });
   }
 
   // Theme toggle
