@@ -117,7 +117,12 @@ body {
   position: relative;
   width: 100%;
   z-index: 80;
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, background 0.25s ease;
+  transition: box-shadow 0.25s ease, background 0.25s ease;
+}
+
+.top-nav-placeholder {
+  display: none;
+  width: 100%;
 }
 
 .top-nav-wrapper.is-scrolled {
@@ -132,10 +137,17 @@ body {
   box-shadow: var(--shadow-md);
   transform: translateY(-100%);
   pointer-events: none;
+  /* Crucial: no transform transition when switching from static to off-screen fixed state */
+  transition: none;
 }
 
 [data-theme="dark"] .top-nav-wrapper.is-scrolled {
   background: rgba(28, 28, 30, 0.92);
+}
+
+/* Animate transform ONLY when toggling revealed state while floating */
+.top-nav-wrapper.is-scrolled.is-animating {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, background 0.25s ease;
 }
 
 .top-nav-wrapper.is-scrolled.is-revealed {

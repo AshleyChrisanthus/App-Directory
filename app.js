@@ -142,6 +142,7 @@
   const floatingAcceptAllBtn = document.getElementById('floatingAcceptAllBtn');
   const floatingDismissAllBtn = document.getElementById('floatingDismissAllBtn');
   const topNavWrapper = document.getElementById('topNavWrapper');
+  const topNavPlaceholder = document.getElementById('topNavPlaceholder');
   const importBtn = document.getElementById('importBtn');
   const exportBtn = document.getElementById('exportBtn');
   const exportSplitGroup = document.getElementById('exportSplitGroup');
@@ -5817,12 +5818,19 @@
   let scrollDeltaAccumulator = 0;
   let isScrollingDown = false;
   let scrollTimeout = null;
+  let hideAnimationTimer = null;
+  let staticNavHeight = 135;
 
   function updateTopNavReveal() {
     if (!topNavWrapper) return;
     const scrollY = window.scrollY;
-    const navHeight = topNavWrapper.offsetHeight || 135;
-    const scrollThreshold = navHeight + 25; // Only switch to floating mode once completely scrolled past
+
+    // Cache un-scrolled height to prevent content jumps
+    if (!topNavWrapper.classList.contains('is-scrolled')) {
+      staticNavHeight = topNavWrapper.offsetHeight || staticNavHeight;
+    }
+
+    const scrollThreshold = staticNavHeight + 20; // Only switch to floating mode once completely scrolled past
     const isScrolled = scrollY > scrollThreshold;
 
     const delta = scrollY - lastScrollY;
@@ -5843,7 +5851,13 @@
     }, 150);
 
     if (isScrolled) {
+      // Maintain placeholder height so document layout never collapses
+      if (topNavPlaceholder) {
+        topNavPlaceholder.style.height = `${staticNavHeight}px`;
+        topNavPlaceholder.style.display = 'block';
+      }
       topNavWrapper.classList.add('is-scrolled');
+
       const isDropdownOpen = catFilterDropdown && catFilterDropdown.classList.contains('open');
       const isSearchFocused = searchInput && document.activeElement === searchInput;
 
@@ -5854,13 +5868,24 @@
       const shouldReveal = isDropdownOpen || isSearchFocused || (!isScrollingDown && isMouseNearTop) || (!isScrollingDown && scrollDeltaAccumulator > 15);
 
       if (shouldReveal) {
+        clearTimeout(hideAnimationTimer);
+        topNavWrapper.classList.add('is-animating');
         topNavWrapper.classList.add('is-revealed');
       } else {
         topNavWrapper.classList.remove('is-revealed');
+        clearTimeout(hideAnimationTimer);
+        hideAnimationTimer = setTimeout(() => {
+          if (!topNavWrapper.classList.contains('is-revealed')) {
+            topNavWrapper.classList.remove('is-animating');
+          }
+        }, 280);
       }
     } else {
-      topNavWrapper.classList.remove('is-scrolled');
-      topNavWrapper.classList.remove('is-revealed');
+      clearTimeout(hideAnimationTimer);
+      topNavWrapper.classList.remove('is-animating', 'is-revealed', 'is-scrolled');
+      if (topNavPlaceholder) {
+        topNavPlaceholder.style.display = 'none';
+      }
     }
     lastScrollY = scrollY;
   }
@@ -5870,13 +5895,13 @@
   document.addEventListener('mousemove', (e) => {
     if (!topNavWrapper) return;
     const isRevealed = topNavWrapper.classList.contains('is-revealed');
-    const navHeight = topNavWrapper.offsetHeight || 135;
-    const threshold = isRevealed ? navHeight + 25 : 50;
+    const currentHeight = topNavWrapper.offsetHeight || staticNavHeight;
+    const threshold = isRevealed ? currentHeight + 25 : 50;
 
     const wasNear = isMouseNearTop;
     isMouseNearTop = e.clientY <= threshold;
 
-    if (wasNear !== isMouseNearTop && window.scrollY > (navHeight + 25) && !isScrollingDown) {
+    if (wasNear !== isMouseNearTop && window.scrollY > (staticNavHeight + 20) && !isScrollingDown) {
       updateTopNavReveal();
     }
   });
@@ -5884,17 +5909,22 @@
   if (topNavWrapper) {
     topNavWrapper.addEventListener('mouseenter', () => {
       isMouseNearTop = true;
-      const navHeight = topNavWrapper.offsetHeight || 135;
-      if (window.scrollY > (navHeight + 25) && !isScrollingDown) updateTopNavReveal();
+      if (window.scrollY > (staticNavHeight + 20) && !isScrollingDown) updateTopNavReveal();
     });
     topNavWrapper.addEventListener('mouseleave', (e) => {
-      const navHeight = topNavWrapper.offsetHeight || 135;
-      if (e.clientY > navHeight) {
+      const currentHeight = topNavWrapper.offsetHeight || staticNavHeight;
+      if (e.clientY > currentHeight) {
         isMouseNearTop = false;
-        if (window.scrollY > (navHeight + 25)) updateTopNavReveal();
+        if (window.scrollY > (staticNavHeight + 20)) updateTopNavReveal();
       }
     });
   }
+
+  window.addEventListener('resize', () => {
+    if (topNavWrapper && !topNavWrapper.classList.contains('is-scrolled')) {
+      staticNavHeight = topNavWrapper.offsetHeight || staticNavHeight;
+    }
+  });
 
   // Import
   importBtn.addEventListener('click', () => importFile.click());
