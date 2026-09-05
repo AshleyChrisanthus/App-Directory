@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "app-directory",
   "version": "1.0.0",
   "private": true,
@@ -6,7 +6,8 @@
   "scripts": {
     "build": "esbuild src/main.ts --bundle --outfile=app.js --format=iife --target=es2020 --sourcemap",
     "typecheck": "tsc --noEmit",
-    "watch": "esbuild src/main.ts --bundle --outfile=app.js --format=iife --target=es2020 --sourcemap --watch"
+    "watch": "esbuild src/main.ts --bundle --outfile=app.js --format=iife --target=es2020 --sourcemap --watch",
+    "deploy": "node scripts/deploy_herenow.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
