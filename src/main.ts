@@ -4,7 +4,19 @@ import { PIN_FAVORITES_KEY, FILTER_MODE_KEY } from './core/constants';
 import { showToast } from './utils/dom';
 
 // Theme & Navigation
-import { initTheme, toggleTheme, openThemeModal, closeThemeModal } from './modules/theme/theme';
+import {
+  initTheme,
+  toggleTheme,
+  openThemeModal,
+  closeThemeModal,
+  syncColorPickersFromDOM,
+  renderPresetPalettes,
+  resetAllThemeToDefault,
+  resetCategoryColors,
+  autoColorizeCategories,
+  exportThemeJson,
+  importThemeJson
+} from './modules/theme/theme';
 import { initTopNavReveal } from './modules/navigation/top-nav';
 
 // Bookmarks
@@ -629,6 +641,23 @@ if (themeModalBackdrop) {
   });
 }
 
+// Theme Modal Action Buttons
+const resetAllThemeBtn = document.getElementById('resetAllThemeBtn');
+if (resetAllThemeBtn) resetAllThemeBtn.addEventListener('click', () => resetAllThemeToDefault(render));
+
+const resetCatColorsBtn = document.getElementById('resetCatColorsBtn');
+if (resetCatColorsBtn) resetCatColorsBtn.addEventListener('click', () => resetCategoryColors(render));
+
+const autoPaletteCatsBtn = document.getElementById('autoPaletteCatsBtn');
+if (autoPaletteCatsBtn) autoPaletteCatsBtn.addEventListener('click', () => autoColorizeCategories(render));
+
+const copyThemeJsonBtn = document.getElementById('copyThemeJsonBtn');
+if (copyThemeJsonBtn) copyThemeJsonBtn.addEventListener('click', exportThemeJson);
+
+const applyThemeJsonBtn = document.getElementById('applyThemeJsonBtn');
+if (applyThemeJsonBtn) applyThemeJsonBtn.addEventListener('click', () => importThemeJson(render));
+
+
 // Theme Customizer Tabs
 document.querySelectorAll('.theme-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1121,6 +1150,27 @@ async function init(): Promise<void> {
     if (data.type === 'SYNC_DATA') {
       await reloadFromStorage();
       render();
+    } else if (data.type === 'SYNC_THEME') {
+      initTheme();
+      updateModeToggleUI();
+      syncColorPickersFromDOM();
+      renderPresetPalettes();
+      renderCardsOnly();
+    }
+  });
+
+  window.addEventListener('storage', (e) => {
+    if (
+      e.key === 'appDirectory_theme' ||
+      e.key === 'appDirectory_activePreset' ||
+      e.key === 'appDirectory_customTheme' ||
+      e.key === 'appDirectory_catColors'
+    ) {
+      initTheme();
+      updateModeToggleUI();
+      syncColorPickersFromDOM();
+      renderPresetPalettes();
+      renderCardsOnly();
     }
   });
 }

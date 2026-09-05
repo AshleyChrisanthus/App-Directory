@@ -214,7 +214,7 @@ export function syncColorPickersFromDOM(): void {
   });
 }
 
-export function renderCategoryColorsList(): void {
+export function renderCategoryColorsList(onUpdate?: () => void): void {
   const list = document.getElementById('categoryColorList');
   if (!list) return;
 
@@ -243,8 +243,155 @@ export function renderCategoryColorsList(): void {
         <button type="button" class="btn btn-icon btn-sm reset-cat-color-btn" data-cat="${escapeHtml(key)}" title="Reset category color">✕</button>
       </div>
     `;
+
+    const colorInput = row.querySelector('.cat-color-input') as HTMLInputElement | null;
+    const hexInput = row.querySelector('.cat-hex-input') as HTMLInputElement | null;
+    const resetBtn = row.querySelector('.reset-cat-color-btn') as HTMLButtonElement | null;
+
+    if (colorInput && hexInput) {
+      colorInput.addEventListener('input', (e: Event) => {
+        const hex = (e.target as HTMLInputElement).value;
+        state.categoryColors[key] = hex;
+        hexInput.value = hex;
+        localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+        notifyOtherTabs('SYNC_THEME');
+        if (onUpdate) onUpdate();
+      });
+
+      const hexHandler = (e: Event) => {
+        let val = (e.target as HTMLInputElement).value.trim();
+        if (!val.startsWith('#') && (val.length === 3 || val.length === 6)) val = '#' + val;
+        if (val.length === 4 || val.length === 7) {
+          state.categoryColors[key] = val;
+          colorInput.value = val;
+          localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+          notifyOtherTabs('SYNC_THEME');
+          if (onUpdate) onUpdate();
+        }
+      };
+      hexInput.addEventListener('input', hexHandler);
+      hexInput.addEventListener('change', hexHandler);
+    }
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        delete state.categoryColors[key];
+        localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+        notifyOtherTabs('SYNC_THEME');
+        renderCategoryColorsList(onUpdate);
+        if (onUpdate) onUpdate();
+        showToast(`Reset color for "${cat}".`);
+      });
+    }
+
     list.appendChild(row);
   });
+}
+
+export function resetAllThemeToDefault(onThemeChanged?: () => void): void {
+  localStorage.removeItem(ACTIVE_PRESET_KEY);
+  localStorage.removeItem(CUSTOM_THEME_KEY);
+  localStorage.removeItem(CAT_COLORS_KEY);
+  state.activeThemePreset = 'default';
+  state.customThemeColors = {};
+  state.categoryColors = {};
+  clearCustomThemeProperties();
+
+  const currentMode = (document.documentElement.getAttribute('data-theme') || 'dark') as 'dark' | 'light';
+  applyPresetPaletteForMode(currentMode);
+  syncColorPickersFromDOM();
+  renderPresetPalettes();
+  renderCategoryColorsList(onThemeChanged);
+  notifyOtherTabs('SYNC_THEME');
+  if (onThemeChanged) onThemeChanged();
+  showToast('Theme and colors reset to default.');
+}
+
+export function resetCategoryColors(onThemeChanged?: () => void): void {
+  state.categoryColors = {};
+  localStorage.removeItem(CAT_COLORS_KEY);
+  renderCategoryColorsList(onThemeChanged);
+  notifyOtherTabs('SYNC_THEME');
+  if (onThemeChanged) onThemeChanged();
+  showToast('Category colors reset to default.');
+}
+
+export function autoColorizeCategories(onThemeChanged?: () => void): void {
+  const allCats = new Set<string>();
+  state.entries.forEach(e => (e.categories || []).forEach(c => allCats.add(c)));
+  const sorted = Array.from(allCats).sort((a, b) => a.localeCompare(b));
+  if (sorted.length === 0) {
+    showToast('No categories to colorize.');
+    return;
+  }
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const lightness = isDark ? 65 : 45;
+  const saturation = isDark ? 80 : 70;
+  const step = 360 / sorted.length;
+
+  sorted.forEach((cat, idx) => {
+    const hue = Math.round((idx * step + 200) % 360);
+    state.categoryColors[cat.toLowerCase()] = hslToHex(hue, saturation, lightness);
+  });
+
+  localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+  renderCategoryColorsList(onThemeChanged);
+  notifyOtherTabs('SYNC_THEME');
+  if (onThemeChanged) onThemeChanged();
+  showToast(`Auto-colorized ${sorted.length} categories!`);
+}
+
+export function exportThemeJson(): void {
+  const config = {
+    theme: document.documentElement.getAttribute('data-theme') || 'dark',
+    activePreset: localStorage.getItem(ACTIVE_PRESET_KEY) || 'default',
+    customColors: state.customThemeColors,
+    categoryColors: state.categoryColors
+  };
+  navigator.clipboard.writeText(JSON.stringify(config, null, 2))
+    .then(() => showToast('Theme configuration copied to clipboard!'))
+    .catch(() => showToast('Failed to copy theme to clipboard.'));
+}
+
+export function importThemeJson(onThemeChanged?: () => void): void {
+  const textarea = document.getElementById('importThemeJsonInput') as HTMLTextAreaElement | null;
+  if (!textarea || !textarea.value.trim()) {
+    showToast('Please paste a theme JSON configuration.');
+    return;
+  }
+  try {
+    const config = JSON.parse(textarea.value.trim());
+    if (config.theme && (config.theme === 'dark' || config.theme === 'light')) {
+      document.documentElement.setAttribute('data-theme', config.theme);
+      localStorage.setItem(THEME_KEY, config.theme);
+    }
+    if (config.activePreset && typeof config.activePreset === 'string') {
+      localStorage.setItem(ACTIVE_PRESET_KEY, config.activePreset);
+      state.activeThemePreset = config.activePreset;
+    }
+    if (config.customColors && typeof config.customColors === 'object') {
+      state.customThemeColors = config.customColors;
+      localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(state.customThemeColors));
+    }
+    if (config.categoryColors && typeof config.categoryColors === 'object') {
+      state.categoryColors = config.categoryColors;
+      localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+    }
+    const currentMode = (document.documentElement.getAttribute('data-theme') || 'dark') as 'dark' | 'light';
+    applyPresetPaletteForMode(currentMode);
+    if (state.customThemeColors && state.customThemeColors[currentMode]) {
+      applyCustomThemeProperties(state.customThemeColors[currentMode]);
+    }
+    syncColorPickersFromDOM();
+    renderPresetPalettes();
+    renderCategoryColorsList(onThemeChanged);
+    notifyOtherTabs('SYNC_THEME');
+    if (onThemeChanged) onThemeChanged();
+    textarea.value = '';
+    showToast('Theme configuration imported successfully!');
+  } catch (err) {
+    showToast('Invalid theme JSON format.');
+  }
 }
 
 export function openThemeModal(): void {

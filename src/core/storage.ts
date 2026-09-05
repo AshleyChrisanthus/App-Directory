@@ -219,10 +219,11 @@ export function loadEntries(): BookmarkEntry[] {
 }
 
 export function saveEntries(targetList: BookmarkEntry[] | null = null): Promise<void> {
-  const diskList = getLatestStoredEntries();
-  const sourceList = targetList || state.entries;
-  const merged = mergeEntries(sourceList, diskList);
-  state.entries = merged;
+  if (targetList) {
+    state.entries = targetList;
+  } else if (!state.entries) {
+    state.entries = [];
+  }
 
   // Persist to IndexedDB asynchronously
   return idbSetAllEntries(state.entries)

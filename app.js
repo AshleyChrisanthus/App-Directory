@@ -323,28 +323,6 @@
     }
     return [...state.entries || []];
   }
-  function mergeEntries(localList, diskList) {
-    const map = /* @__PURE__ */ new Map();
-    for (const item of diskList) {
-      if (item && item.id) {
-        map.set(item.id, item);
-      }
-    }
-    for (const item of localList) {
-      if (!item || !item.id) continue;
-      if (!map.has(item.id)) {
-        map.set(item.id, item);
-      } else {
-        const diskItem = map.get(item.id);
-        const localMod = new Date(item.dateModified || item.dateAdded || 0).getTime();
-        const diskMod = new Date(diskItem.dateModified || diskItem.dateAdded || 0).getTime();
-        if (localMod >= diskMod) {
-          map.set(item.id, item);
-        }
-      }
-    }
-    return Array.from(map.values());
-  }
   async function initStorage() {
     try {
       await openAppDB();
@@ -431,10 +409,11 @@
     }
   }
   function saveEntries(targetList = null) {
-    const diskList = getLatestStoredEntries();
-    const sourceList = targetList || state.entries;
-    const merged = mergeEntries(sourceList, diskList);
-    state.entries = merged;
+    if (targetList) {
+      state.entries = targetList;
+    } else if (!state.entries) {
+      state.entries = [];
+    }
     return idbSetAllEntries(state.entries).then(() => {
       notifyOtherTabs("SYNC_DATA");
     }).catch((err) => {
@@ -810,6 +789,17 @@
   function rgbToHex(r, g, b) {
     return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
   }
+  function hslToHex(h, s, l) {
+    s /= 100;
+    l /= 100;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => {
+      const k = (n + h / 30) % 12;
+      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      return Math.round(255 * color).toString(16).padStart(2, "0");
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+  }
   function getCategoryTagStyle(categoryName) {
     if (!categoryName) return "";
     const color = state.categoryColors[categoryName.toLowerCase()];
@@ -966,7 +956,7 @@
       }
     });
   }
-  function renderCategoryColorsList() {
+  function renderCategoryColorsList(onUpdate) {
     const list = document.getElementById("categoryColorList");
     if (!list) return;
     const allCats = /* @__PURE__ */ new Set();
@@ -991,8 +981,140 @@
         <button type="button" class="btn btn-icon btn-sm reset-cat-color-btn" data-cat="${escapeHtml(key)}" title="Reset category color">\u2715</button>
       </div>
     `;
+      const colorInput = row.querySelector(".cat-color-input");
+      const hexInput = row.querySelector(".cat-hex-input");
+      const resetBtn = row.querySelector(".reset-cat-color-btn");
+      if (colorInput && hexInput) {
+        colorInput.addEventListener("input", (e) => {
+          const hex = e.target.value;
+          state.categoryColors[key] = hex;
+          hexInput.value = hex;
+          localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+          notifyOtherTabs("SYNC_THEME");
+          if (onUpdate) onUpdate();
+        });
+        const hexHandler = (e) => {
+          let val = e.target.value.trim();
+          if (!val.startsWith("#") && (val.length === 3 || val.length === 6)) val = "#" + val;
+          if (val.length === 4 || val.length === 7) {
+            state.categoryColors[key] = val;
+            colorInput.value = val;
+            localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+            notifyOtherTabs("SYNC_THEME");
+            if (onUpdate) onUpdate();
+          }
+        };
+        hexInput.addEventListener("input", hexHandler);
+        hexInput.addEventListener("change", hexHandler);
+      }
+      if (resetBtn) {
+        resetBtn.addEventListener("click", () => {
+          delete state.categoryColors[key];
+          localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+          notifyOtherTabs("SYNC_THEME");
+          renderCategoryColorsList(onUpdate);
+          if (onUpdate) onUpdate();
+          showToast(`Reset color for "${cat}".`);
+        });
+      }
       list.appendChild(row);
     });
+  }
+  function resetAllThemeToDefault(onThemeChanged) {
+    localStorage.removeItem(ACTIVE_PRESET_KEY);
+    localStorage.removeItem(CUSTOM_THEME_KEY);
+    localStorage.removeItem(CAT_COLORS_KEY);
+    state.activeThemePreset = "default";
+    state.customThemeColors = {};
+    state.categoryColors = {};
+    clearCustomThemeProperties();
+    const currentMode = document.documentElement.getAttribute("data-theme") || "dark";
+    applyPresetPaletteForMode(currentMode);
+    syncColorPickersFromDOM();
+    renderPresetPalettes();
+    renderCategoryColorsList(onThemeChanged);
+    notifyOtherTabs("SYNC_THEME");
+    if (onThemeChanged) onThemeChanged();
+    showToast("Theme and colors reset to default.");
+  }
+  function resetCategoryColors(onThemeChanged) {
+    state.categoryColors = {};
+    localStorage.removeItem(CAT_COLORS_KEY);
+    renderCategoryColorsList(onThemeChanged);
+    notifyOtherTabs("SYNC_THEME");
+    if (onThemeChanged) onThemeChanged();
+    showToast("Category colors reset to default.");
+  }
+  function autoColorizeCategories(onThemeChanged) {
+    const allCats = /* @__PURE__ */ new Set();
+    state.entries.forEach((e) => (e.categories || []).forEach((c) => allCats.add(c)));
+    const sorted = Array.from(allCats).sort((a, b) => a.localeCompare(b));
+    if (sorted.length === 0) {
+      showToast("No categories to colorize.");
+      return;
+    }
+    const isDark = document.documentElement.getAttribute("data-theme") !== "light";
+    const lightness = isDark ? 65 : 45;
+    const saturation = isDark ? 80 : 70;
+    const step = 360 / sorted.length;
+    sorted.forEach((cat, idx) => {
+      const hue = Math.round((idx * step + 200) % 360);
+      state.categoryColors[cat.toLowerCase()] = hslToHex(hue, saturation, lightness);
+    });
+    localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+    renderCategoryColorsList(onThemeChanged);
+    notifyOtherTabs("SYNC_THEME");
+    if (onThemeChanged) onThemeChanged();
+    showToast(`Auto-colorized ${sorted.length} categories!`);
+  }
+  function exportThemeJson() {
+    const config = {
+      theme: document.documentElement.getAttribute("data-theme") || "dark",
+      activePreset: localStorage.getItem(ACTIVE_PRESET_KEY) || "default",
+      customColors: state.customThemeColors,
+      categoryColors: state.categoryColors
+    };
+    navigator.clipboard.writeText(JSON.stringify(config, null, 2)).then(() => showToast("Theme configuration copied to clipboard!")).catch(() => showToast("Failed to copy theme to clipboard."));
+  }
+  function importThemeJson(onThemeChanged) {
+    const textarea = document.getElementById("importThemeJsonInput");
+    if (!textarea || !textarea.value.trim()) {
+      showToast("Please paste a theme JSON configuration.");
+      return;
+    }
+    try {
+      const config = JSON.parse(textarea.value.trim());
+      if (config.theme && (config.theme === "dark" || config.theme === "light")) {
+        document.documentElement.setAttribute("data-theme", config.theme);
+        localStorage.setItem(THEME_KEY, config.theme);
+      }
+      if (config.activePreset && typeof config.activePreset === "string") {
+        localStorage.setItem(ACTIVE_PRESET_KEY, config.activePreset);
+        state.activeThemePreset = config.activePreset;
+      }
+      if (config.customColors && typeof config.customColors === "object") {
+        state.customThemeColors = config.customColors;
+        localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(state.customThemeColors));
+      }
+      if (config.categoryColors && typeof config.categoryColors === "object") {
+        state.categoryColors = config.categoryColors;
+        localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+      }
+      const currentMode = document.documentElement.getAttribute("data-theme") || "dark";
+      applyPresetPaletteForMode(currentMode);
+      if (state.customThemeColors && state.customThemeColors[currentMode]) {
+        applyCustomThemeProperties(state.customThemeColors[currentMode]);
+      }
+      syncColorPickersFromDOM();
+      renderPresetPalettes();
+      renderCategoryColorsList(onThemeChanged);
+      notifyOtherTabs("SYNC_THEME");
+      if (onThemeChanged) onThemeChanged();
+      textarea.value = "";
+      showToast("Theme configuration imported successfully!");
+    } catch (err) {
+      showToast("Invalid theme JSON format.");
+    }
   }
   function openThemeModal() {
     renderPresetPalettes();
@@ -6023,6 +6145,16 @@
       if (e.target === themeModalBackdrop) closeThemeModal();
     });
   }
+  var resetAllThemeBtn = document.getElementById("resetAllThemeBtn");
+  if (resetAllThemeBtn) resetAllThemeBtn.addEventListener("click", () => resetAllThemeToDefault(render));
+  var resetCatColorsBtn = document.getElementById("resetCatColorsBtn");
+  if (resetCatColorsBtn) resetCatColorsBtn.addEventListener("click", () => resetCategoryColors(render));
+  var autoPaletteCatsBtn = document.getElementById("autoPaletteCatsBtn");
+  if (autoPaletteCatsBtn) autoPaletteCatsBtn.addEventListener("click", () => autoColorizeCategories(render));
+  var copyThemeJsonBtn = document.getElementById("copyThemeJsonBtn");
+  if (copyThemeJsonBtn) copyThemeJsonBtn.addEventListener("click", exportThemeJson);
+  var applyThemeJsonBtn = document.getElementById("applyThemeJsonBtn");
+  if (applyThemeJsonBtn) applyThemeJsonBtn.addEventListener("click", () => importThemeJson(render));
   document.querySelectorAll(".theme-tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".theme-tab-btn").forEach((b) => b.classList.remove("active"));
@@ -6454,6 +6586,21 @@
       if (data.type === "SYNC_DATA") {
         await reloadFromStorage();
         render();
+      } else if (data.type === "SYNC_THEME") {
+        initTheme();
+        updateModeToggleUI();
+        syncColorPickersFromDOM();
+        renderPresetPalettes();
+        renderCardsOnly();
+      }
+    });
+    window.addEventListener("storage", (e) => {
+      if (e.key === "appDirectory_theme" || e.key === "appDirectory_activePreset" || e.key === "appDirectory_customTheme" || e.key === "appDirectory_catColors") {
+        initTheme();
+        updateModeToggleUI();
+        syncColorPickersFromDOM();
+        renderPresetPalettes();
+        renderCardsOnly();
       }
     });
   }
