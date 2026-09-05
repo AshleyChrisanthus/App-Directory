@@ -84,7 +84,19 @@ export async function checkUrlHealth(url?: string | null): Promise<BookmarkHealt
   }
 }
 
-export function openHealthModal(onEditRequested?: (id: string) => void): void {
+let savedHealthEditCallback: ((id: string) => void) | null = null;
+let savedHealthDeleteCallback: ((id: string) => void) | null = null;
+let savedHealthUpdateCallback: (() => void) | null = null;
+
+export function openHealthModal(
+  onEditRequested?: (id: string) => void,
+  onDeleteRequested?: (id: string) => void,
+  onUpdate?: () => void
+): void {
+  if (typeof onEditRequested === 'function') savedHealthEditCallback = onEditRequested;
+  if (typeof onDeleteRequested === 'function') savedHealthDeleteCallback = onDeleteRequested;
+  if (typeof onUpdate === 'function') savedHealthUpdateCallback = onUpdate;
+
   healthSearchQuery = '';
   healthFilter = 'all';
 
@@ -103,7 +115,7 @@ export function openHealthModal(onEditRequested?: (id: string) => void): void {
   }
 
   updateHealthSummaryCards();
-  renderHealthModalList(onEditRequested);
+  renderHealthModalList(savedHealthEditCallback || undefined, savedHealthDeleteCallback || undefined, savedHealthUpdateCallback || undefined);
 
   if (healthModalBackdrop) {
     healthModalBackdrop.classList.add('active');
@@ -167,6 +179,14 @@ export function renderHealthModalList(
   onDeleteRequested?: (id: string) => void,
   onUpdate?: () => void
 ): void {
+  if (typeof onEditRequested === 'function') savedHealthEditCallback = onEditRequested;
+  if (typeof onDeleteRequested === 'function') savedHealthDeleteCallback = onDeleteRequested;
+  if (typeof onUpdate === 'function') savedHealthUpdateCallback = onUpdate;
+
+  const effectiveOnEdit = onEditRequested || savedHealthEditCallback;
+  const effectiveOnDelete = onDeleteRequested || savedHealthDeleteCallback;
+  const effectiveOnUpdate = onUpdate || savedHealthUpdateCallback;
+
   const healthList = document.getElementById('healthList');
   const healthEmpty = document.getElementById('healthEmpty');
   if (!healthList) return;
@@ -205,7 +225,7 @@ export function renderHealthModalList(
     }
 
     const domain = getDomain(entry.url);
-    const iconSrc = entry.icon || '';
+    const iconSrc = entry.iconUrl || entry.icon || '';
     const iconHtml = iconSrc
       ? `<img src="${escapeHtml(
           iconSrc
@@ -237,7 +257,7 @@ export function renderHealthModalList(
     if (retestBtn) {
       retestBtn.addEventListener('click', e => {
         e.stopPropagation();
-        testSingleBookmarkHealth(entry.id, onUpdate);
+        testSingleBookmarkHealth(entry.id, effectiveOnUpdate || undefined);
       });
     }
 
@@ -246,7 +266,7 @@ export function renderHealthModalList(
       editBtn.addEventListener('click', e => {
         e.stopPropagation();
         closeHealthModal();
-        if (onEditRequested) onEditRequested(entry.id);
+        if (effectiveOnEdit) effectiveOnEdit(entry.id);
       });
     }
 
@@ -263,8 +283,8 @@ export function renderHealthModalList(
       deleteBtn.addEventListener('click', e => {
         e.stopPropagation();
         if (confirm(`Delete bookmark "${entry.name}"?`)) {
-          if (onDeleteRequested) onDeleteRequested(entry.id);
-          renderHealthModalList(onEditRequested, onDeleteRequested, onUpdate);
+          if (effectiveOnDelete) effectiveOnDelete(entry.id);
+          renderHealthModalList(effectiveOnEdit || undefined, effectiveOnDelete || undefined, effectiveOnUpdate || undefined);
         }
       });
     }
@@ -287,8 +307,9 @@ export async function testSingleBookmarkHealth(entryId: string, onUpdate?: () =>
 
   currentlyCheckingIds.delete(entryId);
   saveEntries(diskList);
-  renderHealthModalList(undefined, undefined, onUpdate);
-  if (onUpdate) onUpdate();
+  renderHealthModalList(savedHealthEditCallback || undefined, savedHealthDeleteCallback || undefined, onUpdate || savedHealthUpdateCallback || undefined);
+  const cb = onUpdate || savedHealthUpdateCallback;
+  if (cb) cb();
   showToast(`"${entry.name}": ${result.status === 'healthy' ? '🟢 Healthy' : '⚠️ ' + result.error}`);
 }
 
@@ -382,8 +403,9 @@ export async function startHealthScan(onlyBroken = false, onUpdate?: () => void)
   if (healthScanBrokenBtn) healthScanBrokenBtn.disabled = false;
 
   currentlyCheckingIds.clear();
-  renderHealthModalList(undefined, undefined, onUpdate);
-  if (onUpdate) onUpdate();
+  renderHealthModalList(savedHealthEditCallback || undefined, savedHealthDeleteCallback || undefined, onUpdate || savedHealthUpdateCallback || undefined);
+  const finishCb = onUpdate || savedHealthUpdateCallback;
+  if (finishCb) finishCb();
 
   const brokenCount = diskList.filter(e => e.health && e.health.status === 'broken').length;
   if (healthAbortRequested) {

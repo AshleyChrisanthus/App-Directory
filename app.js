@@ -945,7 +945,8 @@
       { id: "colorTextPrimary", hexId: "hexTextPrimary", prop: "--text-primary" },
       { id: "colorTextSecondary", hexId: "hexTextSecondary", prop: "--text-secondary" },
       { id: "colorBorder", hexId: "hexBorder", prop: "--border-light" },
-      { id: "colorTagText", hexId: "hexTagText", prop: "--tag-text" }
+      { id: "colorTagText", hexId: "hexTagText", prop: "--tag-text" },
+      { id: "colorTagBg", hexId: "hexTagBg", prop: "--tag-bg" }
     ];
     pickers.forEach(({ id, hexId, prop }) => {
       const input = document.getElementById(id);
@@ -968,7 +969,7 @@
     });
   }
   function renderCategoryColorsList(onUpdate) {
-    const list = document.getElementById("categoryColorList");
+    const list = document.getElementById("categoryColorsList");
     if (!list) return;
     const allCats = /* @__PURE__ */ new Set();
     state.entries.forEach((e) => (e.categories || []).forEach((c) => allCats.add(c)));
@@ -976,56 +977,47 @@
     const sorted = Array.from(allCats).sort((a, b) => a.localeCompare(b));
     list.innerHTML = "";
     if (sorted.length === 0) {
-      list.innerHTML = '<div class="empty-state-text">No categories created yet.</div>';
+      list.innerHTML = '<p class="cat-modal-empty" style="grid-column: 1/-1;">No categories in use yet.</p>';
       return;
     }
     sorted.forEach((cat) => {
       const key = cat.toLowerCase();
       const currentColor = state.categoryColors[key] || "#0a84ff";
+      const hasCustom = !!state.categoryColors[key];
       const row = document.createElement("div");
       row.className = "cat-color-row";
       row.innerHTML = `
-      <span class="cat-color-name">${escapeHtml(cat)}</span>
-      <div class="color-picker-wrapper">
-        <input type="color" class="cat-color-input" data-cat="${escapeHtml(key)}" value="${currentColor}">
-        <input type="text" class="color-hex-input cat-hex-input" data-cat="${escapeHtml(key)}" value="${currentColor}" maxlength="7">
-        <button type="button" class="btn btn-icon btn-sm reset-cat-color-btn" data-cat="${escapeHtml(key)}" title="Reset category color">\u2715</button>
+      <div class="cat-color-name-wrap">
+        <span class="cat-color-name">${escapeHtml(cat)}</span>
+        <span class="cat-color-preview-pill" ${getCategoryTagStyle(cat)}>Preview</span>
+      </div>
+      <div class="cat-color-picker-wrap">
+        <input type="color" value="${currentColor}" title="Choose color for ${escapeHtml(cat)}">
+        ${hasCustom ? `<button type="button" class="cat-color-clear-btn" title="Reset to default">\u2715</button>` : ""}
       </div>
     `;
-      const colorInput = row.querySelector(".cat-color-input");
-      const hexInput = row.querySelector(".cat-hex-input");
-      const resetBtn = row.querySelector(".reset-cat-color-btn");
-      if (colorInput && hexInput) {
-        colorInput.addEventListener("input", (e) => {
-          const hex = e.target.value;
-          state.categoryColors[key] = hex;
-          hexInput.value = hex;
+      const picker = row.querySelector('input[type="color"]');
+      if (picker) {
+        picker.addEventListener("input", (e) => {
+          const val = e.target.value;
+          state.categoryColors[key] = val;
           localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+          const pill = row.querySelector(".cat-color-preview-pill");
+          if (pill) {
+            pill.outerHTML = `<span class="cat-color-preview-pill" ${getCategoryTagStyle(cat)}>Preview</span>`;
+          }
           notifyOtherTabs("SYNC_THEME");
           if (onUpdate) onUpdate();
         });
-        const hexHandler = (e) => {
-          let val = e.target.value.trim();
-          if (!val.startsWith("#") && (val.length === 3 || val.length === 6)) val = "#" + val;
-          if (val.length === 4 || val.length === 7) {
-            state.categoryColors[key] = val;
-            colorInput.value = val;
-            localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
-            notifyOtherTabs("SYNC_THEME");
-            if (onUpdate) onUpdate();
-          }
-        };
-        hexInput.addEventListener("input", hexHandler);
-        hexInput.addEventListener("change", hexHandler);
       }
-      if (resetBtn) {
-        resetBtn.addEventListener("click", () => {
+      const clearBtn = row.querySelector(".cat-color-clear-btn");
+      if (clearBtn) {
+        clearBtn.addEventListener("click", () => {
           delete state.categoryColors[key];
           localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
           notifyOtherTabs("SYNC_THEME");
           renderCategoryColorsList(onUpdate);
           if (onUpdate) onUpdate();
-          showToast(`Reset color for "${cat}".`);
         });
       }
       list.appendChild(row);
@@ -2738,7 +2730,13 @@
   }
 
   // src/modules/insights/dashboard.ts
+  var savedOnVisit = null;
+  var savedOnDelete = null;
+  var savedOnFilterChanged = null;
   function toggleInsightsDrawer(openState, onVisit, onDelete, onFilterChanged) {
+    if (typeof onVisit === "function") savedOnVisit = onVisit;
+    if (typeof onDelete === "function") savedOnDelete = onDelete;
+    if (typeof onFilterChanged === "function") savedOnFilterChanged = onFilterChanged;
     const insightsToggleBtn2 = document.getElementById("insightsToggleBtn");
     const insightsDrawer = document.getElementById("insightsDrawer");
     if (typeof openState === "boolean") {
@@ -2755,10 +2753,16 @@
       insightsDrawer.style.display = state.isInsightsOpen ? "block" : "none";
     }
     if (state.isInsightsOpen) {
-      renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+      renderInsightsDashboard(savedOnVisit || void 0, savedOnDelete || void 0, savedOnFilterChanged || void 0);
     }
   }
   function renderInsightsDashboard(onVisit, onDelete, onFilterChanged) {
+    if (typeof onVisit === "function") savedOnVisit = onVisit;
+    if (typeof onDelete === "function") savedOnDelete = onDelete;
+    if (typeof onFilterChanged === "function") savedOnFilterChanged = onFilterChanged;
+    const effectiveOnVisit = onVisit || savedOnVisit;
+    const effectiveOnDelete = onDelete || savedOnDelete;
+    const effectiveOnFilterChanged = onFilterChanged || savedOnFilterChanged;
     const insightsDrawer = document.getElementById("insightsDrawer");
     const insightsHeaderStats = document.getElementById("insightsHeaderStats");
     const insightsBody = document.getElementById("insightsBody");
@@ -2836,12 +2840,13 @@
     `;
     } else {
       visitedSites.forEach((site) => {
+        const siteIcon = site.iconUrl || site.icon;
         html += `
         <div class="speed-dial-card" data-id="${escapeHtml(site.id)}" title="Launch ${escapeHtml(
           site.name
         )} (${site.visitCount} visits)">
           <div class="speed-dial-icon">
-            ${site.icon ? `<img src="${escapeHtml(site.icon)}" alt="" onerror="this.parentElement.innerHTML='\u{1F310}'">` : "\u{1F310}"}
+            ${siteIcon ? `<img src="${escapeHtml(siteIcon)}" alt="" onerror="this.parentElement.innerHTML='\u{1F310}'">` : "\u{1F310}"}
           </div>
           <div class="speed-dial-info">
             <span class="speed-dial-name">${escapeHtml(site.name)}</span>
@@ -2875,11 +2880,12 @@
     } else {
       recentlyAdded.forEach((site) => {
         const domain = getDomain(site.url);
+        const siteIcon = site.iconUrl || site.icon;
         html += `
         <div class="recent-item" data-id="${escapeHtml(site.id)}" title="Open ${escapeHtml(site.name)}">
           <div class="recent-left">
             <div class="recent-icon">
-              ${site.icon ? `<img src="${escapeHtml(site.icon)}" alt="" onerror="this.parentElement.innerHTML='\u{1F310}'">` : "\u{1F310}"}
+              ${siteIcon ? `<img src="${escapeHtml(siteIcon)}" alt="" onerror="this.parentElement.innerHTML='\u{1F310}'">` : "\u{1F310}"}
             </div>
             <div>
               <div class="recent-name">${escapeHtml(site.name)}</div>
@@ -3014,13 +3020,13 @@
     insightsBody.querySelectorAll(".speed-dial-card").forEach((card) => {
       card.addEventListener("click", () => {
         const id = card.getAttribute("data-id");
-        if (id && onVisit) onVisit(id);
+        if (id && effectiveOnVisit) effectiveOnVisit(id);
       });
     });
     insightsBody.querySelectorAll(".recent-item").forEach((item) => {
       item.addEventListener("click", () => {
         const id = item.getAttribute("data-id");
-        if (id && onVisit) onVisit(id);
+        if (id && effectiveOnVisit) effectiveOnVisit(id);
       });
     });
     const handleCatFilterClick = (cat) => {
@@ -3031,8 +3037,8 @@
           catFilterList2.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.checked = false);
         }
         updateCatFilterLabel();
-        if (onFilterChanged) onFilterChanged();
-        renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+        if (effectiveOnFilterChanged) effectiveOnFilterChanged();
+        renderInsightsDashboard(effectiveOnVisit || void 0, effectiveOnDelete || void 0, effectiveOnFilterChanged || void 0);
         showToast("Cleared category filter");
         return;
       }
@@ -3045,8 +3051,8 @@
         });
       }
       updateCatFilterLabel();
-      if (onFilterChanged) onFilterChanged();
-      renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+      if (effectiveOnFilterChanged) effectiveOnFilterChanged();
+      renderInsightsDashboard(effectiveOnVisit || void 0, effectiveOnDelete || void 0, effectiveOnFilterChanged || void 0);
       showToast(`Filtered by category: ${cat}`);
       setTimeout(() => {
         const firstItem = grid ? grid.querySelector(".card, .table-row, .icon-card") : null;
@@ -3078,8 +3084,8 @@
           catFilterList2.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.checked = false);
         }
         updateCatFilterLabel();
-        if (onFilterChanged) onFilterChanged();
-        renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+        if (effectiveOnFilterChanged) effectiveOnFilterChanged();
+        renderInsightsDashboard(effectiveOnVisit || void 0, effectiveOnDelete || void 0, effectiveOnFilterChanged || void 0);
         showToast("Cleared category filter");
       });
     }
@@ -3087,14 +3093,14 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const id = btn.getAttribute("data-id");
-        if (id && onVisit) onVisit(id);
+        if (id && effectiveOnVisit) effectiveOnVisit(id);
       });
     });
     insightsBody.querySelectorAll(".dormant-delete-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const id = btn.getAttribute("data-id");
-        if (id && onDelete) onDelete(id);
+        if (id && effectiveOnDelete) effectiveOnDelete(id);
       });
     });
   }
@@ -3489,7 +3495,11 @@
   }
 
   // src/modules/categories/modal.ts
-  function openCatModal() {
+  var catModalUpdateCallback = null;
+  function openCatModal(onUpdate) {
+    if (typeof onUpdate === "function") {
+      catModalUpdateCallback = onUpdate;
+    }
     const catModalBackdrop2 = document.getElementById("catModalBackdrop");
     const catModalSearchInput2 = document.getElementById("catModalSearchInput");
     const catModalSearchClearBtn2 = document.getElementById("catModalSearchClearBtn");
@@ -3499,7 +3509,7 @@
     if (catModalSearchClearBtn2) {
       catModalSearchClearBtn2.style.display = "none";
     }
-    renderCatList("");
+    renderCatList("", catModalUpdateCallback || void 0);
     if (catModalBackdrop2) {
       catModalBackdrop2.classList.add("active");
     }
@@ -3543,7 +3553,8 @@
         localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
       }
       saveEntries(diskList);
-      if (onUpdate) onUpdate();
+      const cb = onUpdate || catModalUpdateCallback;
+      if (cb) cb();
       showToast(`Renamed "${oldName}" \u2192 "${newName}" (${updated} site${updated !== 1 ? "s" : ""} updated)`);
     }
   }
@@ -3561,85 +3572,105 @@
     }
     state.selectedFilterCategories.delete(catName);
     saveEntries(diskList);
-    if (onUpdate) onUpdate();
+    const cb = onUpdate || catModalUpdateCallback;
+    if (cb) cb();
     showToast(`Deleted category "${catName}"`);
     const catModalSearchInput2 = document.getElementById("catModalSearchInput");
     const q = catModalSearchInput2 ? catModalSearchInput2.value : "";
-    renderCatList(q, onUpdate);
+    renderCatList(q, cb || void 0);
   }
   function renderCatList(query = "", onUpdate) {
+    if (typeof onUpdate === "function") {
+      catModalUpdateCallback = onUpdate;
+    }
+    const effectiveCallback = onUpdate || catModalUpdateCallback;
     const catList = document.getElementById("catList");
     const catEmptyMsg = document.getElementById("catEmptyMsg");
+    const catModalSearchInput2 = document.getElementById("catModalSearchInput");
+    const catModalSearchClearBtn2 = document.getElementById("catModalSearchClearBtn");
     if (!catList) return;
     const allUsed = getUsedCategories();
     const cleanQuery = (typeof query === "string" ? query : "").toLowerCase().trim();
+    if (catModalSearchClearBtn2) {
+      catModalSearchClearBtn2.style.display = cleanQuery ? "inline-flex" : "none";
+    }
     const filtered = cleanQuery ? allUsed.filter(([name]) => name.toLowerCase().includes(cleanQuery)) : allUsed;
     catList.innerHTML = "";
     if (allUsed.length === 0) {
       if (catEmptyMsg) {
-        catEmptyMsg.textContent = "No categories in use yet. Add categories to your bookmarks to manage them here.";
+        catEmptyMsg.textContent = "No categories in use yet.";
         catEmptyMsg.style.display = "block";
       }
       return;
     }
     if (filtered.length === 0) {
       if (catEmptyMsg) {
-        catEmptyMsg.textContent = `No categories match "${cleanQuery}"`;
+        catEmptyMsg.textContent = `No categories match "${cleanQuery}".`;
         catEmptyMsg.style.display = "block";
       }
       return;
     }
     if (catEmptyMsg) catEmptyMsg.style.display = "none";
-    filtered.forEach(([name, count]) => {
+    filtered.forEach(([cat, count]) => {
       const row = document.createElement("div");
-      row.className = "cat-manager-row";
-      row.setAttribute("data-cat-name", name);
-      if (row.dataset) row.dataset.catName = name;
-      const isFiltered = state.selectedFilterCategories.has(name);
-      const filterBtnTitle = isFiltered ? "Currently active filter" : "Filter by this category";
+      row.className = "cat-row";
       row.innerHTML = `
-      <div class="cat-manager-info">
-        <span class="cat-manager-name">${escapeHtml(name)}</span>
-        <span class="cat-manager-count">${count} site${count !== 1 ? "s" : ""}</span>
-      </div>
-      <div class="cat-manager-actions">
-        <button type="button" class="btn btn-icon btn-sm cat-action-filter ${isFiltered ? "active" : ""}" title="${filterBtnTitle}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        </button>
-        <button type="button" class="btn btn-icon btn-sm cat-action-edit" title="Rename category">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button type="button" class="btn btn-icon btn-sm cat-action-delete" title="Delete category from all sites">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
+      <span class="cat-row-name" ${getCategoryTagStyle(cat)} style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:600;">${escapeHtml(cat)}</span>
+      <span class="cat-row-count">${count} site${count !== 1 ? "s" : ""}</span>
+      <div class="cat-row-actions">
+        <button class="btn btn-ghost rename-btn" title="Rename">\u270F\uFE0F</button>
+        <button class="btn btn-danger delete-btn" title="Delete">\u{1F5D1}\uFE0F</button>
       </div>
     `;
-      const filterBtn = row.querySelector(".cat-action-filter");
-      if (filterBtn) {
-        filterBtn.addEventListener("click", () => {
-          if (state.selectedFilterCategories.has(name)) {
-            state.selectedFilterCategories.delete(name);
-          } else {
-            state.selectedFilterCategories.add(name);
-          }
-          if (onUpdate) onUpdate();
-          closeCatModal();
+      const renameBtn = row.querySelector(".rename-btn");
+      if (renameBtn) {
+        renameBtn.addEventListener("click", () => {
+          const nameEl = row.querySelector(".cat-row-name");
+          const actionsEl = row.querySelector(".cat-row-actions");
+          if (!nameEl || !actionsEl) return;
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "cat-row-input";
+          input.value = cat;
+          nameEl.replaceWith(input);
+          input.focus();
+          input.select();
+          actionsEl.innerHTML = `
+          <button class="btn btn-primary btn-sm save-rename-btn">Save</button>
+          <button class="btn btn-ghost btn-sm cancel-rename-btn">Cancel</button>
+        `;
+          const doSave = () => {
+            const newVal = input.value.trim();
+            if (newVal && newVal !== cat) {
+              renameCategory(cat, newVal, effectiveCallback || void 0);
+            }
+            const q = catModalSearchInput2 ? catModalSearchInput2.value : "";
+            renderCatList(q, effectiveCallback || void 0);
+          };
+          const doCancel = () => {
+            const q = catModalSearchInput2 ? catModalSearchInput2.value : "";
+            renderCatList(q, effectiveCallback || void 0);
+          };
+          const saveBtn = actionsEl.querySelector(".save-rename-btn");
+          const cancelBtn2 = actionsEl.querySelector(".cancel-rename-btn");
+          if (saveBtn) saveBtn.addEventListener("click", doSave);
+          if (cancelBtn2) cancelBtn2.addEventListener("click", doCancel);
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              doSave();
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              doCancel();
+            }
+          });
         });
       }
-      const editBtn = row.querySelector(".cat-action-edit");
-      if (editBtn) {
-        editBtn.addEventListener("click", () => {
-          const newName = prompt(`Rename "${name}" to:`, name);
-          if (newName && newName.trim() && newName.trim() !== name) {
-            renameCategory(name, newName.trim(), onUpdate);
-            renderCatList(query, onUpdate);
-          }
-        });
-      }
-      const deleteBtn = row.querySelector(".cat-action-delete");
+      const deleteBtn = row.querySelector(".delete-btn");
       if (deleteBtn) {
         deleteBtn.addEventListener("click", () => {
-          deleteCategory(name, onUpdate);
+          deleteCategory(cat, effectiveCallback || void 0);
         });
       }
       catList.appendChild(row);
@@ -4376,10 +4407,7 @@
     addBmListContainer.innerHTML = "";
     if (candidates.length === 0) {
       addBmListContainer.innerHTML = `<div class="add-bm-empty">No available bookmarks found.</div>`;
-      if (addBmSubmitBtn) {
-        addBmSubmitBtn.disabled = true;
-        addBmSubmitBtn.textContent = "Add Selected (0)";
-      }
+      updateAddBmSubmitBtn(0);
       return;
     }
     candidates.forEach((entry) => {
@@ -4387,7 +4415,7 @@
       const item = document.createElement("div");
       item.className = `add-bm-item ${isSelected ? "selected" : ""}`;
       item.setAttribute("data-id", entry.id);
-      const iconUrl = entry.icon || getFaviconUrl(entry.url);
+      const iconUrl = entry.iconUrl || entry.icon || getFaviconUrl(entry.url);
       const existingFolder = state.folders.find((f) => f.id === entry.folderId);
       const folderBadge = existingFolder ? `<span class="add-bm-folder-badge">${existingFolder.icon || "\u{1F4C1}"} ${escapeHtml(existingFolder.name)}</span>` : `<span class="add-bm-folder-badge unorg">Unorganized</span>`;
       item.innerHTML = `
@@ -4415,12 +4443,16 @@
       });
       addBmListContainer.appendChild(item);
     });
-    updateAddBmSubmitBtn();
+    updateAddBmSubmitBtn(candidates.length);
   }
-  function updateAddBmSubmitBtn() {
+  function updateAddBmSubmitBtn(totalAvailable = -1) {
     const addBmSubmitBtn = document.getElementById("addBmSubmitBtn");
-    if (!addBmSubmitBtn) return;
+    const addBmSelectedCount = document.getElementById("addBmSelectedCount");
+    const addBmTotalCount = document.getElementById("addBmTotalCount");
     const count = selectedBookmarksToMove.size;
+    if (addBmSelectedCount) addBmSelectedCount.textContent = String(count);
+    if (addBmTotalCount && totalAvailable >= 0) addBmTotalCount.textContent = String(totalAvailable);
+    if (!addBmSubmitBtn) return;
     addBmSubmitBtn.disabled = count === 0;
     addBmSubmitBtn.textContent = `Add Selected (${count})`;
   }
@@ -4551,7 +4583,13 @@
       };
     }
   }
-  function openHealthModal(onEditRequested) {
+  var savedHealthEditCallback = null;
+  var savedHealthDeleteCallback = null;
+  var savedHealthUpdateCallback = null;
+  function openHealthModal(onEditRequested, onDeleteRequested, onUpdate) {
+    if (typeof onEditRequested === "function") savedHealthEditCallback = onEditRequested;
+    if (typeof onDeleteRequested === "function") savedHealthDeleteCallback = onDeleteRequested;
+    if (typeof onUpdate === "function") savedHealthUpdateCallback = onUpdate;
     healthSearchQuery = "";
     healthFilter = "all";
     const healthSearchInput2 = document.getElementById("healthSearchInput");
@@ -4566,7 +4604,7 @@
       });
     }
     updateHealthSummaryCards();
-    renderHealthModalList(onEditRequested);
+    renderHealthModalList(savedHealthEditCallback || void 0, savedHealthDeleteCallback || void 0, savedHealthUpdateCallback || void 0);
     if (healthModalBackdrop2) {
       healthModalBackdrop2.classList.add("active");
       document.body.style.overflow = "hidden";
@@ -4616,6 +4654,12 @@
     return res;
   }
   function renderHealthModalList(onEditRequested, onDeleteRequested, onUpdate) {
+    if (typeof onEditRequested === "function") savedHealthEditCallback = onEditRequested;
+    if (typeof onDeleteRequested === "function") savedHealthDeleteCallback = onDeleteRequested;
+    if (typeof onUpdate === "function") savedHealthUpdateCallback = onUpdate;
+    const effectiveOnEdit = onEditRequested || savedHealthEditCallback;
+    const effectiveOnDelete = onDeleteRequested || savedHealthDeleteCallback;
+    const effectiveOnUpdate = onUpdate || savedHealthUpdateCallback;
     const healthList = document.getElementById("healthList");
     const healthEmpty = document.getElementById("healthEmpty");
     if (!healthList) return;
@@ -4645,7 +4689,7 @@
         )}">\u26A0\uFE0F ${escapeHtml(entry.health?.error || "Broken")}</span>`;
       }
       const domain = getDomain(entry.url);
-      const iconSrc = entry.icon || "";
+      const iconSrc = entry.iconUrl || entry.icon || "";
       const iconHtml = iconSrc ? `<img src="${escapeHtml(
         iconSrc
       )}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">` : '<span class="icon-fallback">\u{1F310}</span>';
@@ -4673,7 +4717,7 @@
       if (retestBtn) {
         retestBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          testSingleBookmarkHealth(entry.id, onUpdate);
+          testSingleBookmarkHealth(entry.id, effectiveOnUpdate || void 0);
         });
       }
       const editBtn = row.querySelector(".health-edit-btn");
@@ -4681,7 +4725,7 @@
         editBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           closeHealthModal();
-          if (onEditRequested) onEditRequested(entry.id);
+          if (effectiveOnEdit) effectiveOnEdit(entry.id);
         });
       }
       const visitBtn = row.querySelector(".health-visit-btn");
@@ -4696,8 +4740,8 @@
         deleteBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           if (confirm(`Delete bookmark "${entry.name}"?`)) {
-            if (onDeleteRequested) onDeleteRequested(entry.id);
-            renderHealthModalList(onEditRequested, onDeleteRequested, onUpdate);
+            if (effectiveOnDelete) effectiveOnDelete(entry.id);
+            renderHealthModalList(effectiveOnEdit || void 0, effectiveOnDelete || void 0, effectiveOnUpdate || void 0);
           }
         });
       }
@@ -4715,8 +4759,9 @@
     entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
     currentlyCheckingIds.delete(entryId);
     saveEntries(diskList);
-    renderHealthModalList(void 0, void 0, onUpdate);
-    if (onUpdate) onUpdate();
+    renderHealthModalList(savedHealthEditCallback || void 0, savedHealthDeleteCallback || void 0, onUpdate || savedHealthUpdateCallback || void 0);
+    const cb = onUpdate || savedHealthUpdateCallback;
+    if (cb) cb();
     showToast(`"${entry.name}": ${result.status === "healthy" ? "\u{1F7E2} Healthy" : "\u26A0\uFE0F " + result.error}`);
   }
   async function startHealthScan(onlyBroken = false, onUpdate) {
@@ -4793,8 +4838,9 @@
     if (healthScanAllBtn2) healthScanAllBtn2.disabled = false;
     if (healthScanBrokenBtn2) healthScanBrokenBtn2.disabled = false;
     currentlyCheckingIds.clear();
-    renderHealthModalList(void 0, void 0, onUpdate);
-    if (onUpdate) onUpdate();
+    renderHealthModalList(savedHealthEditCallback || void 0, savedHealthDeleteCallback || void 0, onUpdate || savedHealthUpdateCallback || void 0);
+    const finishCb = onUpdate || savedHealthUpdateCallback;
+    if (finishCb) finishCb();
     const brokenCount = diskList.filter((e) => e.health && e.health.status === "broken").length;
     if (healthAbortRequested) {
       showToast(`Health scan cancelled. Tested ${completed}/${total} links.`);
@@ -5083,7 +5129,7 @@
       type: "bookmark",
       title: entry.name,
       subtitle: `${domain}${entry.description ? ` \u2022 ${entry.description}` : ""}`,
-      iconUrl: entry.icon || entry.iconUrl,
+      iconUrl: entry.iconUrl || entry.icon,
       badge: folder ? folder.name : badgeLabel,
       color: folder ? folder.color : null,
       run: () => callbacks.visitEntry(entry.id)
@@ -5186,6 +5232,11 @@
     const commandPaletteInput = document.getElementById("commandPaletteInput");
     const commandPaletteClearBtn = document.getElementById("commandPaletteClearBtn");
     const commandPaletteEscBadge = document.getElementById("commandPaletteEscBadge");
+    const cmdPaletteKbdLabel = document.getElementById("cmdPaletteKbdLabel");
+    if (cmdPaletteKbdLabel) {
+      const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+      cmdPaletteKbdLabel.textContent = isMac ? "\u2318K" : "Ctrl+K";
+    }
     if (cmdPaletteTrigger2) {
       cmdPaletteTrigger2.addEventListener("click", () => {
         openCommandPalette(callbacks);
@@ -5804,19 +5855,34 @@
   var healthFilterPills = document.getElementById("healthFilterPills");
   var headerLogo = document.querySelector(".logo");
   var cmdPaletteTrigger = document.getElementById("cmdPaletteTrigger");
+  function handleToggleInsights(openState) {
+    toggleInsightsDrawer(
+      openState,
+      (id) => visitEntry(id, render),
+      (id) => deleteEntry(id, render),
+      render
+    );
+  }
+  function handleOpenHealthModal() {
+    openHealthModal(
+      (id) => openModal(id),
+      (id) => deleteEntry(id, render),
+      render
+    );
+  }
   var paletteCallbacks = {
     openAddModal: () => openModal(),
     toggleTheme: () => toggleTheme(render),
     openThemeModal: () => openThemeModal(),
     refreshAllIcons: () => refreshAllIcons(render),
-    openHealthModal: () => openHealthModal(render),
+    openHealthModal: () => handleOpenHealthModal(),
     exportData: () => exportToFolderDirect(false),
     triggerImport: () => {
       if (importFile) importFile.click();
     },
-    openCatModal: () => openCatModal(),
+    openCatModal: () => openCatModal(render),
     setViewMode: (mode) => setViewMode(mode),
-    toggleInsightsDrawer: () => toggleInsightsDrawer(void 0, render),
+    toggleInsightsDrawer: () => handleToggleInsights(),
     setActiveFolder: (folderId) => setActiveFolder(folderId, render),
     visitEntry: (id) => visitEntry(id, render),
     updateCardsOnly: () => renderCardsOnly()
@@ -6046,7 +6112,7 @@
       manageCategoriesBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         catFilterDropdown.classList.remove("open");
-        openCatModal();
+        openCatModal(render);
       });
     }
   }
@@ -6142,10 +6208,10 @@
   if (viewTableBtn) viewTableBtn.addEventListener("click", () => setViewMode("table"));
   if (viewIconsBtn) viewIconsBtn.addEventListener("click", () => setViewMode("icons"));
   if (insightsToggleBtn) {
-    insightsToggleBtn.addEventListener("click", () => toggleInsightsDrawer(void 0, render));
+    insightsToggleBtn.addEventListener("click", () => handleToggleInsights());
   }
   if (insightsCloseBtn) {
-    insightsCloseBtn.addEventListener("click", () => toggleInsightsDrawer(false, render));
+    insightsCloseBtn.addEventListener("click", () => handleToggleInsights(false));
   }
   if (themeToggle) themeToggle.addEventListener("click", () => toggleTheme(render));
   if (themeCustomizerBtn) themeCustomizerBtn.addEventListener("click", openThemeModal);
@@ -6188,6 +6254,7 @@
         const hexInput = input.parentElement?.querySelector(".color-hex-input");
         if (hexInput) hexInput.value = hex;
         localStorage.setItem("appDirectory_customTheme", JSON.stringify(state.customThemeColors));
+        notifyOtherTabs("SYNC_THEME");
         renderCardsOnly();
       }
     });
@@ -6203,6 +6270,7 @@
         if (colorPicker) colorPicker.value = val;
         document.documentElement.style.setProperty(prop, val);
         localStorage.setItem("appDirectory_customTheme", JSON.stringify(state.customThemeColors));
+        notifyOtherTabs("SYNC_THEME");
         renderCardsOnly();
       }
     };
@@ -6520,7 +6588,7 @@
   if (confirmAddBmBtn) {
     confirmAddBmBtn.addEventListener("click", () => confirmMoveBookmarksToFolder(render));
   }
-  if (healthCheckBtn) healthCheckBtn.addEventListener("click", () => openHealthModal(render));
+  if (healthCheckBtn) healthCheckBtn.addEventListener("click", () => handleOpenHealthModal());
   if (healthModalClose) healthModalClose.addEventListener("click", closeHealthModal);
   if (healthModalBackdrop) {
     healthModalBackdrop.addEventListener("click", (e) => {
@@ -6535,7 +6603,7 @@
       const q = healthSearchInput.value.trim();
       setHealthSearchQuery(q);
       if (healthSearchClear) healthSearchClear.style.display = q ? "block" : "none";
-      renderHealthModalList(render);
+      renderHealthModalList();
     });
   }
   if (healthSearchClear) {
@@ -6543,7 +6611,7 @@
       if (healthSearchInput) healthSearchInput.value = "";
       setHealthSearchQuery("");
       healthSearchClear.style.display = "none";
-      renderHealthModalList(render);
+      renderHealthModalList();
       if (healthSearchInput) healthSearchInput.focus();
     });
   }
@@ -6554,7 +6622,7 @@
         btn.classList.add("active");
         const health = btn.getAttribute("data-health") || "all";
         setHealthFilter(health);
-        renderHealthModalList(render);
+        renderHealthModalList();
       });
     });
   }
@@ -6587,7 +6655,7 @@
     initSidebar();
     updateModeToggleUI();
     setViewMode(state.currentViewMode);
-    toggleInsightsDrawer(state.isInsightsOpen, render);
+    handleToggleInsights(state.isInsightsOpen);
     await initStorage();
     initTopNavReveal();
     initCommandPalette(paletteCallbacks);

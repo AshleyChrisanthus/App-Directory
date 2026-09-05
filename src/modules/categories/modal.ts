@@ -2,9 +2,15 @@ import { CAT_COLORS_KEY } from '../../core/constants';
 import { state } from '../../core/state';
 import { getLatestStoredEntries, saveEntries } from '../../core/storage';
 import { escapeHtml, showToast } from '../../utils/dom';
+import { getCategoryTagStyle } from '../theme/theme';
 import { getUsedCategories } from './manager';
 
-export function openCatModal(): void {
+let catModalUpdateCallback: (() => void) | null = null;
+
+export function openCatModal(onUpdate?: () => void): void {
+  if (typeof onUpdate === 'function') {
+    catModalUpdateCallback = onUpdate;
+  }
   const catModalBackdrop = document.getElementById('catModalBackdrop');
   const catModalSearchInput = document.getElementById('catModalSearchInput') as HTMLInputElement | null;
   const catModalSearchClearBtn = document.getElementById('catModalSearchClearBtn');
@@ -15,7 +21,7 @@ export function openCatModal(): void {
   if (catModalSearchClearBtn) {
     catModalSearchClearBtn.style.display = 'none';
   }
-  renderCatList('');
+  renderCatList('', catModalUpdateCallback || undefined);
   if (catModalBackdrop) {
     catModalBackdrop.classList.add('active');
   }
@@ -63,7 +69,8 @@ export function renameCategory(oldName: string, newName: string, onUpdate?: () =
       localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
     }
     saveEntries(diskList);
-    if (onUpdate) onUpdate();
+    const cb = onUpdate || catModalUpdateCallback;
+    if (cb) cb();
     showToast(`Renamed "${oldName}" → "${newName}" (${updated} site${updated !== 1 ? 's' : ''} updated)`);
   }
 }
@@ -85,28 +92,42 @@ export function deleteCategory(catName: string, onUpdate?: () => void): void {
 
   state.selectedFilterCategories.delete(catName);
   saveEntries(diskList);
-  if (onUpdate) onUpdate();
+  const cb = onUpdate || catModalUpdateCallback;
+  if (cb) cb();
   showToast(`Deleted category "${catName}"`);
 
   const catModalSearchInput = document.getElementById('catModalSearchInput') as HTMLInputElement | null;
   const q = catModalSearchInput ? catModalSearchInput.value : '';
-  renderCatList(q, onUpdate);
+  renderCatList(q, cb || undefined);
 }
 
 export function renderCatList(query = '', onUpdate?: () => void): void {
+  if (typeof onUpdate === 'function') {
+    catModalUpdateCallback = onUpdate;
+  }
+  const effectiveCallback = onUpdate || catModalUpdateCallback;
+
   const catList = document.getElementById('catList');
   const catEmptyMsg = document.getElementById('catEmptyMsg');
+  const catModalSearchInput = document.getElementById('catModalSearchInput') as HTMLInputElement | null;
+  const catModalSearchClearBtn = document.getElementById('catModalSearchClearBtn');
+
   if (!catList) return;
 
   const allUsed = getUsedCategories();
   const cleanQuery = (typeof query === 'string' ? query : '').toLowerCase().trim();
+
+  if (catModalSearchClearBtn) {
+    catModalSearchClearBtn.style.display = cleanQuery ? 'inline-flex' : 'none';
+  }
+
   const filtered = cleanQuery ? allUsed.filter(([name]) => name.toLowerCase().includes(cleanQuery)) : allUsed;
 
   catList.innerHTML = '';
 
   if (allUsed.length === 0) {
     if (catEmptyMsg) {
-      catEmptyMsg.textContent = 'No categories in use yet. Add categories to your bookmarks to manage them here.';
+      catEmptyMsg.textContent = 'No categories in use yet.';
       catEmptyMsg.style.display = 'block';
     }
     return;
@@ -114,7 +135,7 @@ export function renderCatList(query = '', onUpdate?: () => void): void {
 
   if (filtered.length === 0) {
     if (catEmptyMsg) {
-      catEmptyMsg.textContent = `No categories match "${cleanQuery}"`;
+      catEmptyMsg.textContent = `No categories match "${cleanQuery}".`;
       catEmptyMsg.style.display = 'block';
     }
     return;
@@ -122,61 +143,76 @@ export function renderCatList(query = '', onUpdate?: () => void): void {
 
   if (catEmptyMsg) catEmptyMsg.style.display = 'none';
 
-  filtered.forEach(([name, count]) => {
+  filtered.forEach(([cat, count]) => {
     const row = document.createElement('div');
-    row.className = 'cat-manager-row';
-    row.setAttribute('data-cat-name', name);
-    if (row.dataset) row.dataset.catName = name;
-
-    const isFiltered = state.selectedFilterCategories.has(name);
-    const filterBtnTitle = isFiltered ? 'Currently active filter' : 'Filter by this category';
-
+    row.className = 'cat-row';
     row.innerHTML = `
-      <div class="cat-manager-info">
-        <span class="cat-manager-name">${escapeHtml(name)}</span>
-        <span class="cat-manager-count">${count} site${count !== 1 ? 's' : ''}</span>
-      </div>
-      <div class="cat-manager-actions">
-        <button type="button" class="btn btn-icon btn-sm cat-action-filter ${isFiltered ? 'active' : ''}" title="${filterBtnTitle}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        </button>
-        <button type="button" class="btn btn-icon btn-sm cat-action-edit" title="Rename category">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button type="button" class="btn btn-icon btn-sm cat-action-delete" title="Delete category from all sites">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
+      <span class="cat-row-name" ${getCategoryTagStyle(cat)} style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:600;">${escapeHtml(cat)}</span>
+      <span class="cat-row-count">${count} site${count !== 1 ? 's' : ''}</span>
+      <div class="cat-row-actions">
+        <button class="btn btn-ghost rename-btn" title="Rename">✏️</button>
+        <button class="btn btn-danger delete-btn" title="Delete">🗑️</button>
       </div>
     `;
 
-    const filterBtn = row.querySelector('.cat-action-filter');
-    if (filterBtn) {
-      filterBtn.addEventListener('click', () => {
-        if (state.selectedFilterCategories.has(name)) {
-          state.selectedFilterCategories.delete(name);
-        } else {
-          state.selectedFilterCategories.add(name);
-        }
-        if (onUpdate) onUpdate();
-        closeCatModal();
+    // Inline Rename
+    const renameBtn = row.querySelector('.rename-btn');
+    if (renameBtn) {
+      renameBtn.addEventListener('click', () => {
+        const nameEl = row.querySelector('.cat-row-name');
+        const actionsEl = row.querySelector('.cat-row-actions');
+        if (!nameEl || !actionsEl) return;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'cat-row-input';
+        input.value = cat;
+        nameEl.replaceWith(input);
+        input.focus();
+        input.select();
+
+        actionsEl.innerHTML = `
+          <button class="btn btn-primary btn-sm save-rename-btn">Save</button>
+          <button class="btn btn-ghost btn-sm cancel-rename-btn">Cancel</button>
+        `;
+
+        const doSave = () => {
+          const newVal = input.value.trim();
+          if (newVal && newVal !== cat) {
+            renameCategory(cat, newVal, effectiveCallback || undefined);
+          }
+          const q = catModalSearchInput ? catModalSearchInput.value : '';
+          renderCatList(q, effectiveCallback || undefined);
+        };
+
+        const doCancel = () => {
+          const q = catModalSearchInput ? catModalSearchInput.value : '';
+          renderCatList(q, effectiveCallback || undefined);
+        };
+
+        const saveBtn = actionsEl.querySelector('.save-rename-btn');
+        const cancelBtn = actionsEl.querySelector('.cancel-rename-btn');
+        if (saveBtn) saveBtn.addEventListener('click', doSave);
+        if (cancelBtn) cancelBtn.addEventListener('click', doCancel);
+
+        input.addEventListener('keydown', (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            doSave();
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            doCancel();
+          }
+        });
       });
     }
 
-    const editBtn = row.querySelector('.cat-action-edit');
-    if (editBtn) {
-      editBtn.addEventListener('click', () => {
-        const newName = prompt(`Rename "${name}" to:`, name);
-        if (newName && newName.trim() && newName.trim() !== name) {
-          renameCategory(name, newName.trim(), onUpdate);
-          renderCatList(query, onUpdate);
-        }
-      });
-    }
-
-    const deleteBtn = row.querySelector('.cat-action-delete');
+    // Delete
+    const deleteBtn = row.querySelector('.delete-btn');
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
-        deleteCategory(name, onUpdate);
+        deleteCategory(cat, effectiveCallback || undefined);
       });
     }
 

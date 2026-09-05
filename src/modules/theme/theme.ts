@@ -202,7 +202,8 @@ export function syncColorPickersFromDOM(): void {
     { id: 'colorTextPrimary', hexId: 'hexTextPrimary', prop: '--text-primary' },
     { id: 'colorTextSecondary', hexId: 'hexTextSecondary', prop: '--text-secondary' },
     { id: 'colorBorder', hexId: 'hexBorder', prop: '--border-light' },
-    { id: 'colorTagText', hexId: 'hexTagText', prop: '--tag-text' }
+    { id: 'colorTagText', hexId: 'hexTagText', prop: '--tag-text' },
+    { id: 'colorTagBg', hexId: 'hexTagBg', prop: '--tag-bg' }
   ];
 
   pickers.forEach(({ id, hexId, prop }) => {
@@ -227,7 +228,7 @@ export function syncColorPickersFromDOM(): void {
 }
 
 export function renderCategoryColorsList(onUpdate?: () => void): void {
-  const list = document.getElementById('categoryColorList');
+  const list = document.getElementById('categoryColorsList');
   if (!list) return;
 
   const allCats = new Set<string>();
@@ -238,61 +239,51 @@ export function renderCategoryColorsList(onUpdate?: () => void): void {
   list.innerHTML = '';
 
   if (sorted.length === 0) {
-    list.innerHTML = '<div class="empty-state-text">No categories created yet.</div>';
+    list.innerHTML = '<p class="cat-modal-empty" style="grid-column: 1/-1;">No categories in use yet.</p>';
     return;
   }
 
   sorted.forEach(cat => {
     const key = cat.toLowerCase();
     const currentColor = state.categoryColors[key] || '#0a84ff';
+    const hasCustom = !!state.categoryColors[key];
+
     const row = document.createElement('div');
     row.className = 'cat-color-row';
     row.innerHTML = `
-      <span class="cat-color-name">${escapeHtml(cat)}</span>
-      <div class="color-picker-wrapper">
-        <input type="color" class="cat-color-input" data-cat="${escapeHtml(key)}" value="${currentColor}">
-        <input type="text" class="color-hex-input cat-hex-input" data-cat="${escapeHtml(key)}" value="${currentColor}" maxlength="7">
-        <button type="button" class="btn btn-icon btn-sm reset-cat-color-btn" data-cat="${escapeHtml(key)}" title="Reset category color">✕</button>
+      <div class="cat-color-name-wrap">
+        <span class="cat-color-name">${escapeHtml(cat)}</span>
+        <span class="cat-color-preview-pill" ${getCategoryTagStyle(cat)}>Preview</span>
+      </div>
+      <div class="cat-color-picker-wrap">
+        <input type="color" value="${currentColor}" title="Choose color for ${escapeHtml(cat)}">
+        ${hasCustom ? `<button type="button" class="cat-color-clear-btn" title="Reset to default">✕</button>` : ''}
       </div>
     `;
 
-    const colorInput = row.querySelector('.cat-color-input') as HTMLInputElement | null;
-    const hexInput = row.querySelector('.cat-hex-input') as HTMLInputElement | null;
-    const resetBtn = row.querySelector('.reset-cat-color-btn') as HTMLButtonElement | null;
-
-    if (colorInput && hexInput) {
-      colorInput.addEventListener('input', (e: Event) => {
-        const hex = (e.target as HTMLInputElement).value;
-        state.categoryColors[key] = hex;
-        hexInput.value = hex;
+    const picker = row.querySelector('input[type="color"]') as HTMLInputElement | null;
+    if (picker) {
+      picker.addEventListener('input', (e: Event) => {
+        const val = (e.target as HTMLInputElement).value;
+        state.categoryColors[key] = val;
         localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
+        const pill = row.querySelector('.cat-color-preview-pill');
+        if (pill) {
+          pill.outerHTML = `<span class="cat-color-preview-pill" ${getCategoryTagStyle(cat)}>Preview</span>`;
+        }
         notifyOtherTabs('SYNC_THEME');
         if (onUpdate) onUpdate();
       });
-
-      const hexHandler = (e: Event) => {
-        let val = (e.target as HTMLInputElement).value.trim();
-        if (!val.startsWith('#') && (val.length === 3 || val.length === 6)) val = '#' + val;
-        if (val.length === 4 || val.length === 7) {
-          state.categoryColors[key] = val;
-          colorInput.value = val;
-          localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
-          notifyOtherTabs('SYNC_THEME');
-          if (onUpdate) onUpdate();
-        }
-      };
-      hexInput.addEventListener('input', hexHandler);
-      hexInput.addEventListener('change', hexHandler);
     }
 
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
+    const clearBtn = row.querySelector('.cat-color-clear-btn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
         delete state.categoryColors[key];
         localStorage.setItem(CAT_COLORS_KEY, JSON.stringify(state.categoryColors));
         notifyOtherTabs('SYNC_THEME');
         renderCategoryColorsList(onUpdate);
         if (onUpdate) onUpdate();
-        showToast(`Reset color for "${cat}".`);
       });
     }
 

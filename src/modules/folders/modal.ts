@@ -203,10 +203,7 @@ export function renderAddBookmarksList(): void {
 
   if (candidates.length === 0) {
     addBmListContainer.innerHTML = `<div class="add-bm-empty">No available bookmarks found.</div>`;
-    if (addBmSubmitBtn) {
-      addBmSubmitBtn.disabled = true;
-      addBmSubmitBtn.textContent = 'Add Selected (0)';
-    }
+    updateAddBmSubmitBtn(0);
     return;
   }
 
@@ -216,7 +213,7 @@ export function renderAddBookmarksList(): void {
     item.className = `add-bm-item ${isSelected ? 'selected' : ''}`;
     item.setAttribute('data-id', entry.id);
 
-    const iconUrl = entry.icon || getFaviconUrl(entry.url);
+    const iconUrl = entry.iconUrl || entry.icon || getFaviconUrl(entry.url);
     const existingFolder = state.folders.find(f => f.id === entry.folderId);
     const folderBadge = existingFolder
       ? `<span class="add-bm-folder-badge">${existingFolder.icon || '📁'} ${escapeHtml(existingFolder.name)}</span>`
@@ -250,13 +247,19 @@ export function renderAddBookmarksList(): void {
     addBmListContainer.appendChild(item);
   });
 
-  updateAddBmSubmitBtn();
+  updateAddBmSubmitBtn(candidates.length);
 }
 
-function updateAddBmSubmitBtn(): void {
+function updateAddBmSubmitBtn(totalAvailable = -1): void {
   const addBmSubmitBtn = document.getElementById('addBmSubmitBtn') as HTMLButtonElement | null;
-  if (!addBmSubmitBtn) return;
+  const addBmSelectedCount = document.getElementById('addBmSelectedCount');
+  const addBmTotalCount = document.getElementById('addBmTotalCount');
   const count = selectedBookmarksToMove.size;
+
+  if (addBmSelectedCount) addBmSelectedCount.textContent = String(count);
+  if (addBmTotalCount && totalAvailable >= 0) addBmTotalCount.textContent = String(totalAvailable);
+
+  if (!addBmSubmitBtn) return;
   addBmSubmitBtn.disabled = count === 0;
   addBmSubmitBtn.textContent = `Add Selected (${count})`;
 }

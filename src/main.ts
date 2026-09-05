@@ -1,5 +1,5 @@
 import { state } from './core/state';
-import { initStorage, reloadFromStorage, onBroadcastMessage } from './core/storage';
+import { initStorage, reloadFromStorage, onBroadcastMessage, notifyOtherTabs } from './core/storage';
 import { PIN_FAVORITES_KEY, FILTER_MODE_KEY } from './core/constants';
 import { showToast } from './utils/dom';
 
@@ -232,20 +232,37 @@ const healthFilterPills = document.getElementById('healthFilterPills');
 const headerLogo = document.querySelector('.logo');
 const cmdPaletteTrigger = document.getElementById('cmdPaletteTrigger');
 
+function handleToggleInsights(openState?: boolean): void {
+  toggleInsightsDrawer(
+    openState,
+    (id: string) => visitEntry(id, render),
+    (id: string) => deleteEntry(id, render),
+    render
+  );
+}
+
+function handleOpenHealthModal(): void {
+  openHealthModal(
+    (id: string) => openModal(id),
+    (id: string) => deleteEntry(id, render),
+    render
+  );
+}
+
 // Command Palette Callbacks
 const paletteCallbacks: CommandPaletteCallbacks = {
   openAddModal: () => openModal(),
   toggleTheme: () => toggleTheme(render),
   openThemeModal: () => openThemeModal(),
   refreshAllIcons: () => refreshAllIcons(render),
-  openHealthModal: () => openHealthModal(render),
+  openHealthModal: () => handleOpenHealthModal(),
   exportData: () => exportToFolderDirect(false),
   triggerImport: () => {
     if (importFile) importFile.click();
   },
-  openCatModal: () => openCatModal(),
+  openCatModal: () => openCatModal(render),
   setViewMode: (mode: 'cards' | 'table' | 'icons') => setViewMode(mode),
-  toggleInsightsDrawer: () => toggleInsightsDrawer(undefined, render),
+  toggleInsightsDrawer: () => handleToggleInsights(),
   setActiveFolder: (folderId: string) => setActiveFolder(folderId as any, render),
   visitEntry: (id: string) => visitEntry(id, render),
   updateCardsOnly: () => renderCardsOnly()
@@ -511,7 +528,7 @@ if (catFilterBtn && catFilterDropdown) {
     manageCategoriesBtn.addEventListener('click', (e: MouseEvent) => {
       e.stopPropagation();
       catFilterDropdown.classList.remove('open');
-      openCatModal();
+      openCatModal(render);
     });
   }
 }
@@ -624,10 +641,10 @@ if (viewIconsBtn) viewIconsBtn.addEventListener('click', () => setViewMode('icon
 
 // Insights Drawer
 if (insightsToggleBtn) {
-  insightsToggleBtn.addEventListener('click', () => toggleInsightsDrawer(undefined, render));
+  insightsToggleBtn.addEventListener('click', () => handleToggleInsights());
 }
 if (insightsCloseBtn) {
-  insightsCloseBtn.addEventListener('click', () => toggleInsightsDrawer(false, render));
+  insightsCloseBtn.addEventListener('click', () => handleToggleInsights(false));
 }
 
 // Theme
@@ -683,6 +700,7 @@ document.querySelectorAll('.color-picker-item input[type="color"]').forEach(inpu
       const hexInput = input.parentElement?.querySelector('.color-hex-input') as HTMLInputElement | null;
       if (hexInput) hexInput.value = hex;
       localStorage.setItem('appDirectory_customTheme', JSON.stringify(state.customThemeColors));
+      notifyOtherTabs('SYNC_THEME');
       renderCardsOnly();
     }
   });
@@ -699,6 +717,7 @@ document.querySelectorAll('.color-hex-input').forEach(input => {
       if (colorPicker) colorPicker.value = val;
       document.documentElement.style.setProperty(prop, val);
       localStorage.setItem('appDirectory_customTheme', JSON.stringify(state.customThemeColors));
+      notifyOtherTabs('SYNC_THEME');
       renderCardsOnly();
     }
   };
@@ -1064,7 +1083,7 @@ if (confirmAddBmBtn) {
 }
 
 // Health Checker
-if (healthCheckBtn) healthCheckBtn.addEventListener('click', () => openHealthModal(render));
+if (healthCheckBtn) healthCheckBtn.addEventListener('click', () => handleOpenHealthModal());
 if (healthModalClose) healthModalClose.addEventListener('click', closeHealthModal);
 if (healthModalBackdrop) {
   healthModalBackdrop.addEventListener('click', (e: MouseEvent) => {
@@ -1080,7 +1099,7 @@ if (healthSearchInput) {
     const q = healthSearchInput.value.trim();
     setHealthSearchQuery(q);
     if (healthSearchClear) healthSearchClear.style.display = q ? 'block' : 'none';
-    renderHealthModalList(render);
+    renderHealthModalList();
   });
 }
 
@@ -1089,7 +1108,7 @@ if (healthSearchClear) {
     if (healthSearchInput) healthSearchInput.value = '';
     setHealthSearchQuery('');
     healthSearchClear.style.display = 'none';
-    renderHealthModalList(render);
+    renderHealthModalList();
     if (healthSearchInput) healthSearchInput.focus();
   });
 }
@@ -1101,7 +1120,7 @@ if (healthFilterPills) {
       btn.classList.add('active');
       const health = btn.getAttribute('data-health') || 'all';
       setHealthFilter(health);
-      renderHealthModalList(render);
+      renderHealthModalList();
     });
   });
 }
@@ -1139,7 +1158,7 @@ async function init(): Promise<void> {
   initSidebar();
   updateModeToggleUI();
   setViewMode(state.currentViewMode);
-  toggleInsightsDrawer(state.isInsightsOpen, render);
+  handleToggleInsights(state.isInsightsOpen);
   await initStorage();
   initTopNavReveal();
   initCommandPalette(paletteCallbacks);

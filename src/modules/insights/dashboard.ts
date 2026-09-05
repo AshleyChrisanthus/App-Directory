@@ -1,7 +1,11 @@
-﻿import { INSIGHTS_STATE_KEY } from '../../core/constants';
+import { INSIGHTS_STATE_KEY } from '../../core/constants';
 import { state } from '../../core/state';
 import { escapeHtml, timeAgo, getDomain, showToast } from '../../utils/dom';
 import { getAllCategories, updateCatFilterLabel } from '../categories/manager';
+
+let savedOnVisit: ((id: string) => void) | null = null;
+let savedOnDelete: ((id: string) => void) | null = null;
+let savedOnFilterChanged: (() => void) | null = null;
 
 export function toggleInsightsDrawer(
   openState?: boolean,
@@ -9,6 +13,10 @@ export function toggleInsightsDrawer(
   onDelete?: (id: string) => void,
   onFilterChanged?: () => void
 ): void {
+  if (typeof onVisit === 'function') savedOnVisit = onVisit;
+  if (typeof onDelete === 'function') savedOnDelete = onDelete;
+  if (typeof onFilterChanged === 'function') savedOnFilterChanged = onFilterChanged;
+
   const insightsToggleBtn = document.getElementById('insightsToggleBtn');
   const insightsDrawer = document.getElementById('insightsDrawer');
 
@@ -30,7 +38,7 @@ export function toggleInsightsDrawer(
   }
 
   if (state.isInsightsOpen) {
-    renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+    renderInsightsDashboard(savedOnVisit || undefined, savedOnDelete || undefined, savedOnFilterChanged || undefined);
   }
 }
 
@@ -39,6 +47,14 @@ export function renderInsightsDashboard(
   onDelete?: (id: string) => void,
   onFilterChanged?: () => void
 ): void {
+  if (typeof onVisit === 'function') savedOnVisit = onVisit;
+  if (typeof onDelete === 'function') savedOnDelete = onDelete;
+  if (typeof onFilterChanged === 'function') savedOnFilterChanged = onFilterChanged;
+
+  const effectiveOnVisit = onVisit || savedOnVisit;
+  const effectiveOnDelete = onDelete || savedOnDelete;
+  const effectiveOnFilterChanged = onFilterChanged || savedOnFilterChanged;
+
   const insightsDrawer = document.getElementById('insightsDrawer');
   const insightsHeaderStats = document.getElementById('insightsHeaderStats');
   const insightsBody = document.getElementById('insightsBody');
@@ -137,14 +153,15 @@ export function renderInsightsDashboard(
     `;
   } else {
     visitedSites.forEach(site => {
+      const siteIcon = site.iconUrl || site.icon;
       html += `
         <div class="speed-dial-card" data-id="${escapeHtml(site.id)}" title="Launch ${escapeHtml(
         site.name
       )} (${site.visitCount} visits)">
           <div class="speed-dial-icon">
             ${
-              site.icon
-                ? `<img src="${escapeHtml(site.icon)}" alt="" onerror="this.parentElement.innerHTML='🌐'">`
+              siteIcon
+                ? `<img src="${escapeHtml(siteIcon)}" alt="" onerror="this.parentElement.innerHTML='🌐'">`
                 : '🌐'
             }
           </div>
@@ -184,13 +201,14 @@ export function renderInsightsDashboard(
   } else {
     recentlyAdded.forEach(site => {
       const domain = getDomain(site.url);
+      const siteIcon = site.iconUrl || site.icon;
       html += `
         <div class="recent-item" data-id="${escapeHtml(site.id)}" title="Open ${escapeHtml(site.name)}">
           <div class="recent-left">
             <div class="recent-icon">
               ${
-                site.icon
-                  ? `<img src="${escapeHtml(site.icon)}" alt="" onerror="this.parentElement.innerHTML='🌐'">`
+                siteIcon
+                  ? `<img src="${escapeHtml(siteIcon)}" alt="" onerror="this.parentElement.innerHTML='🌐'">`
                   : '🌐'
               }
             </div>
@@ -352,14 +370,14 @@ export function renderInsightsDashboard(
   insightsBody.querySelectorAll('.speed-dial-card').forEach(card => {
     card.addEventListener('click', () => {
       const id = card.getAttribute('data-id');
-      if (id && onVisit) onVisit(id);
+      if (id && effectiveOnVisit) effectiveOnVisit(id);
     });
   });
 
   insightsBody.querySelectorAll('.recent-item').forEach(item => {
     item.addEventListener('click', () => {
       const id = item.getAttribute('data-id');
-      if (id && onVisit) onVisit(id);
+      if (id && effectiveOnVisit) effectiveOnVisit(id);
     });
   });
 
@@ -371,8 +389,8 @@ export function renderInsightsDashboard(
         catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => ((cb as HTMLInputElement).checked = false));
       }
       updateCatFilterLabel();
-      if (onFilterChanged) onFilterChanged();
-      renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+      if (effectiveOnFilterChanged) effectiveOnFilterChanged();
+      renderInsightsDashboard(effectiveOnVisit || undefined, effectiveOnDelete || undefined, effectiveOnFilterChanged || undefined);
       showToast('Cleared category filter');
       return;
     }
@@ -386,8 +404,8 @@ export function renderInsightsDashboard(
       });
     }
     updateCatFilterLabel();
-    if (onFilterChanged) onFilterChanged();
-    renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+    if (effectiveOnFilterChanged) effectiveOnFilterChanged();
+    renderInsightsDashboard(effectiveOnVisit || undefined, effectiveOnDelete || undefined, effectiveOnFilterChanged || undefined);
     showToast(`Filtered by category: ${cat}`);
 
     setTimeout(() => {
@@ -423,8 +441,8 @@ export function renderInsightsDashboard(
         catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => ((cb as HTMLInputElement).checked = false));
       }
       updateCatFilterLabel();
-      if (onFilterChanged) onFilterChanged();
-      renderInsightsDashboard(onVisit, onDelete, onFilterChanged);
+      if (effectiveOnFilterChanged) effectiveOnFilterChanged();
+      renderInsightsDashboard(effectiveOnVisit || undefined, effectiveOnDelete || undefined, effectiveOnFilterChanged || undefined);
       showToast('Cleared category filter');
     });
   }
@@ -433,7 +451,7 @@ export function renderInsightsDashboard(
     btn.addEventListener('click', e => {
       e.stopPropagation();
       const id = btn.getAttribute('data-id');
-      if (id && onVisit) onVisit(id);
+      if (id && effectiveOnVisit) effectiveOnVisit(id);
     });
   });
 
@@ -441,7 +459,7 @@ export function renderInsightsDashboard(
     btn.addEventListener('click', e => {
       e.stopPropagation();
       const id = btn.getAttribute('data-id');
-      if (id && onDelete) onDelete(id);
+      if (id && effectiveOnDelete) effectiveOnDelete(id);
     });
   });
 }

@@ -322,7 +322,7 @@ function createBookmarkPaletteItem(entry: BookmarkEntry, badgeLabel: string, cal
     type: 'bookmark',
     title: entry.name,
     subtitle: `${domain}${entry.description ? ` • ${entry.description}` : ''}`,
-    iconUrl: entry.icon || (entry as any).iconUrl,
+    iconUrl: entry.iconUrl || entry.icon,
     badge: folder ? folder.name : badgeLabel,
     color: folder ? folder.color : null,
     run: () => callbacks.visitEntry(entry.id)
@@ -457,6 +457,12 @@ export function initCommandPalette(callbacks: CommandPaletteCallbacks): void {
   const commandPaletteInput = document.getElementById('commandPaletteInput') as HTMLInputElement | null;
   const commandPaletteClearBtn = document.getElementById('commandPaletteClearBtn');
   const commandPaletteEscBadge = document.getElementById('commandPaletteEscBadge');
+  const cmdPaletteKbdLabel = document.getElementById('cmdPaletteKbdLabel');
+
+  if (cmdPaletteKbdLabel) {
+    const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    cmdPaletteKbdLabel.textContent = isMac ? '⌘K' : 'Ctrl+K';
+  }
 
   if (cmdPaletteTrigger) {
     cmdPaletteTrigger.addEventListener('click', () => {
