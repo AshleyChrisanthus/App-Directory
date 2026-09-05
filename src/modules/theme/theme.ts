@@ -104,8 +104,20 @@ export function applyPresetPaletteForMode(mode: 'dark' | 'light'): void {
   const colors = preset[mode] || preset.dark;
   clearCustomThemeProperties();
   applyCustomThemeProperties(colors);
-  state.customThemeColors = { ...state.customThemeColors, [mode]: colors };
-  localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(state.customThemeColors));
+
+  // Apply custom user overrides if present
+  try {
+    const raw = localStorage.getItem(CUSTOM_THEME_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const overrides = parsed[mode] || parsed;
+        if (overrides && typeof overrides === 'object') {
+          applyCustomThemeProperties(overrides);
+        }
+      }
+    }
+  } catch (_) {}
 }
 
 export function initTheme(onThemeChanged?: () => void): void {

@@ -859,8 +859,19 @@
     const colors = preset[mode] || preset.dark;
     clearCustomThemeProperties();
     applyCustomThemeProperties(colors);
-    state.customThemeColors = { ...state.customThemeColors, [mode]: colors };
-    localStorage.setItem(CUSTOM_THEME_KEY, JSON.stringify(state.customThemeColors));
+    try {
+      const raw = localStorage.getItem(CUSTOM_THEME_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          const overrides = parsed[mode] || parsed;
+          if (overrides && typeof overrides === "object") {
+            applyCustomThemeProperties(overrides);
+          }
+        }
+      }
+    } catch (_) {
+    }
   }
   function initTheme(onThemeChanged) {
     const saved = localStorage.getItem(THEME_KEY);
@@ -6582,25 +6593,33 @@
     initCommandPalette(paletteCallbacks);
     render();
     cacheExistingIconsOffline(render);
+    let isSyncingTheme = false;
+    const syncThemeFromExternal = () => {
+      if (isSyncingTheme) return;
+      isSyncingTheme = true;
+      try {
+        initTheme();
+        updateModeToggleUI();
+        syncColorPickersFromDOM();
+        renderPresetPalettes();
+        renderCardsOnly();
+      } finally {
+        setTimeout(() => {
+          isSyncingTheme = false;
+        }, 100);
+      }
+    };
     onBroadcastMessage(async (data) => {
       if (data.type === "SYNC_DATA") {
         await reloadFromStorage();
         render();
       } else if (data.type === "SYNC_THEME") {
-        initTheme();
-        updateModeToggleUI();
-        syncColorPickersFromDOM();
-        renderPresetPalettes();
-        renderCardsOnly();
+        syncThemeFromExternal();
       }
     });
     window.addEventListener("storage", (e) => {
-      if (e.key === "appDirectory_theme" || e.key === "appDirectory_activePreset" || e.key === "appDirectory_customTheme" || e.key === "appDirectory_catColors") {
-        initTheme();
-        updateModeToggleUI();
-        syncColorPickersFromDOM();
-        renderPresetPalettes();
-        renderCardsOnly();
+      if (e.key === "appDirectory_theme" || e.key === "appDirectory_activePreset" || e.key === "appDirectory_customTheme" || e.key === "appDirectory_categoryColors") {
+        syncThemeFromExternal();
       }
     });
   }

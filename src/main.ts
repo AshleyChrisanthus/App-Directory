@@ -1146,16 +1146,29 @@ async function init(): Promise<void> {
   render();
   cacheExistingIconsOffline(render);
 
-  onBroadcastMessage(async (data) => {
-    if (data.type === 'SYNC_DATA') {
-      await reloadFromStorage();
-      render();
-    } else if (data.type === 'SYNC_THEME') {
+  let isSyncingTheme = false;
+  const syncThemeFromExternal = () => {
+    if (isSyncingTheme) return;
+    isSyncingTheme = true;
+    try {
       initTheme();
       updateModeToggleUI();
       syncColorPickersFromDOM();
       renderPresetPalettes();
       renderCardsOnly();
+    } finally {
+      setTimeout(() => {
+        isSyncingTheme = false;
+      }, 100);
+    }
+  };
+
+  onBroadcastMessage(async (data) => {
+    if (data.type === 'SYNC_DATA') {
+      await reloadFromStorage();
+      render();
+    } else if (data.type === 'SYNC_THEME') {
+      syncThemeFromExternal();
     }
   });
 
@@ -1164,13 +1177,9 @@ async function init(): Promise<void> {
       e.key === 'appDirectory_theme' ||
       e.key === 'appDirectory_activePreset' ||
       e.key === 'appDirectory_customTheme' ||
-      e.key === 'appDirectory_catColors'
+      e.key === 'appDirectory_categoryColors'
     ) {
-      initTheme();
-      updateModeToggleUI();
-      syncColorPickersFromDOM();
-      renderPresetPalettes();
-      renderCardsOnly();
+      syncThemeFromExternal();
     }
   });
 }
