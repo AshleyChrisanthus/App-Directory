@@ -1684,9 +1684,18 @@ select:focus {
 
 .table-cell-main {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.table-main-content {
+  display: flex;
   flex-direction: column;
   min-width: 0;
   gap: 2px;
+  flex: 1 1 auto;
 }
 
 .table-title-row {
@@ -2353,6 +2362,108 @@ select:focus {
   padding: 4px 6px;
   font-size: 0.75rem;
   border-radius: var(--radius-sm);
+}
+
+.table-row.has-pending-icon {
+  border-color: var(--warning);
+  background: rgba(255, 159, 10, 0.05);
+  box-shadow: 0 0 0 1px var(--warning), var(--shadow-sm);
+}
+
+[data-theme="dark"] .table-row.has-pending-icon {
+  border-color: #ffd60a;
+  background: rgba(255, 214, 10, 0.07);
+  box-shadow: 0 0 0 1px #ffd60a, var(--shadow-sm);
+}
+
+.table-row.has-pending-icon:hover {
+  background: rgba(255, 159, 10, 0.09);
+  box-shadow: 0 0 0 1.5px var(--warning), var(--shadow-md);
+}
+
+[data-theme="dark"] .table-row.has-pending-icon:hover {
+  background: rgba(255, 214, 10, 0.11);
+}
+
+.table-pending-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 159, 10, 0.12);
+  border: 1px dashed var(--warning);
+  flex-shrink: 0;
+  margin-left: 8px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+[data-theme="dark"] .table-pending-pill {
+  background: rgba(255, 214, 10, 0.14);
+  border-color: #ffd60a;
+}
+
+.table-pending-pill .pending-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--warning);
+  background: rgba(255, 159, 10, 0.2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .table-pending-pill .pending-badge {
+  color: #ffd60a;
+  background: rgba(255, 214, 10, 0.25);
+}
+
+.table-new-icon-preview {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.table-new-icon-preview img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.table-accept-btn {
+  padding: 2px 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.table-dismiss-btn {
+  padding: 2px 5px;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+}
+
+.table-dismiss-btn:hover {
+  color: var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+@media (max-width: 992px) {
+  .table-pending-pill .pending-badge {
+    display: none;
+  }
 }
 
 .card-description {

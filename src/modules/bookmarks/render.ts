@@ -206,6 +206,10 @@ export function renderTableRow(entry: BookmarkEntry): HTMLElement {
   const domain = getDomain(entry.url);
   const folder = entry.folderId ? state.folders.find(f => f.id === entry.folderId) : null;
   const iconSrc = entry.icon || (entry as any).iconUrl || '';
+  const pendingIcon = state.pendingIcons.get(entry.id);
+  if (pendingIcon) {
+    row.classList.add('has-pending-icon');
+  }
 
   row.innerHTML = `
     <div class="table-cell-fav">
@@ -222,14 +226,26 @@ export function renderTableRow(entry: BookmarkEntry): HTMLElement {
       </div>
     </div>
     <div class="table-cell-main">
-      <div class="table-title-row">
-        <span class="table-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</span>
-        ${entry.health && entry.health.status === 'broken' ? '<span class="table-broken-badge">⚠️ Offline</span>' : ''}
+      <div class="table-main-content">
+        <div class="table-title-row">
+          <span class="table-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</span>
+          ${entry.health && entry.health.status === 'broken' ? '<span class="table-broken-badge">⚠️ Offline</span>' : ''}
+        </div>
+        <span class="table-domain" title="${escapeHtml(entry.url)}">
+          ${escapeHtml(domain)}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+        </span>
       </div>
-      <span class="table-domain" title="${escapeHtml(entry.url)}">
-        ${escapeHtml(domain)}
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-      </span>
+      ${pendingIcon ? `
+        <div class="table-pending-pill" title="New icon proposed">
+          <span class="pending-badge">New Icon</span>
+          <div class="table-new-icon-preview" title="New icon preview">
+            <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
+          </div>
+          <button type="button" class="btn-accept accept-icon-btn table-accept-btn" title="Accept new icon">✓ Accept</button>
+          <button type="button" class="btn btn-ghost dismiss-icon-btn table-dismiss-btn" title="Dismiss new icon">✕</button>
+        </div>
+      ` : ''}
     </div>
     <div class="table-cell-tags">
       ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
@@ -259,7 +275,8 @@ export function renderTableRow(entry: BookmarkEntry): HTMLElement {
     if (target?.closest('.table-fav-btn') ||
         target?.closest('.refresh-btn') ||
         target?.closest('.edit-btn') ||
-        target?.closest('.delete-btn')) return;
+        target?.closest('.delete-btn') ||
+        target?.closest('.table-pending-pill')) return;
     visitEntry(entry.id, render);
   });
 
@@ -279,6 +296,24 @@ export function renderTableRow(entry: BookmarkEntry): HTMLElement {
       e.stopPropagation();
       refreshEntryIcon(entry.id, refreshBtn, render);
     });
+  }
+
+  // Accept / Dismiss pending icon
+  if (pendingIcon) {
+    const acceptBtn = row.querySelector('.accept-icon-btn');
+    if (acceptBtn) {
+      acceptBtn.addEventListener('click', (e: Event) => {
+        e.stopPropagation();
+        acceptPendingIcon(entry.id, render);
+      });
+    }
+    const dismissBtn = row.querySelector('.dismiss-icon-btn');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', (e: Event) => {
+        e.stopPropagation();
+        dismissPendingIcon(entry.id, render);
+      });
+    }
   }
 
   // Edit

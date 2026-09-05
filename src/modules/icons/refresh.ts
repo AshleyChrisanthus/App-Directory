@@ -34,58 +34,115 @@ export function updatePendingIconsUI(): void {
 export function updateCardPendingState(id: string, onUpdate?: () => void): void {
   const grid = document.getElementById('grid');
   if (!grid) return;
-  const card = grid.querySelector(`.card[data-id="${id}"]`);
-  if (!card) return;
 
   const pendingIcon = state.pendingIcons.get(id);
-  const cardTop = card.querySelector('.card-top');
-  let pendingBox = card.querySelector('.card-pending-icon-box') as HTMLElement | null;
 
-  if (pendingIcon) {
-    card.classList.add('has-pending-icon');
-    if (!pendingBox && cardTop) {
-      pendingBox = document.createElement('div');
-      pendingBox.className = 'card-pending-icon-box';
-      pendingBox.title = 'New icon proposed';
-      pendingBox.innerHTML = `
-        <span class="pending-badge">New Icon</span>
-        <div class="pending-preview-row">
-          <div class="card-icon new-icon-preview" title="New icon preview">
+  // 1. Update Card view if present
+  const card = grid.querySelector(`.card[data-id="${id}"]`);
+  if (card) {
+    const cardTop = card.querySelector('.card-top');
+    let pendingBox = card.querySelector('.card-pending-icon-box') as HTMLElement | null;
+
+    if (pendingIcon) {
+      card.classList.add('has-pending-icon');
+      if (!pendingBox && cardTop) {
+        pendingBox = document.createElement('div');
+        pendingBox.className = 'card-pending-icon-box';
+        pendingBox.title = 'New icon proposed';
+        pendingBox.innerHTML = `
+          <span class="pending-badge">New Icon</span>
+          <div class="pending-preview-row">
+            <div class="card-icon new-icon-preview" title="New icon preview">
+              <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
+            </div>
+            <button type="button" class="btn-accept accept-icon-btn" title="Accept new icon">✓ Accept</button>
+            <button type="button" class="btn btn-ghost dismiss-icon-btn" title="Dismiss new icon">✕</button>
+          </div>
+        `;
+        const acceptBtn = pendingBox.querySelector('.accept-icon-btn');
+        if (acceptBtn) {
+          acceptBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            acceptPendingIcon(id, onUpdate);
+          });
+        }
+        const dismissBtn = pendingBox.querySelector('.dismiss-icon-btn');
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            dismissPendingIcon(id, onUpdate);
+          });
+        }
+        cardTop.appendChild(pendingBox);
+      }
+    } else {
+      card.classList.remove('has-pending-icon');
+      if (pendingBox) {
+        pendingBox.remove();
+      }
+      const entry = state.entries.find(e => e.id === id);
+      if (entry) {
+        const iconDiv = card.querySelector('.card-icon:not(.new-icon-preview)');
+        if (iconDiv) {
+          const iconSrc = entry.icon || (entry as any).iconUrl;
+          iconDiv.innerHTML = iconSrc
+            ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
+            : '<span class="icon-fallback">🌐</span>';
+        }
+      }
+    }
+  }
+
+  // 2. Update Table row view if present
+  const tableRow = grid.querySelector(`.table-row[data-id="${id}"]`);
+  if (tableRow) {
+    const tableMain = tableRow.querySelector('.table-cell-main');
+    let tablePill = tableRow.querySelector('.table-pending-pill') as HTMLElement | null;
+
+    if (pendingIcon) {
+      tableRow.classList.add('has-pending-icon');
+      if (!tablePill && tableMain) {
+        tablePill = document.createElement('div');
+        tablePill.className = 'table-pending-pill';
+        tablePill.title = 'New icon proposed';
+        tablePill.innerHTML = `
+          <span class="pending-badge">New Icon</span>
+          <div class="table-new-icon-preview" title="New icon preview">
             <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
           </div>
-          <button type="button" class="btn-accept accept-icon-btn" title="Accept new icon">✓ Accept</button>
-          <button type="button" class="btn btn-ghost dismiss-icon-btn" title="Dismiss new icon">✕</button>
-        </div>
-      `;
-      const acceptBtn = pendingBox.querySelector('.accept-icon-btn');
-      if (acceptBtn) {
-        acceptBtn.addEventListener('click', e => {
-          e.stopPropagation();
-          acceptPendingIcon(id, onUpdate);
-        });
+          <button type="button" class="btn-accept accept-icon-btn table-accept-btn" title="Accept new icon">✓ Accept</button>
+          <button type="button" class="btn btn-ghost dismiss-icon-btn table-dismiss-btn" title="Dismiss new icon">✕</button>
+        `;
+        const acceptBtn = tablePill.querySelector('.accept-icon-btn');
+        if (acceptBtn) {
+          acceptBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            acceptPendingIcon(id, onUpdate);
+          });
+        }
+        const dismissBtn = tablePill.querySelector('.dismiss-icon-btn');
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            dismissPendingIcon(id, onUpdate);
+          });
+        }
+        tableMain.appendChild(tablePill);
       }
-      const dismissBtn = pendingBox.querySelector('.dismiss-icon-btn');
-      if (dismissBtn) {
-        dismissBtn.addEventListener('click', e => {
-          e.stopPropagation();
-          dismissPendingIcon(id, onUpdate);
-        });
+    } else {
+      tableRow.classList.remove('has-pending-icon');
+      if (tablePill) {
+        tablePill.remove();
       }
-      cardTop.appendChild(pendingBox);
-    }
-  } else {
-    card.classList.remove('has-pending-icon');
-    if (pendingBox) {
-      pendingBox.remove();
-    }
-    const entry = state.entries.find(e => e.id === id);
-    if (entry) {
-      const iconDiv = card.querySelector('.card-icon:not(.new-icon-preview)');
-      if (iconDiv) {
-        const iconSrc = entry.icon || (entry as any).iconUrl;
-        iconDiv.innerHTML = iconSrc
-          ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
-          : '<span class="icon-fallback">🌐</span>';
+      const entry = state.entries.find(e => e.id === id);
+      if (entry) {
+        const iconFrame = tableRow.querySelector('.table-icon-frame');
+        if (iconFrame) {
+          const iconSrc = entry.icon || (entry as any).iconUrl;
+          iconFrame.innerHTML = iconSrc
+            ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-size:12px;\\'>🌐</span>'">`
+            : '<span style="font-size:12px;">🌐</span>';
+        }
       }
     }
   }
