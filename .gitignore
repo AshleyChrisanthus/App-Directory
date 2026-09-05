@@ -1,4 +1,4 @@
-﻿# Data exports & private backups (kept local, secret from GitHub)
+# Data exports & private backups (kept local, secret from GitHub)
 exports/*
 !exports/.gitkeep
 backups/*
@@ -14,3 +14,7 @@ desktop.ini
 *.tmp
 .vscode/
 .idea/
+
+# Dependencies
+node_modules/
+
