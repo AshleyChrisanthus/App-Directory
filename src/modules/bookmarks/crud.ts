@@ -205,7 +205,7 @@ export async function addEntry(data: {
     name: data.name,
     url: ensureProtocol(data.url),
     description: data.description || '',
-    icon: rawIcon,
+    iconUrl: rawIcon,
     folderId: data.folderId || null,
     categories: data.categories || [],
     dateAdded: now,
@@ -214,7 +214,6 @@ export async function addEntry(data: {
     lastVisited: null,
     isFavorite: data.isFavorite || false
   };
-  (entry as any).iconUrl = rawIcon;
 
   const diskList = getLatestStoredEntries();
   diskList.push(entry);
@@ -224,15 +223,15 @@ export async function addEntry(data: {
   showToast(`"${entry.name}" added!`);
 
   // Asynchronously convert and cache icon offline as Data URL
-  const targetIcon = entry.icon || (entry as any).iconUrl;
+  const targetIcon = entry.iconUrl || entry.icon;
   if (targetIcon && !targetIcon.startsWith('data:')) {
     const permanentDataUrl = await urlToDataUrl(targetIcon);
     if (permanentDataUrl && permanentDataUrl.startsWith('data:')) {
       const latest = getLatestStoredEntries();
       const target = latest.find(e => e.id === entry.id);
       if (target) {
-        target.icon = permanentDataUrl;
-        (target as any).iconUrl = permanentDataUrl;
+        target.iconUrl = permanentDataUrl;
+        delete target.icon;
         saveEntries(latest);
         // In-place DOM update (avoids full grid destroy & flash)
         const grid = document.getElementById('grid');
@@ -268,7 +267,6 @@ export async function updateEntry(id: string, data: {
       name: data.name,
       url: ensureProtocol(data.url),
       description: data.description || '',
-      icon: rawIcon,
       iconUrl: rawIcon,
       folderId: data.folderId || null,
       categories: data.categories || [],
@@ -283,8 +281,8 @@ export async function updateEntry(id: string, data: {
     target.name = data.name;
     target.url = ensureProtocol(data.url);
     target.description = data.description || '';
-    target.icon = rawIcon;
     target.iconUrl = rawIcon;
+    delete target.icon;
     target.folderId = data.folderId !== undefined ? data.folderId : (target.folderId || null);
     target.categories = data.categories || [];
     target.isFavorite = data.isFavorite || false;
@@ -303,15 +301,15 @@ export async function updateEntry(id: string, data: {
   }
 
   // Asynchronously convert and cache icon offline as Data URL
-  const targetIcon = finalTarget.icon || finalTarget.iconUrl;
+  const targetIcon = finalTarget.iconUrl || finalTarget.icon;
   if (targetIcon && !targetIcon.startsWith('data:')) {
     const permanentDataUrl = await urlToDataUrl(targetIcon);
     if (permanentDataUrl && permanentDataUrl.startsWith('data:')) {
       const latest = getLatestStoredEntries();
       const item = latest.find(e => e.id === id);
       if (item) {
-        item.icon = permanentDataUrl;
-        (item as any).iconUrl = permanentDataUrl;
+        item.iconUrl = permanentDataUrl;
+        delete item.icon;
         saveEntries(latest);
         const grid = document.getElementById('grid');
         const card = grid ? grid.querySelector(`.card[data-id="${id}"]`) : null;

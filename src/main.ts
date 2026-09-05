@@ -269,7 +269,6 @@ function handleSubmit(e: Event): void {
     folderId: entryFolder ? (entryFolder.value || null) : null,
     categories: [...state.selectedCategories],
     iconUrl: entryIcon ? entryIcon.value.trim() : '',
-    icon: entryIcon ? entryIcon.value.trim() : '',
     description: entryDescription ? entryDescription.value.trim() : '',
     isFavorite: entryFavorite ? entryFavorite.checked : false
   };

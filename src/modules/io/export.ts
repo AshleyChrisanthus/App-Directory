@@ -1,4 +1,4 @@
-﻿import { state } from '../../core/state';
+import { state } from '../../core/state';
 import { getLatestStoredEntries } from '../../core/storage';
 import { showToast } from '../../utils/dom';
 
@@ -62,16 +62,26 @@ export function getBackupTimestampString(d = new Date()): string {
 }
 
 export function getExportJson(): { json: string; baseName: string; filename: string } | null {
-  const list = getLatestStoredEntries();
-  if (list.length === 0 && state.folders.length === 0) {
+  const rawList = getLatestStoredEntries();
+  if (rawList.length === 0 && state.folders.length === 0) {
     showToast('Nothing to export.');
     return null;
   }
+  const cleanList = rawList.map(e => {
+    const copy = { ...e };
+    if (copy.iconUrl || copy.icon) {
+      copy.iconUrl = copy.iconUrl || copy.icon;
+      if (copy.icon && (copy.icon === copy.iconUrl || !copy.customIcon)) {
+        delete copy.icon;
+      }
+    }
+    return copy;
+  });
   const timestamp = getBackupTimestampString();
   const exportObject = {
     version: 2,
     folders: state.folders,
-    entries: list
+    entries: cleanList
   };
   return {
     json: JSON.stringify(exportObject, null, 2),

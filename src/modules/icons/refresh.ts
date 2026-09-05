@@ -246,9 +246,9 @@ export function acceptPendingIcon(id: string, onUpdate?: () => void): void {
   const diskList = getLatestStoredEntries();
   const entry = diskList.find(e => e.id === id);
   if (entry) {
-    entry.icon = newIcon;
-    (entry as any).iconUrl = newIcon;
-    (entry as any).dateModified = new Date().toISOString();
+    entry.iconUrl = newIcon;
+    delete entry.icon;
+    entry.dateModified = new Date().toISOString();
     saveEntries(diskList);
     state.pendingIcons.delete(id);
     updatePendingIconsUI();
@@ -279,9 +279,9 @@ export function acceptAllPendingIcons(onUpdate?: () => void): void {
   for (const [id, newIcon] of state.pendingIcons.entries()) {
     const entry = diskList.find(e => e.id === id);
     if (entry) {
-      entry.icon = newIcon;
-      (entry as any).iconUrl = newIcon;
-      (entry as any).dateModified = new Date().toISOString();
+      entry.iconUrl = newIcon;
+      delete entry.icon;
+      entry.dateModified = new Date().toISOString();
       count++;
     }
   }
@@ -312,11 +312,11 @@ export async function cacheExistingIconsOffline(onUpdate?: () => void): Promise<
   let changed = false;
   await runWorkerQueue(unCached, 8, async (entry) => {
     try {
-      const currentIcon = entry.icon || (entry as any).iconUrl;
+      const currentIcon = entry.iconUrl || entry.icon;
       const dataUrl = await urlToDataUrl(currentIcon);
       if (dataUrl && dataUrl.startsWith('data:image')) {
-        entry.icon = dataUrl;
-        (entry as any).iconUrl = dataUrl;
+        entry.iconUrl = dataUrl;
+        delete entry.icon;
         changed = true;
       }
     } catch (_) {}

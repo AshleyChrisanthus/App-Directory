@@ -6,13 +6,21 @@ import { parseNetscapeBookmarks, normalizeUrlForDuplicateCheck } from './browser
 
 export function importData(file: File, onImportSuccess?: () => void): void {
   const reader = new FileReader();
+  reader.onerror = err => {
+    console.error('[Import] FileReader error:', err);
+    showToast('Error: Failed to read file from disk.');
+  };
   reader.onload = (e: ProgressEvent<FileReader>) => {
     const content = e.target?.result as string;
     if (!content) return;
 
-    const isHtml =
-      (file.name && (file.name.endsWith('.html') || file.name.endsWith('.htm'))) ||
-      /<!doctype\s+netscape|<title>bookmarks|<h1[^>]*>bookmarks|<dl/i.test(content);
+    const trimmed = content.trim();
+    const isExplicitJson = file.name && file.name.toLowerCase().endsWith('.json');
+    const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+    const isExplicitHtml = file.name && (file.name.toLowerCase().endsWith('.html') || file.name.toLowerCase().endsWith('.htm'));
+    const looksLikeHtml = /<!doctype\s+netscape|<title>bookmarks|<h1[^>]*>bookmarks|<dl/i.test(content);
+
+    const isHtml = isExplicitHtml || (!isExplicitJson && !looksLikeJson && looksLikeHtml);
 
     if (isHtml) {
       try {
@@ -59,9 +67,9 @@ export function importData(file: File, onImportSuccess?: () => void): void {
             skippedCount !== 1 ? 's' : ''
           } skipped).`
         );
-      } catch (err) {
+      } catch (err: any) {
         console.error('[Import] HTML Parse Error:', err);
-        showToast('Error: Failed to parse browser bookmarks file.');
+        showToast(`Error: ${err?.message || 'Failed to parse browser bookmarks file.'}`);
       }
       return;
     }
@@ -78,7 +86,7 @@ export function importData(file: File, onImportSuccess?: () => void): void {
         importedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
         importedFolders = Array.isArray(parsed.folders) ? parsed.folders : [];
       } else {
-        throw new Error('Invalid format');
+        throw new Error('Invalid format: File does not contain bookmark entries or folders.');
       }
 
       const valid = importedEntries.filter(item => item && item.name && item.url);
@@ -113,20 +121,22 @@ export function importData(file: File, onImportSuccess?: () => void): void {
               cats = [];
             }
           }
-          const resolvedIcon = item.icon || item.iconUrl || getFaviconUrl(item.url);
+          // Use canonical iconUrl; avoid duplicating huge data URLs in both icon and iconUrl
+          const resolvedIcon = item.iconUrl || item.icon || getFaviconUrl(item.url);
           diskList.push({
             id: item.id || generateId(),
             name: item.name,
             url: ensureProtocol(item.url),
             description: item.description || '',
-            icon: resolvedIcon,
             iconUrl: resolvedIcon,
             folderId: item.folderId || null,
             categories: cats,
             dateAdded: item.dateAdded || new Date().toISOString(),
+            dateModified: item.dateModified || item.dateAdded || new Date().toISOString(),
             visitCount: item.visitCount || 0,
             lastVisited: item.lastVisited || null,
-            isFavorite: item.isFavorite || false
+            isFavorite: item.isFavorite || false,
+            health: item.health
           });
           existingNormalizedUrls.add(norm);
           imported++;
@@ -140,8 +150,13 @@ export function importData(file: File, onImportSuccess?: () => void): void {
           valid.length - imported !== 1 ? 's' : ''
         } skipped).`
       );
-    } catch {
-      showToast('Error: Invalid JSON or bookmarks file.');
+    } catch (err: any) {
+      console.error('[Import] Error parsing or saving backup file:', err);
+      if (err && (err.name === 'QuotaExceededError' || (typeof err.message === 'string' && err.message.toLowerCase().includes('quota')))) {
+        showToast('Error: Browser storage limit reached. Backup is too large.');
+      } else {
+        showToast(`Error: ${err?.message || 'Invalid JSON or bookmarks file.'}`);
+      }
     }
   };
   reader.readAsText(file);

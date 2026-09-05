@@ -148,6 +148,12 @@
       }
     }
     delete entry.category;
+    if (entry.iconUrl || entry.icon) {
+      entry.iconUrl = entry.iconUrl || entry.icon;
+      if (entry.icon && (entry.icon === entry.iconUrl || !entry.customIcon)) {
+        delete entry.icon;
+      }
+    }
     return entry;
   }
   function getLatestStoredEntries() {
@@ -190,7 +196,35 @@
     const sourceList = targetList || state.entries;
     const merged = mergeEntries(sourceList, diskList);
     state.entries = merged;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+    const payload = JSON.stringify(state.entries);
+    try {
+      localStorage.setItem(STORAGE_KEY, payload);
+    } catch (err) {
+      console.warn("[Storage] Direct setItem failed, trying atomic replacement:", err);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(STORAGE_KEY, payload);
+      } catch (err2) {
+        console.warn("[Storage] Quota exceeded on full payload, trimming cached base64 icons:", err2);
+        const slimmed = state.entries.map((e) => {
+          const copy = { ...e };
+          if (copy.iconUrl && copy.iconUrl.startsWith("data:") && !copy.customIcon) {
+            copy.iconUrl = "";
+          }
+          delete copy.icon;
+          return copy;
+        });
+        const slimmedPayload = JSON.stringify(slimmed);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.setItem(STORAGE_KEY, slimmedPayload);
+          state.entries = slimmed;
+        } catch (err3) {
+          console.error("[Storage] Critical storage quota failure:", err3);
+          throw err3;
+        }
+      }
+    }
     notifyOtherTabs("SYNC_DATA");
   }
   function loadFolders() {
@@ -1471,8 +1505,8 @@
     const diskList = getLatestStoredEntries();
     const entry = diskList.find((e) => e.id === id);
     if (entry) {
-      entry.icon = newIcon;
       entry.iconUrl = newIcon;
+      delete entry.icon;
       entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
       saveEntries(diskList);
       state.pendingIcons.delete(id);
@@ -1500,8 +1534,8 @@
     for (const [id, newIcon] of state.pendingIcons.entries()) {
       const entry = diskList.find((e) => e.id === id);
       if (entry) {
-        entry.icon = newIcon;
         entry.iconUrl = newIcon;
+        delete entry.icon;
         entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
         count++;
       }
@@ -1529,11 +1563,11 @@
     let changed = false;
     await runWorkerQueue(unCached, 8, async (entry) => {
       try {
-        const currentIcon = entry.icon || entry.iconUrl;
+        const currentIcon = entry.iconUrl || entry.icon;
         const dataUrl = await urlToDataUrl(currentIcon);
         if (dataUrl && dataUrl.startsWith("data:image")) {
-          entry.icon = dataUrl;
           entry.iconUrl = dataUrl;
+          delete entry.icon;
           changed = true;
         }
       } catch (_) {
@@ -2155,7 +2189,7 @@
       name: data.name,
       url: ensureProtocol(data.url),
       description: data.description || "",
-      icon: rawIcon,
+      iconUrl: rawIcon,
       folderId: data.folderId || null,
       categories: data.categories || [],
       dateAdded: now,
@@ -2164,22 +2198,21 @@
       lastVisited: null,
       isFavorite: data.isFavorite || false
     };
-    entry.iconUrl = rawIcon;
     const diskList = getLatestStoredEntries();
     diskList.push(entry);
     state.entries = diskList;
     saveEntries(diskList);
     if (onUpdate) onUpdate();
     showToast(`"${entry.name}" added!`);
-    const targetIcon = entry.icon || entry.iconUrl;
+    const targetIcon = entry.iconUrl || entry.icon;
     if (targetIcon && !targetIcon.startsWith("data:")) {
       const permanentDataUrl = await urlToDataUrl(targetIcon);
       if (permanentDataUrl && permanentDataUrl.startsWith("data:")) {
         const latest = getLatestStoredEntries();
         const target = latest.find((e) => e.id === entry.id);
         if (target) {
-          target.icon = permanentDataUrl;
           target.iconUrl = permanentDataUrl;
+          delete target.icon;
           saveEntries(latest);
           const grid = document.getElementById("grid");
           const card = grid ? grid.querySelector(`.card[data-id="${entry.id}"]`) : null;
@@ -2203,7 +2236,6 @@
         name: data.name,
         url: ensureProtocol(data.url),
         description: data.description || "",
-        icon: rawIcon,
         iconUrl: rawIcon,
         folderId: data.folderId || null,
         categories: data.categories || [],
@@ -2218,8 +2250,8 @@
       target.name = data.name;
       target.url = ensureProtocol(data.url);
       target.description = data.description || "";
-      target.icon = rawIcon;
       target.iconUrl = rawIcon;
+      delete target.icon;
       target.folderId = data.folderId !== void 0 ? data.folderId : target.folderId || null;
       target.categories = data.categories || [];
       target.isFavorite = data.isFavorite || false;
@@ -2234,15 +2266,15 @@
       state.pendingIcons.delete(id);
       updatePendingIconsUI();
     }
-    const targetIcon = finalTarget.icon || finalTarget.iconUrl;
+    const targetIcon = finalTarget.iconUrl || finalTarget.icon;
     if (targetIcon && !targetIcon.startsWith("data:")) {
       const permanentDataUrl = await urlToDataUrl(targetIcon);
       if (permanentDataUrl && permanentDataUrl.startsWith("data:")) {
         const latest = getLatestStoredEntries();
         const item = latest.find((e) => e.id === id);
         if (item) {
-          item.icon = permanentDataUrl;
           item.iconUrl = permanentDataUrl;
+          delete item.icon;
           saveEntries(latest);
           const grid = document.getElementById("grid");
           const card = grid ? grid.querySelector(`.card[data-id="${id}"]`) : null;
@@ -4959,16 +4991,26 @@
     return `${year}-${month}-${day}_${hours}-${mins}-${secs}`;
   }
   function getExportJson() {
-    const list = getLatestStoredEntries();
-    if (list.length === 0 && state.folders.length === 0) {
+    const rawList = getLatestStoredEntries();
+    if (rawList.length === 0 && state.folders.length === 0) {
       showToast("Nothing to export.");
       return null;
     }
+    const cleanList = rawList.map((e) => {
+      const copy = { ...e };
+      if (copy.iconUrl || copy.icon) {
+        copy.iconUrl = copy.iconUrl || copy.icon;
+        if (copy.icon && (copy.icon === copy.iconUrl || !copy.customIcon)) {
+          delete copy.icon;
+        }
+      }
+      return copy;
+    });
     const timestamp = getBackupTimestampString();
     const exportObject = {
       version: 2,
       folders: state.folders,
-      entries: list
+      entries: cleanList
     };
     return {
       json: JSON.stringify(exportObject, null, 2),
@@ -5225,10 +5267,19 @@
   // src/modules/io/import.ts
   function importData(file, onImportSuccess) {
     const reader = new FileReader();
+    reader.onerror = (err) => {
+      console.error("[Import] FileReader error:", err);
+      showToast("Error: Failed to read file from disk.");
+    };
     reader.onload = (e) => {
       const content = e.target?.result;
       if (!content) return;
-      const isHtml = file.name && (file.name.endsWith(".html") || file.name.endsWith(".htm")) || /<!doctype\s+netscape|<title>bookmarks|<h1[^>]*>bookmarks|<dl/i.test(content);
+      const trimmed = content.trim();
+      const isExplicitJson = file.name && file.name.toLowerCase().endsWith(".json");
+      const looksLikeJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+      const isExplicitHtml = file.name && (file.name.toLowerCase().endsWith(".html") || file.name.toLowerCase().endsWith(".htm"));
+      const looksLikeHtml = /<!doctype\s+netscape|<title>bookmarks|<h1[^>]*>bookmarks|<dl/i.test(content);
+      const isHtml = isExplicitHtml || !isExplicitJson && !looksLikeJson && looksLikeHtml;
       if (isHtml) {
         try {
           const { importedEntries, newFolders } = parseNetscapeBookmarks(content, state.folders);
@@ -5268,7 +5319,7 @@
           );
         } catch (err) {
           console.error("[Import] HTML Parse Error:", err);
-          showToast("Error: Failed to parse browser bookmarks file.");
+          showToast(`Error: ${err?.message || "Failed to parse browser bookmarks file."}`);
         }
         return;
       }
@@ -5282,7 +5333,7 @@
           importedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
           importedFolders = Array.isArray(parsed.folders) ? parsed.folders : [];
         } else {
-          throw new Error("Invalid format");
+          throw new Error("Invalid format: File does not contain bookmark entries or folders.");
         }
         const valid = importedEntries.filter((item) => item && item.name && item.url);
         if (valid.length === 0 && importedFolders.length === 0) {
@@ -5313,20 +5364,21 @@
                 cats = [];
               }
             }
-            const resolvedIcon = item.icon || item.iconUrl || getFaviconUrl(item.url);
+            const resolvedIcon = item.iconUrl || item.icon || getFaviconUrl(item.url);
             diskList.push({
               id: item.id || generateId(),
               name: item.name,
               url: ensureProtocol(item.url),
               description: item.description || "",
-              icon: resolvedIcon,
               iconUrl: resolvedIcon,
               folderId: item.folderId || null,
               categories: cats,
               dateAdded: item.dateAdded || (/* @__PURE__ */ new Date()).toISOString(),
+              dateModified: item.dateModified || item.dateAdded || (/* @__PURE__ */ new Date()).toISOString(),
               visitCount: item.visitCount || 0,
               lastVisited: item.lastVisited || null,
-              isFavorite: item.isFavorite || false
+              isFavorite: item.isFavorite || false,
+              health: item.health
             });
             existingNormalizedUrls.add(norm);
             imported++;
@@ -5337,8 +5389,13 @@
         showToast(
           `Imported ${imported} new site${imported !== 1 ? "s" : ""} (${valid.length - imported} duplicate${valid.length - imported !== 1 ? "s" : ""} skipped).`
         );
-      } catch {
-        showToast("Error: Invalid JSON or bookmarks file.");
+      } catch (err) {
+        console.error("[Import] Error parsing or saving backup file:", err);
+        if (err && (err.name === "QuotaExceededError" || typeof err.message === "string" && err.message.toLowerCase().includes("quota"))) {
+          showToast("Error: Browser storage limit reached. Backup is too large.");
+        } else {
+          showToast(`Error: ${err?.message || "Invalid JSON or bookmarks file."}`);
+        }
       }
     };
     reader.readAsText(file);
@@ -5487,7 +5544,6 @@
       folderId: entryFolder ? entryFolder.value || null : null,
       categories: [...state.selectedCategories],
       iconUrl: entryIcon ? entryIcon.value.trim() : "",
-      icon: entryIcon ? entryIcon.value.trim() : "",
       description: entryDescription ? entryDescription.value.trim() : "",
       isFavorite: entryFavorite ? entryFavorite.checked : false
     };

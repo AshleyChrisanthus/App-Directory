@@ -1,4 +1,4 @@
-﻿import type { BookmarkEntry, Folder } from '../types';
+import type { BookmarkEntry, Folder } from '../types';
 import { STORAGE_KEY, STORAGE_FOLDERS_KEY, DEFAULT_FOLDERS } from './constants';
 import { state } from './state';
 
@@ -39,6 +39,15 @@ export function migrateEntry(entry: any): BookmarkEntry | null {
     }
   }
   delete entry.category;
+
+  // Unify and deduplicate icon/iconUrl to prevent quota exhaustion
+  if (entry.iconUrl || entry.icon) {
+    entry.iconUrl = entry.iconUrl || entry.icon;
+    if (entry.icon && (entry.icon === entry.iconUrl || !entry.customIcon)) {
+      delete entry.icon;
+    }
+  }
+
   return entry as BookmarkEntry;
 }
 
@@ -90,7 +99,38 @@ export function saveEntries(targetList: BookmarkEntry[] | null = null): void {
   const sourceList = targetList || state.entries;
   const merged = mergeEntries(sourceList, diskList);
   state.entries = merged;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+
+  const payload = JSON.stringify(state.entries);
+  try {
+    localStorage.setItem(STORAGE_KEY, payload);
+  } catch (err: any) {
+    console.warn('[Storage] Direct setItem failed, trying atomic replacement:', err);
+    try {
+      // Chromium requires double the quota if replacing in-place; removeItem first
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(STORAGE_KEY, payload);
+    } catch (err2: any) {
+      console.warn('[Storage] Quota exceeded on full payload, trimming cached base64 icons:', err2);
+      // Slim entries by removing large cached base64 icons (non-custom)
+      const slimmed = state.entries.map(e => {
+        const copy = { ...e };
+        if (copy.iconUrl && copy.iconUrl.startsWith('data:') && !copy.customIcon) {
+          copy.iconUrl = '';
+        }
+        delete (copy as any).icon;
+        return copy;
+      });
+      const slimmedPayload = JSON.stringify(slimmed);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(STORAGE_KEY, slimmedPayload);
+        state.entries = slimmed;
+      } catch (err3) {
+        console.error('[Storage] Critical storage quota failure:', err3);
+        throw err3;
+      }
+    }
+  }
   notifyOtherTabs('SYNC_DATA');
 }
 
