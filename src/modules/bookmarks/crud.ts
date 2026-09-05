@@ -336,9 +336,7 @@ export function deleteEntry(id: string, onUpdate?: () => void): void {
 
   const diskList = getLatestStoredEntries();
   const filtered = diskList.filter(e => e.id !== id);
-  state.entries = filtered;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
-  notifyOtherTabs('SYNC_DATA');
+  saveEntries(filtered);
   showToast(`"${entry.name}" deleted.`);
   if (onUpdate) onUpdate();
 }

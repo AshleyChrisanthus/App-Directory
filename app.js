@@ -122,7 +122,146 @@
   };
   var state = new AppState();
 
+  // src/core/idb.ts
+  var IDB_DB_NAME = "app_directory_db";
+  var IDB_VERSION = 2;
+  var STORE_ENTRIES = "entries";
+  var STORE_FOLDERS = "folders";
+  var STORE_HANDLES = "handles";
+  var dbInstance = null;
+  var dbOpeningPromise = null;
+  function openAppDB() {
+    if (dbInstance) {
+      return Promise.resolve(dbInstance);
+    }
+    if (dbOpeningPromise) {
+      return dbOpeningPromise;
+    }
+    dbOpeningPromise = new Promise((resolve, reject) => {
+      if (typeof indexedDB === "undefined") {
+        return reject(new Error("IndexedDB is not supported in this environment"));
+      }
+      const req = indexedDB.open(IDB_DB_NAME, IDB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_HANDLES)) {
+          db.createObjectStore(STORE_HANDLES);
+        }
+        if (!db.objectStoreNames.contains(STORE_ENTRIES)) {
+          db.createObjectStore(STORE_ENTRIES, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(STORE_FOLDERS)) {
+          db.createObjectStore(STORE_FOLDERS, { keyPath: "id" });
+        }
+      };
+      req.onsuccess = () => {
+        dbInstance = req.result;
+        dbOpeningPromise = null;
+        dbInstance.onversionchange = () => {
+          dbInstance?.close();
+          dbInstance = null;
+        };
+        resolve(dbInstance);
+      };
+      req.onerror = () => {
+        dbOpeningPromise = null;
+        reject(req.error);
+      };
+      req.onblocked = () => {
+        console.warn("[IndexedDB] Database upgrade blocked by another tab");
+      };
+    });
+    return dbOpeningPromise;
+  }
+  async function idbGetAllEntries() {
+    const db = await openAppDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_ENTRIES, "readonly");
+      const store = tx.objectStore(STORE_ENTRIES);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function idbSetAllEntries(entries) {
+    const db = await openAppDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_ENTRIES, "readwrite");
+      const store = tx.objectStore(STORE_ENTRIES);
+      store.clear();
+      for (const entry of entries) {
+        if (entry) {
+          if (!entry.id) {
+            entry.id = "entry_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 9);
+          }
+          store.put(entry);
+        }
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+  async function idbGetAllFolders() {
+    const db = await openAppDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_FOLDERS, "readonly");
+      const store = tx.objectStore(STORE_FOLDERS);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function idbSetAllFolders(folders) {
+    const db = await openAppDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_FOLDERS, "readwrite");
+      const store = tx.objectStore(STORE_FOLDERS);
+      store.clear();
+      for (const folder of folders) {
+        if (folder) {
+          if (!folder.id) {
+            folder.id = "folder_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 9);
+          }
+          store.put(folder);
+        }
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  }
+  async function idbGetHandle(key) {
+    try {
+      const db = await openAppDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_HANDLES, "readonly");
+        const store = tx.objectStore(STORE_HANDLES);
+        const req = store.get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch {
+      return null;
+    }
+  }
+  async function idbSaveHandle(key, handle) {
+    try {
+      const db = await openAppDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_HANDLES, "readwrite");
+        const store = tx.objectStore(STORE_HANDLES);
+        const req = store.put(handle, key);
+        req.onsuccess = () => resolve(true);
+        req.onerror = () => resolve(false);
+      });
+    } catch {
+      return false;
+    }
+  }
+
   // src/core/storage.ts
+  var MIGRATED_FLAG_KEY = "appDirectory_idb_migrated";
   var broadcastChannel = null;
   try {
     if (typeof BroadcastChannel !== "undefined") {
@@ -138,8 +277,20 @@
       }
     }
   }
+  function onBroadcastMessage(handler) {
+    if (broadcastChannel) {
+      broadcastChannel.onmessage = (event) => {
+        if (event.data) {
+          handler(event.data);
+        }
+      };
+    }
+  }
   function migrateEntry(entry) {
     if (!entry) return null;
+    if (!entry.id) {
+      entry.id = "entry_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 9);
+    }
     if (!entry.categories) {
       if (entry.category && typeof entry.category === "string") {
         entry.categories = [entry.category.trim()];
@@ -157,13 +308,20 @@
     return entry;
   }
   function getLatestStoredEntries() {
+    if (state.entries && state.entries.length > 0) {
+      return [...state.entries];
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list.map(migrateEntry).filter(Boolean) : [];
-    } catch {
-      return [];
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list) && list.length > 0) {
+          return list.map(migrateEntry).filter(Boolean);
+        }
+      }
+    } catch (_) {
     }
+    return [...state.entries || []];
   }
   function mergeEntries(localList, diskList) {
     const map = /* @__PURE__ */ new Map();
@@ -187,68 +345,117 @@
     }
     return Array.from(map.values());
   }
-  function loadEntries() {
-    state.entries = getLatestStoredEntries();
-    return state.entries;
+  async function initStorage() {
+    try {
+      await openAppDB();
+      let entries = await idbGetAllEntries();
+      let folders = await idbGetAllFolders();
+      const alreadyMigrated = localStorage.getItem(MIGRATED_FLAG_KEY) === "true";
+      if (entries.length === 0 && !alreadyMigrated) {
+        try {
+          const rawEntries = localStorage.getItem(STORAGE_KEY);
+          if (rawEntries) {
+            const parsed = JSON.parse(rawEntries);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const migrated = parsed.map(migrateEntry).filter(Boolean);
+              if (migrated.length > 0) {
+                await idbSetAllEntries(migrated);
+                entries = migrated;
+                console.log(`[Storage] Auto-migrated ${entries.length} entries from localStorage to IndexedDB.`);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[Storage] Error reading localStorage during entries migration:", err);
+        }
+      }
+      if (folders.length === 0) {
+        try {
+          const rawFolders = localStorage.getItem(STORAGE_FOLDERS_KEY);
+          if (rawFolders) {
+            const parsed = JSON.parse(rawFolders);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              await idbSetAllFolders(parsed);
+              folders = parsed;
+              console.log(`[Storage] Auto-migrated ${folders.length} folders from localStorage to IndexedDB.`);
+            }
+          }
+        } catch (err) {
+          console.warn("[Storage] Error reading localStorage during folders migration:", err);
+        }
+        if (folders.length === 0) {
+          folders = [...DEFAULT_FOLDERS];
+          await idbSetAllFolders(folders);
+        }
+      }
+      if (!alreadyMigrated && (entries.length > 0 || folders.length > 0)) {
+        try {
+          localStorage.setItem(MIGRATED_FLAG_KEY, "true");
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_FOLDERS_KEY);
+        } catch (_) {
+        }
+      }
+      state.entries = entries;
+      state.folders = folders;
+    } catch (err) {
+      console.error("[Storage] IndexedDB initialization failed, falling back to localStorage:", err);
+      loadFallbackFromLocalStorage();
+    }
+  }
+  function loadFallbackFromLocalStorage() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      state.entries = Array.isArray(list) ? list.map(migrateEntry).filter(Boolean) : [];
+    } catch {
+      state.entries = [];
+    }
+    try {
+      const rawF = localStorage.getItem(STORAGE_FOLDERS_KEY);
+      const fList = rawF ? JSON.parse(rawF) : null;
+      state.folders = Array.isArray(fList) && fList.length > 0 ? fList : [...DEFAULT_FOLDERS];
+    } catch {
+      state.folders = [...DEFAULT_FOLDERS];
+    }
+  }
+  async function reloadFromStorage() {
+    try {
+      const [entries, folders] = await Promise.all([idbGetAllEntries(), idbGetAllFolders()]);
+      state.entries = entries;
+      if (folders && folders.length > 0) {
+        state.folders = folders;
+      }
+    } catch (err) {
+      console.warn("[Storage] Failed to reload from IndexedDB:", err);
+    }
   }
   function saveEntries(targetList = null) {
     const diskList = getLatestStoredEntries();
     const sourceList = targetList || state.entries;
     const merged = mergeEntries(sourceList, diskList);
     state.entries = merged;
-    const payload = JSON.stringify(state.entries);
-    try {
-      localStorage.setItem(STORAGE_KEY, payload);
-    } catch (err) {
-      console.warn("[Storage] Direct setItem failed, trying atomic replacement:", err);
+    return idbSetAllEntries(state.entries).then(() => {
+      notifyOtherTabs("SYNC_DATA");
+    }).catch((err) => {
+      console.error("[Storage] Failed to save entries to IndexedDB:", err);
       try {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.setItem(STORAGE_KEY, payload);
-      } catch (err2) {
-        console.warn("[Storage] Quota exceeded on full payload, trimming cached base64 icons:", err2);
-        const slimmed = state.entries.map((e) => {
-          const copy = { ...e };
-          if (copy.iconUrl && copy.iconUrl.startsWith("data:") && !copy.customIcon) {
-            copy.iconUrl = "";
-          }
-          delete copy.icon;
-          return copy;
-        });
-        const slimmedPayload = JSON.stringify(slimmed);
-        try {
-          localStorage.removeItem(STORAGE_KEY);
-          localStorage.setItem(STORAGE_KEY, slimmedPayload);
-          state.entries = slimmed;
-        } catch (err3) {
-          console.error("[Storage] Critical storage quota failure:", err3);
-          throw err3;
-        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+      } catch (_) {
       }
-    }
-    notifyOtherTabs("SYNC_DATA");
-  }
-  function loadFolders() {
-    try {
-      const raw = localStorage.getItem(STORAGE_FOLDERS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          state.folders = parsed;
-          return state.folders;
-        }
-      }
-      state.folders = [...DEFAULT_FOLDERS];
-      saveFolders(state.folders, false);
-      return state.folders;
-    } catch {
-      state.folders = [...DEFAULT_FOLDERS];
-      return state.folders;
-    }
+    });
   }
   function saveFolders(data = state.folders, notify = true) {
     state.folders = data;
-    localStorage.setItem(STORAGE_FOLDERS_KEY, JSON.stringify(state.folders));
-    if (notify) notifyOtherTabs("SYNC_DATA");
+    return idbSetAllFolders(state.folders).then(() => {
+      if (notify) notifyOtherTabs("SYNC_DATA");
+    }).catch((err) => {
+      console.error("[Storage] Failed to save folders to IndexedDB:", err);
+      try {
+        localStorage.setItem(STORAGE_FOLDERS_KEY, JSON.stringify(state.folders));
+      } catch (_) {
+      }
+    });
   }
 
   // src/utils/dom.ts
@@ -2298,9 +2505,7 @@
     }
     const diskList = getLatestStoredEntries();
     const filtered = diskList.filter((e) => e.id !== id);
-    state.entries = filtered;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
-    notifyOtherTabs("SYNC_DATA");
+    saveEntries(filtered);
     showToast(`"${entry.name}" deleted.`);
     if (onUpdate) onUpdate();
   }
@@ -4936,49 +5141,12 @@
   }
 
   // src/modules/io/export.ts
-  var IDB_DB_NAME = "app_directory_db";
-  var IDB_STORE_NAME = "handles";
   var IDB_KEY_EXPORTS = "exports_dir_handle";
-  function openHandlesDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(IDB_DB_NAME, 1);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
-          db.createObjectStore(IDB_STORE_NAME);
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
   async function getStoredExportsDirHandle() {
-    try {
-      const db = await openHandlesDB();
-      return new Promise((resolve) => {
-        const tx = db.transaction(IDB_STORE_NAME, "readonly");
-        const store = tx.objectStore(IDB_STORE_NAME);
-        const req = store.get(IDB_KEY_EXPORTS);
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => resolve(null);
-      });
-    } catch {
-      return null;
-    }
+    return await idbGetHandle(IDB_KEY_EXPORTS);
   }
   async function saveExportsDirHandle(handle) {
-    try {
-      const db = await openHandlesDB();
-      return new Promise((resolve) => {
-        const tx = db.transaction(IDB_STORE_NAME, "readwrite");
-        const store = tx.objectStore(IDB_STORE_NAME);
-        const req = store.put(handle, IDB_KEY_EXPORTS);
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => resolve(false);
-      });
-    } catch {
-      return false;
-    }
+    return await idbSaveHandle(IDB_KEY_EXPORTS, handle);
   }
   function getBackupTimestampString(d = /* @__PURE__ */ new Date()) {
     const pad = (n) => String(n).padStart(2, "0");
@@ -6271,21 +6439,28 @@
   if (cmdPaletteTrigger) {
     cmdPaletteTrigger.addEventListener("click", () => openCommandPalette(paletteCallbacks));
   }
-  function init() {
+  async function init() {
     initTheme();
     initSidebar();
     updateModeToggleUI();
     setViewMode(state.currentViewMode);
     toggleInsightsDrawer(state.isInsightsOpen, render);
-    loadFolders();
-    loadEntries();
+    await initStorage();
     initTopNavReveal();
     initCommandPalette(paletteCallbacks);
     render();
     cacheExistingIconsOffline(render);
+    onBroadcastMessage(async (data) => {
+      if (data.type === "SYNC_DATA") {
+        await reloadFromStorage();
+        render();
+      }
+    });
   }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      init();
+    });
   } else {
     init();
   }

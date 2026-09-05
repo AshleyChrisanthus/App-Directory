@@ -1,53 +1,16 @@
 import { state } from '../../core/state';
 import { getLatestStoredEntries } from '../../core/storage';
 import { showToast } from '../../utils/dom';
+import { idbGetHandle, idbSaveHandle } from '../../core/idb';
 
-const IDB_DB_NAME = 'app_directory_db';
-const IDB_STORE_NAME = 'handles';
 const IDB_KEY_EXPORTS = 'exports_dir_handle';
 
-function openHandlesDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_DB_NAME, 1);
-    req.onupgradeneeded = (e: any) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
-        db.createObjectStore(IDB_STORE_NAME);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
 async function getStoredExportsDirHandle(): Promise<any> {
-  try {
-    const db = await openHandlesDB();
-    return new Promise(resolve => {
-      const tx = db.transaction(IDB_STORE_NAME, 'readonly');
-      const store = tx.objectStore(IDB_STORE_NAME);
-      const req = store.get(IDB_KEY_EXPORTS);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
-    });
-  } catch {
-    return null;
-  }
+  return await idbGetHandle(IDB_KEY_EXPORTS);
 }
 
 async function saveExportsDirHandle(handle: any): Promise<boolean> {
-  try {
-    const db = await openHandlesDB();
-    return new Promise(resolve => {
-      const tx = db.transaction(IDB_STORE_NAME, 'readwrite');
-      const store = tx.objectStore(IDB_STORE_NAME);
-      const req = store.put(handle, IDB_KEY_EXPORTS);
-      req.onsuccess = () => resolve(true);
-      req.onerror = () => resolve(false);
-    });
-  } catch {
-    return false;
-  }
+  return await idbSaveHandle(IDB_KEY_EXPORTS, handle);
 }
 
 export function getBackupTimestampString(d = new Date()): string {

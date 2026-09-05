@@ -1,5 +1,5 @@
 import { state } from './core/state';
-import { loadEntries, loadFolders } from './core/storage';
+import { initStorage, reloadFromStorage, onBroadcastMessage } from './core/storage';
 import { PIN_FAVORITES_KEY, FILTER_MODE_KEY } from './core/constants';
 import { showToast } from './utils/dom';
 
@@ -1105,23 +1105,29 @@ if (cmdPaletteTrigger) {
 }
 
 // ── Initialize App ───────────────────────────────────────
-function init(): void {
+async function init(): Promise<void> {
   initTheme();
   initSidebar();
   updateModeToggleUI();
   setViewMode(state.currentViewMode);
   toggleInsightsDrawer(state.isInsightsOpen, render);
-  loadFolders();
-  loadEntries();
+  await initStorage();
   initTopNavReveal();
   initCommandPalette(paletteCallbacks);
   render();
   cacheExistingIconsOffline(render);
+
+  onBroadcastMessage(async (data) => {
+    if (data.type === 'SYNC_DATA') {
+      await reloadFromStorage();
+      render();
+    }
+  });
 }
 
 // Bootstrap
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => { init(); });
 } else {
   init();
 }
