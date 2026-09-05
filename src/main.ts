@@ -97,6 +97,7 @@ import {
 
 // Import / Export
 import {
+  exportData,
   exportQuickDownload,
   exportToFolderDirect,
   exportToClipboard
@@ -168,13 +169,13 @@ const floatingDismissAllBtn = document.getElementById('floatingDismissAllBtn');
 
 const exportSplitGroup = document.getElementById('exportSplitGroup');
 const exportBtn = document.getElementById('exportBtn');
-const exportToggleBtn = document.getElementById('exportToggleBtn');
+const exportMenuBtn = document.getElementById('exportMenuBtn') || document.getElementById('exportToggleBtn');
 const exportFolderBtn = document.getElementById('exportFolderBtn');
 const exportChangeFolderBtn = document.getElementById('exportChangeFolderBtn');
 const exportQuickBtn = document.getElementById('exportQuickBtn');
 const exportClipboardBtn = document.getElementById('exportClipboardBtn');
 const importBtn = document.getElementById('importBtn');
-const importInput = document.getElementById('importInput') as HTMLInputElement | null;
+const importFile = (document.getElementById('importFile') || document.getElementById('importInput')) as HTMLInputElement | null;
 
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
 const sidebarQuickViews = document.getElementById('sidebarQuickViews');
@@ -228,7 +229,7 @@ const paletteCallbacks: CommandPaletteCallbacks = {
   openHealthModal: () => openHealthModal(render),
   exportData: () => exportToFolderDirect(false),
   triggerImport: () => {
-    if (importInput) importInput.click();
+    if (importFile) importFile.click();
   },
   openCatModal: () => openCatModal(),
   setViewMode: (mode: 'cards' | 'table' | 'icons') => setViewMode(mode),
@@ -685,11 +686,11 @@ if (floatingAcceptAllBtn) floatingAcceptAllBtn.addEventListener('click', () => a
 if (floatingDismissAllBtn) floatingDismissAllBtn.addEventListener('click', () => dismissAllPendingIcons(render));
 
 // Import / Export
-if (exportBtn && exportSplitGroup) {
-  exportBtn.addEventListener('click', () => exportQuickDownload());
+if (exportBtn) {
+  exportBtn.addEventListener('click', () => exportData());
 }
-if (exportToggleBtn && exportSplitGroup) {
-  exportToggleBtn.addEventListener('click', (e: MouseEvent) => {
+if (exportMenuBtn && exportSplitGroup) {
+  exportMenuBtn.addEventListener('click', (e: MouseEvent) => {
     e.stopPropagation();
     exportSplitGroup.classList.toggle('open');
   });
@@ -718,9 +719,9 @@ if (exportClipboardBtn) {
     exportToClipboard();
   });
 }
-if (importBtn && importInput) {
-  importBtn.addEventListener('click', () => importInput.click());
-  importInput.addEventListener('change', (e: Event) => {
+if (importBtn && importFile) {
+  importBtn.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', (e: Event) => {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files[0]) {
       importData(target.files[0], render);

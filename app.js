@@ -5075,6 +5075,9 @@
       showToast("Failed to copy to clipboard.");
     }
   }
+  function exportData() {
+    exportToFolderDirect(false);
+  }
 
   // src/modules/io/browser-importer.ts
   function decodeHtmlEntities(str) {
@@ -5398,13 +5401,13 @@
   var floatingDismissAllBtn = document.getElementById("floatingDismissAllBtn");
   var exportSplitGroup = document.getElementById("exportSplitGroup");
   var exportBtn = document.getElementById("exportBtn");
-  var exportToggleBtn = document.getElementById("exportToggleBtn");
+  var exportMenuBtn = document.getElementById("exportMenuBtn") || document.getElementById("exportToggleBtn");
   var exportFolderBtn = document.getElementById("exportFolderBtn");
   var exportChangeFolderBtn = document.getElementById("exportChangeFolderBtn");
   var exportQuickBtn = document.getElementById("exportQuickBtn");
   var exportClipboardBtn = document.getElementById("exportClipboardBtn");
   var importBtn = document.getElementById("importBtn");
-  var importInput = document.getElementById("importInput");
+  var importFile = document.getElementById("importFile") || document.getElementById("importInput");
   var sidebarToggleBtn = document.getElementById("sidebarToggleBtn");
   var sidebarQuickViews = document.getElementById("sidebarQuickViews");
   var newFolderBtn = document.getElementById("newFolderBtn");
@@ -5451,7 +5454,7 @@
     openHealthModal: () => openHealthModal(render),
     exportData: () => exportToFolderDirect(false),
     triggerImport: () => {
-      if (importInput) importInput.click();
+      if (importFile) importFile.click();
     },
     openCatModal: () => openCatModal(),
     setViewMode: (mode) => setViewMode(mode),
@@ -5844,11 +5847,11 @@
   if (dismissAllIconsBtn) dismissAllIconsBtn.addEventListener("click", () => dismissAllPendingIcons(render));
   if (floatingAcceptAllBtn) floatingAcceptAllBtn.addEventListener("click", () => acceptAllPendingIcons(render));
   if (floatingDismissAllBtn) floatingDismissAllBtn.addEventListener("click", () => dismissAllPendingIcons(render));
-  if (exportBtn && exportSplitGroup) {
-    exportBtn.addEventListener("click", () => exportQuickDownload());
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => exportData());
   }
-  if (exportToggleBtn && exportSplitGroup) {
-    exportToggleBtn.addEventListener("click", (e) => {
+  if (exportMenuBtn && exportSplitGroup) {
+    exportMenuBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       exportSplitGroup.classList.toggle("open");
     });
@@ -5877,9 +5880,9 @@
       exportToClipboard();
     });
   }
-  if (importBtn && importInput) {
-    importBtn.addEventListener("click", () => importInput.click());
-    importInput.addEventListener("change", (e) => {
+  if (importBtn && importFile) {
+    importBtn.addEventListener("click", () => importFile.click());
+    importFile.addEventListener("change", (e) => {
       const target = e.target;
       if (target.files && target.files[0]) {
         importData(target.files[0], render);
