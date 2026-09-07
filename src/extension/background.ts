@@ -6,6 +6,38 @@ const STORAGE_KEYS = {
   PENDING_BOOKMARKS: 'ad_pending_bookmarks'
 };
 
+// ── Auto-Upgrade Open Tabs on Install/Reload ──────────────
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const tab of tabs) {
+      if (!tab.id || !tab.url) continue;
+      const u = tab.url.toLowerCase();
+      if (
+        u.startsWith('chrome://') ||
+        u.startsWith('edge://') ||
+        u.startsWith('about:') ||
+        u.startsWith('chrome-extension://')
+      ) {
+        continue;
+      }
+
+      const isAppDir =
+        u.startsWith('file://') &&
+        (u.includes('app%20directory') || u.includes('app-directory') || u.endsWith('index.html'));
+      const isLocalhost = u.includes('localhost:') || u.includes('127.0.0.1:');
+      const scriptFile = (isAppDir || isLocalhost) ? 'dist/bridge.js' : 'dist/content.js';
+
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: [scriptFile]
+        });
+      } catch (_) {}
+    }
+  } catch (_) {}
+});
+
 // ── Trigger In-Page Injected Modal ───────────────────────
 async function triggerModalOnActiveTab(tab?: chrome.tabs.Tab): Promise<void> {
   let targetTab = tab;
