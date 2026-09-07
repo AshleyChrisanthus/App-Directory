@@ -1,0 +1,432 @@
+:host {
+  all: initial;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #f1f5f9;
+  font-size: 14px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.ad-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 23, 0.68);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 16px;
+}
+
+.ad-modal-backdrop.ad-visible {
+  opacity: 1;
+}
+
+.ad-modal-card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(22, 28, 42, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  transform: scale(0.94) translateY(8px);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.ad-modal-backdrop.ad-visible .ad-modal-card {
+  transform: scale(1) translateY(0);
+}
+
+/* Header */
+.ad-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ad-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ad-app-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);
+}
+
+.ad-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+
+.ad-badge-local {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(52, 199, 89, 0.18);
+  color: #34c759;
+  border: 1px solid rgba(52, 199, 89, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ad-close-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.ad-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+/* Body Form */
+.ad-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.ad-field-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ad-icon-preview-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  margin-top: 22px;
+}
+
+.ad-icon-preview-box img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.ad-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+}
+
+.ad-form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ad-input, .ad-select, .ad-textarea {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+  font-family: inherit;
+}
+
+.ad-input:focus, .ad-select:focus, .ad-textarea:focus {
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.ad-textarea {
+  resize: vertical;
+  min-height: 52px;
+}
+
+.ad-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Category Tags */
+.ad-tags-wrapper {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.ad-tags-wrapper:focus-within {
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);
+}
+
+.ad-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10, 132, 255, 0.18);
+  border: 1px solid rgba(10, 132, 255, 0.35);
+  color: #60a5fa;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ad-tag-chip .ad-remove-tag {
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.75;
+  transition: opacity 0.1s ease;
+  line-height: 1;
+}
+
+.ad-tag-chip .ad-remove-tag:hover {
+  opacity: 1;
+  color: #f87171;
+}
+
+.ad-tag-input {
+  border: none;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 13px;
+  outline: none;
+  flex: 1;
+  min-width: 80px;
+  font-family: inherit;
+  padding: 2px 4px;
+}
+
+/* Suggestions */
+.ad-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.ad-suggest-pill {
+  font-size: 11px;
+  padding: 2px 7px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ad-suggest-pill:hover {
+  background: rgba(10, 132, 255, 0.15);
+  border-color: rgba(10, 132, 255, 0.35);
+  color: #93c5fd;
+}
+
+/* Favorite toggle */
+.ad-fav-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.ad-fav-star {
+  font-size: 16px;
+  color: #64748b;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.ad-fav-toggle.active .ad-fav-star {
+  color: #ffb800;
+  transform: scale(1.15);
+}
+
+/* Footer */
+.ad-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ad-shortcut-hint {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.ad-shortcut-hint kbd {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.ad-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ad-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+}
+
+.ad-btn-secondary {
+  background: rgba(255, 255, 255, 0.07);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ad-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.ad-btn-primary {
+  background: #0a84ff;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);
+}
+
+.ad-btn-primary:hover {
+  background: #0070e0;
+  box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.ad-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Success Banner */
+.ad-success-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+}
+
+.ad-success-overlay.ad-show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ad-success-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(52, 199, 89, 0.18);
+  border: 2px solid #34c759;
+  color: #34c759;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: adPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ad-success-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.ad-success-sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+@keyframes adPop {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}

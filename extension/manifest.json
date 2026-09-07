@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "App Directory Companion",
+  "version": "1.0.0",
+  "description": "Instantly save any website to your local App Directory with Alt+D or a single click.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_title": "Add to App Directory (Alt+D)",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "dist/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "file://*/*index.html*",
+        "file://*/*App%20Directory/*",
+        "file://*/*app-directory/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://smooth-harbor-jsy6.here.now/*"
+      ],
+      "js": ["dist/bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "add-to-app-directory": {
+      "suggested_key": {
+        "default": "Alt+D",
+        "mac": "Alt+D"
+      },
+      "description": "Add current website to App Directory"
+    }
+  }
+}

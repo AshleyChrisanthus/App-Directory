@@ -114,6 +114,9 @@ import {
   exportToFolderDirect,
   exportToClipboard
 } from './modules/io/export';
+
+// Extension Sync Bridge
+import { initExtensionSync } from './modules/extension/sync';
 import { importData } from './modules/io/import';
 
 // ── DOM References ───────────────────────────────────────
@@ -1164,6 +1167,7 @@ async function init(): Promise<void> {
   initCommandPalette(paletteCallbacks);
   render();
   cacheExistingIconsOffline(render);
+  initExtensionSync(render);
 
   let isSyncingTheme = false;
   const syncThemeFromExternal = () => {

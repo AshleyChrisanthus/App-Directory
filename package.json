@@ -5,11 +5,14 @@
   "description": "App Directory - Bookmarks and Web Applications Manager",
   "scripts": {
     "build": "esbuild src/main.ts --bundle --outfile=app.js --format=iife --target=es2020 --sourcemap",
+    "build:extension": "esbuild src/extension/background.ts src/extension/content.ts src/extension/bridge.ts --bundle --outdir=extension/dist --target=chrome100 --loader:.css=text --sourcemap",
+    "build:all": "npm run build && npm run build:extension",
     "typecheck": "tsc --noEmit",
     "watch": "esbuild src/main.ts --bundle --outfile=app.js --format=iife --target=es2020 --sourcemap --watch",
     "deploy": "node scripts/deploy_herenow.js"
   },
   "devDependencies": {
+    "@types/chrome": "^0.2.9",
     "esbuild": "^0.25.0",
     "fake-indexeddb": "^6.2.5",
     "typescript": "^5.7.3"
