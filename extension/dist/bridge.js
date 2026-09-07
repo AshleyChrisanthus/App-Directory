@@ -50,7 +50,16 @@
       checkAndIngestPending();
     }
   });
-  setInterval(checkAndIngestPending, 6e3);
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === "local" && changes.ad_pending_bookmarks) {
+        const newPending = changes.ad_pending_bookmarks.newValue;
+        if (Array.isArray(newPending) && newPending.length > 0) {
+          checkAndIngestPending();
+        }
+      }
+    });
+  }
   setTimeout(() => {
     window.postMessage({ type: "APP_DIRECTORY_PING" }, "*");
   }, 300);

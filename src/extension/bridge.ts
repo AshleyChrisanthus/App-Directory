@@ -59,8 +59,17 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Lightweight periodic check every 6 seconds
-setInterval(checkAndIngestPending, 6000);
+// 100% event-driven sync on storage change (zero timer wakeups / zero idle battery consumption)
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes.ad_pending_bookmarks) {
+      const newPending = changes.ad_pending_bookmarks.newValue;
+      if (Array.isArray(newPending) && newPending.length > 0) {
+        checkAndIngestPending();
+      }
+    }
+  });
+}
 
 // Initial ping to request App Directory state if already loaded
 setTimeout(() => {
