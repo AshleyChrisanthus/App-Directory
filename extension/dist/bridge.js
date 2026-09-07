@@ -1,21 +1,53 @@
 "use strict";
 (() => {
   // src/extension/bridge.ts
-  function checkAndIngestPending() {
+  function isExtensionContextValid() {
     try {
-      chrome.runtime.sendMessage({ type: "GET_PENDING_BOOKMARKS" }, (response) => {
-        if (chrome.runtime.lastError) return;
-        if (response && Array.isArray(response.pendingEntries) && response.pendingEntries.length > 0) {
-          window.postMessage({
-            type: "APP_DIRECTORY_INGEST_PENDING",
-            entries: response.pendingEntries
-          }, "*");
-        }
-      });
+      return typeof chrome !== "undefined" && typeof chrome.runtime !== "undefined" && !!chrome.runtime.id;
+    } catch {
+      return false;
+    }
+  }
+  function onFocus() {
+    checkAndIngestPending();
+  }
+  function onVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      checkAndIngestPending();
+    }
+  }
+  function cleanupListeners() {
+    try {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     } catch (_) {
     }
   }
+  function checkAndIngestPending() {
+    if (!isExtensionContextValid()) {
+      cleanupListeners();
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage({ type: "GET_PENDING_BOOKMARKS" }, (response) => {
+        try {
+          if (!isExtensionContextValid()) return;
+          if (chrome.runtime.lastError) return;
+          if (response && Array.isArray(response.pendingEntries) && response.pendingEntries.length > 0) {
+            window.postMessage({
+              type: "APP_DIRECTORY_INGEST_PENDING",
+              entries: response.pendingEntries
+            }, "*");
+          }
+        } catch (_) {
+        }
+      });
+    } catch (_) {
+      cleanupListeners();
+    }
+  }
   window.addEventListener("message", (event) => {
+    if (!isExtensionContextValid()) return;
     if (!event.data || typeof event.data !== "object") return;
     const { type, folders, categories } = event.data;
     if (type === "APP_DIRECTORY_SYNC_RESPONSE" || type === "APP_DIRECTORY_READY") {
@@ -35,33 +67,47 @@
       }
     }
   });
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message && message.type === "SAVE_BOOKMARK_DIRECT" && message.entry) {
-      window.postMessage({
-        type: "APP_DIRECTORY_NEW_BOOKMARK",
-        entry: message.entry
-      }, "*");
-      sendResponse({ success: true });
-    }
-  });
-  window.addEventListener("focus", checkAndIngestPending);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      checkAndIngestPending();
-    }
-  });
-  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
-    chrome.storage.onChanged.addListener((changes, areaName) => {
-      if (areaName === "local" && changes.ad_pending_bookmarks) {
-        const newPending = changes.ad_pending_bookmarks.newValue;
-        if (Array.isArray(newPending) && newPending.length > 0) {
-          checkAndIngestPending();
+  try {
+    if (isExtensionContextValid() && chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+        try {
+          if (!isExtensionContextValid()) return;
+          if (message && message.type === "SAVE_BOOKMARK_DIRECT" && message.entry) {
+            window.postMessage({
+              type: "APP_DIRECTORY_NEW_BOOKMARK",
+              entry: message.entry
+            }, "*");
+            sendResponse({ success: true });
+          }
+        } catch (_) {
         }
-      }
-    });
+      });
+    }
+  } catch (_) {
+  }
+  window.addEventListener("focus", onFocus);
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  try {
+    if (isExtensionContextValid() && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        try {
+          if (!isExtensionContextValid()) return;
+          if (areaName === "local" && changes.ad_pending_bookmarks) {
+            const newPending = changes.ad_pending_bookmarks.newValue;
+            if (Array.isArray(newPending) && newPending.length > 0) {
+              checkAndIngestPending();
+            }
+          }
+        } catch (_) {
+        }
+      });
+    }
+  } catch (_) {
   }
   setTimeout(() => {
-    window.postMessage({ type: "APP_DIRECTORY_PING" }, "*");
+    if (isExtensionContextValid()) {
+      window.postMessage({ type: "APP_DIRECTORY_PING" }, "*");
+    }
   }, 300);
 })();
 //# sourceMappingURL=bridge.js.map

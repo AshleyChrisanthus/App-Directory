@@ -1,21 +1,61 @@
 // Content script that acts as a bridge between the local App Directory page and the extension background worker.
 
+function isExtensionContextValid(): boolean {
+  try {
+    return typeof chrome !== 'undefined' &&
+      typeof chrome.runtime !== 'undefined' &&
+      !!chrome.runtime.id;
+  } catch {
+    return false;
+  }
+}
+
+function onFocus(): void {
+  checkAndIngestPending();
+}
+
+function onVisibilityChange(): void {
+  if (document.visibilityState === 'visible') {
+    checkAndIngestPending();
+  }
+}
+
+function cleanupListeners(): void {
+  try {
+    window.removeEventListener('focus', onFocus);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  } catch (_) {}
+}
+
 function checkAndIngestPending(): void {
+  if (!isExtensionContextValid()) {
+    cleanupListeners();
+    return;
+  }
+
   try {
     chrome.runtime.sendMessage({ type: 'GET_PENDING_BOOKMARKS' }, (response) => {
-      if (chrome.runtime.lastError) return;
-      if (response && Array.isArray(response.pendingEntries) && response.pendingEntries.length > 0) {
-        window.postMessage({
-          type: 'APP_DIRECTORY_INGEST_PENDING',
-          entries: response.pendingEntries
-        }, '*');
+      try {
+        if (!isExtensionContextValid()) return;
+        if (chrome.runtime.lastError) return;
+        if (response && Array.isArray(response.pendingEntries) && response.pendingEntries.length > 0) {
+          window.postMessage({
+            type: 'APP_DIRECTORY_INGEST_PENDING',
+            entries: response.pendingEntries
+          }, '*');
+        }
+      } catch (_) {
+        // Context invalidated when extension is reloaded/updated
       }
     });
-  } catch (_) {}
+  } catch (_) {
+    cleanupListeners();
+  }
 }
 
 // Listen for messages from the App Directory web page
 window.addEventListener('message', (event: MessageEvent) => {
+  if (!isExtensionContextValid()) return;
   if (!event.data || typeof event.data !== 'object') return;
 
   const { type, folders, categories } = event.data;
@@ -41,37 +81,47 @@ window.addEventListener('message', (event: MessageEvent) => {
 });
 
 // Listen for direct bookmark saves forwarded from the extension background worker
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message && message.type === 'SAVE_BOOKMARK_DIRECT' && message.entry) {
-    window.postMessage({
-      type: 'APP_DIRECTORY_NEW_BOOKMARK',
-      entry: message.entry
-    }, '*');
-    sendResponse({ success: true });
+try {
+  if (isExtensionContextValid() && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      try {
+        if (!isExtensionContextValid()) return;
+        if (message && message.type === 'SAVE_BOOKMARK_DIRECT' && message.entry) {
+          window.postMessage({
+            type: 'APP_DIRECTORY_NEW_BOOKMARK',
+            entry: message.entry
+          }, '*');
+          sendResponse({ success: true });
+        }
+      } catch (_) {}
+    });
   }
-});
+} catch (_) {}
 
 // Auto-sync whenever user focuses or switches back to this tab
-window.addEventListener('focus', checkAndIngestPending);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    checkAndIngestPending();
-  }
-});
+window.addEventListener('focus', onFocus);
+document.addEventListener('visibilitychange', onVisibilityChange);
 
 // 100% event-driven sync on storage change (zero timer wakeups / zero idle battery consumption)
-if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local' && changes.ad_pending_bookmarks) {
-      const newPending = changes.ad_pending_bookmarks.newValue;
-      if (Array.isArray(newPending) && newPending.length > 0) {
-        checkAndIngestPending();
-      }
-    }
-  });
-}
+try {
+  if (isExtensionContextValid() && chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      try {
+        if (!isExtensionContextValid()) return;
+        if (areaName === 'local' && changes.ad_pending_bookmarks) {
+          const newPending = changes.ad_pending_bookmarks.newValue;
+          if (Array.isArray(newPending) && newPending.length > 0) {
+            checkAndIngestPending();
+          }
+        }
+      } catch (_) {}
+    });
+  }
+} catch (_) {}
 
 // Initial ping to request App Directory state if already loaded
 setTimeout(() => {
-  window.postMessage({ type: 'APP_DIRECTORY_PING' }, '*');
+  if (isExtensionContextValid()) {
+    window.postMessage({ type: 'APP_DIRECTORY_PING' }, '*');
+  }
 }, 300);

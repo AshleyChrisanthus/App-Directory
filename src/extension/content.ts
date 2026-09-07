@@ -36,7 +36,22 @@ function detectDescription(): string {
   return (metaDesc || '').trim();
 }
 
+function isExtensionContextValid(): boolean {
+  try {
+    return typeof chrome !== 'undefined' &&
+      typeof chrome.runtime !== 'undefined' &&
+      !!chrome.runtime.id;
+  } catch {
+    return false;
+  }
+}
+
 function toggleModal(): void {
+  if (!isExtensionContextValid()) {
+    console.warn('[App Directory Companion] Extension was reloaded. Please refresh this page.');
+    return;
+  }
+
   const existingHost = document.getElementById('app-directory-modal-host');
   if (existingHost) {
     const backdrop = existingHost.shadowRoot?.querySelector('.ad-modal-backdrop');
@@ -50,11 +65,17 @@ function toggleModal(): void {
   }
 
   // Fetch folders and categories from extension background
-  chrome.runtime.sendMessage({ type: 'GET_APP_DIRECTORY_STATE' }, (response: AppDirectoryState) => {
-    const folders: CachedFolder[] = (response && response.folders) || [];
-    const categories: string[] = (response && response.categories) || [];
-    renderModal(folders, categories);
-  });
+  try {
+    chrome.runtime.sendMessage({ type: 'GET_APP_DIRECTORY_STATE' }, (response: AppDirectoryState) => {
+      try {
+        if (!isExtensionContextValid()) return;
+        if (chrome.runtime.lastError) return;
+        const folders: CachedFolder[] = (response && response.folders) || [];
+        const categories: string[] = (response && response.categories) || [];
+        renderModal(folders, categories);
+      } catch (_) {}
+    });
+  } catch (_) {}
 }
 
 function renderModal(availableFolders: CachedFolder[], availableCategories: string[]): void {
@@ -376,22 +397,32 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
       visitCount: 0
     };
 
-    chrome.runtime.sendMessage({ type: 'SAVE_BOOKMARK', entry: newBookmark }, (res) => {
-      const successOverlay = shadow.getElementById('ad-success-overlay');
-      const successSub = shadow.getElementById('ad-success-sub');
-      if (successSub && res) {
-        if (res.direct) {
-          successSub.textContent = 'Saved directly to your open App Directory tab!';
-        } else if (res.queued) {
-          successSub.textContent = `Queued (${res.pendingCount || 1} pending) — will sync when App Directory opens.`;
-        }
+    try {
+      if (!isExtensionContextValid()) {
+        alert('The extension was reloaded. Please refresh this page to save bookmarks.');
+        return;
       }
+      chrome.runtime.sendMessage({ type: 'SAVE_BOOKMARK', entry: newBookmark }, (res) => {
+        try {
+          if (!isExtensionContextValid()) return;
+          if (chrome.runtime.lastError) return;
+          const successOverlay = shadow.getElementById('ad-success-overlay');
+          const successSub = shadow.getElementById('ad-success-sub');
+          if (successSub && res) {
+            if (res.direct) {
+              successSub.textContent = 'Saved directly to your open App Directory tab!';
+            } else if (res.queued) {
+              successSub.textContent = `Queued (${res.pendingCount || 1} pending) — will sync when App Directory opens.`;
+            }
+          }
 
-      if (successOverlay) successOverlay.classList.add('ad-show');
-      setTimeout(() => {
-        closeModal();
-      }, 700);
-    });
+          if (successOverlay) successOverlay.classList.add('ad-show');
+          setTimeout(() => {
+            closeModal();
+          }, 700);
+        } catch (_) {}
+      });
+    } catch (_) {}
   };
 
   if (saveBtn) saveBtn.addEventListener('click', doSave);
@@ -437,6 +468,14 @@ function escapeHtml(str: string): string {
 
 // Page-level keyboard shortcut listeners for Alt+A (Add), Alt+S (Save), Alt+B (Bookmark), or Alt+D
 function handlePageShortcut(e: KeyboardEvent): void {
+  if (!isExtensionContextValid()) {
+    try {
+      window.removeEventListener('keydown', handlePageShortcut, true);
+      document.removeEventListener('keydown', handlePageShortcut, true);
+    } catch (_) {}
+    return;
+  }
+
   if (!e.altKey || e.ctrlKey) return;
 
   const isA = e.code === 'KeyA' || e.key === 'a' || e.key === 'A';
@@ -458,9 +497,16 @@ window.addEventListener('keydown', handlePageShortcut, true);
 document.addEventListener('keydown', handlePageShortcut, true);
 
 // Listen for messages from background script
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message && message.type === 'TOGGLE_INJECTED_MODAL') {
-    toggleModal();
-    sendResponse({ success: true });
+try {
+  if (isExtensionContextValid() && chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      try {
+        if (!isExtensionContextValid()) return;
+        if (message && message.type === 'TOGGLE_INJECTED_MODAL') {
+          toggleModal();
+          sendResponse({ success: true });
+        }
+      } catch (_) {}
+    });
   }
-});
+} catch (_) {}

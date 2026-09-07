@@ -21,7 +21,18 @@
     const metaDesc = document.querySelector('meta[name="description" i]')?.content || document.querySelector('meta[property="og:description" i]')?.content || document.querySelector('meta[name="twitter:description" i]')?.content;
     return (metaDesc || "").trim();
   }
+  function isExtensionContextValid() {
+    try {
+      return typeof chrome !== "undefined" && typeof chrome.runtime !== "undefined" && !!chrome.runtime.id;
+    } catch {
+      return false;
+    }
+  }
   function toggleModal() {
+    if (!isExtensionContextValid()) {
+      console.warn("[App Directory Companion] Extension was reloaded. Please refresh this page.");
+      return;
+    }
     const existingHost = document.getElementById("app-directory-modal-host");
     if (existingHost) {
       const backdrop = existingHost.shadowRoot?.querySelector(".ad-modal-backdrop");
@@ -33,11 +44,19 @@
       }
       return;
     }
-    chrome.runtime.sendMessage({ type: "GET_APP_DIRECTORY_STATE" }, (response) => {
-      const folders = response && response.folders || [];
-      const categories = response && response.categories || [];
-      renderModal(folders, categories);
-    });
+    try {
+      chrome.runtime.sendMessage({ type: "GET_APP_DIRECTORY_STATE" }, (response) => {
+        try {
+          if (!isExtensionContextValid()) return;
+          if (chrome.runtime.lastError) return;
+          const folders = response && response.folders || [];
+          const categories = response && response.categories || [];
+          renderModal(folders, categories);
+        } catch (_) {
+        }
+      });
+    } catch (_) {
+    }
   }
   function renderModal(availableFolders, availableCategories) {
     const host = document.createElement("div");
@@ -309,21 +328,33 @@
         dateAdded: (/* @__PURE__ */ new Date()).toISOString(),
         visitCount: 0
       };
-      chrome.runtime.sendMessage({ type: "SAVE_BOOKMARK", entry: newBookmark }, (res) => {
-        const successOverlay = shadow.getElementById("ad-success-overlay");
-        const successSub = shadow.getElementById("ad-success-sub");
-        if (successSub && res) {
-          if (res.direct) {
-            successSub.textContent = "Saved directly to your open App Directory tab!";
-          } else if (res.queued) {
-            successSub.textContent = `Queued (${res.pendingCount || 1} pending) \u2014 will sync when App Directory opens.`;
-          }
+      try {
+        if (!isExtensionContextValid()) {
+          alert("The extension was reloaded. Please refresh this page to save bookmarks.");
+          return;
         }
-        if (successOverlay) successOverlay.classList.add("ad-show");
-        setTimeout(() => {
-          closeModal();
-        }, 700);
-      });
+        chrome.runtime.sendMessage({ type: "SAVE_BOOKMARK", entry: newBookmark }, (res) => {
+          try {
+            if (!isExtensionContextValid()) return;
+            if (chrome.runtime.lastError) return;
+            const successOverlay = shadow.getElementById("ad-success-overlay");
+            const successSub = shadow.getElementById("ad-success-sub");
+            if (successSub && res) {
+              if (res.direct) {
+                successSub.textContent = "Saved directly to your open App Directory tab!";
+              } else if (res.queued) {
+                successSub.textContent = `Queued (${res.pendingCount || 1} pending) \u2014 will sync when App Directory opens.`;
+              }
+            }
+            if (successOverlay) successOverlay.classList.add("ad-show");
+            setTimeout(() => {
+              closeModal();
+            }, 700);
+          } catch (_) {
+          }
+        });
+      } catch (_) {
+      }
     };
     if (saveBtn) saveBtn.addEventListener("click", doSave);
     const keyHandler = (e) => {
@@ -353,6 +384,14 @@
     return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
   function handlePageShortcut(e) {
+    if (!isExtensionContextValid()) {
+      try {
+        window.removeEventListener("keydown", handlePageShortcut, true);
+        document.removeEventListener("keydown", handlePageShortcut, true);
+      } catch (_) {
+      }
+      return;
+    }
     if (!e.altKey || e.ctrlKey) return;
     const isA = e.code === "KeyA" || e.key === "a" || e.key === "A";
     const isS = e.code === "KeyS" || e.key === "s" || e.key === "S";
@@ -369,11 +408,20 @@
   }
   window.addEventListener("keydown", handlePageShortcut, true);
   document.addEventListener("keydown", handlePageShortcut, true);
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message && message.type === "TOGGLE_INJECTED_MODAL") {
-      toggleModal();
-      sendResponse({ success: true });
+  try {
+    if (isExtensionContextValid() && chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+        try {
+          if (!isExtensionContextValid()) return;
+          if (message && message.type === "TOGGLE_INJECTED_MODAL") {
+            toggleModal();
+            sendResponse({ success: true });
+          }
+        } catch (_) {
+        }
+      });
     }
-  });
+  } catch (_) {
+  }
 })();
 //# sourceMappingURL=content.js.map
