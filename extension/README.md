@@ -33,8 +33,12 @@ Because Chrome restricts extensions from interacting with local `file://` URLs b
 ## 🎯 How to Use
 
 1. **Browse to any website** (e.g., `https://github.com`, `https://news.ycombinator.com`, or any documentation).
-2. Press **`Alt + Shift + D`** on your keyboard (or click the 📁 icon in your Chrome toolbar).
-   > **Note on Shortcut**: `Alt + D` is hardcoded in Chrome to focus the browser address bar. We use **`Alt + Shift + D`** by default so it never conflicts. You can also customize this anytime in Chrome at `chrome://extensions/shortcuts`.
+2. Press **`Alt + A`** or **`Alt + S`** on your keyboard (or click the 📁 icon in your Chrome toolbar).
+   > **Note on Shortcuts**:
+   > - `Alt + D` is hardcoded in Chrome to focus the Omnibox / address bar.
+   > - `Alt + Shift` is intercepted by Windows to toggle keyboard languages.
+   > - Therefore, **`Alt + A`** (Add) and **`Alt + S`** (Save) are used as fast, conflict-free hotkeys that work instantly.
+   > - You can also customize your preferred shortcut in Chrome anytime at `chrome://extensions/shortcuts`.
 3. The **In-Page Injected Modal** pops up immediately:
    - **Name**: Pre-filled from the page's title.
    - **URL**: Pre-filled from the current address.

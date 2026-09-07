@@ -115,7 +115,7 @@
       </div>
 
       <div class="ad-modal-footer">
-        <span class="ad-shortcut-hint"><kbd>Alt+Shift+D</kbd> or <kbd>Ctrl+Enter</kbd> to save</span>
+        <span class="ad-shortcut-hint"><kbd>Alt+A</kbd> / <kbd>Alt+S</kbd> to open &bull; <kbd>Ctrl+Enter</kbd> to save</span>
         <div class="ad-btn-group">
           <button type="button" class="ad-btn ad-btn-secondary" id="ad-cancel-btn">Cancel</button>
           <button type="button" class="ad-btn ad-btn-primary" id="ad-save-btn">\u2713 Save to App</button>
@@ -352,18 +352,23 @@
   function escapeHtml(str) {
     return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
-  window.addEventListener(
-    "keydown",
-    (e) => {
-      const isKeyD = e.code === "KeyD" || e.key === "D" || e.key === "d";
-      if (e.altKey && isKeyD) {
+  function handlePageShortcut(e) {
+    if (!e.altKey || e.ctrlKey) return;
+    const isA = e.code === "KeyA" || e.key === "a" || e.key === "A";
+    const isS = e.code === "KeyS" || e.key === "s" || e.key === "S";
+    const isB = e.code === "KeyB" || e.key === "b" || e.key === "B";
+    const isD = e.code === "KeyD" || e.key === "d" || e.key === "D";
+    if (isA || isS || isB || isD) {
+      const existingHost = document.getElementById("app-directory-modal-host");
+      if (!existingHost) {
         e.preventDefault();
         e.stopPropagation();
         toggleModal();
       }
-    },
-    true
-  );
+    }
+  }
+  window.addEventListener("keydown", handlePageShortcut, true);
+  document.addEventListener("keydown", handlePageShortcut, true);
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message && message.type === "TOGGLE_INJECTED_MODAL") {
       toggleModal();
