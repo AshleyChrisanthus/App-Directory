@@ -204,6 +204,13 @@
 }
 
 /* Category Tags */
+.ad-categories-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 .ad-tags-wrapper {
   background: rgba(15, 23, 42, 0.65);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -254,33 +261,65 @@
   font-size: 13px;
   outline: none;
   flex: 1;
-  min-width: 80px;
+  min-width: 90px;
   font-family: inherit;
   padding: 2px 4px;
 }
 
-/* Suggestions */
-.ad-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+/* Category Suggestions Autocomplete Popup */
+.ad-suggestions-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   margin-top: 4px;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  max-height: 180px;
+  overflow-y: auto;
+  z-index: 50;
+  display: none;
+  flex-direction: column;
+  padding: 4px;
 }
 
-.ad-suggest-pill {
-  font-size: 11px;
-  padding: 2px 7px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  color: #94a3b8;
+.ad-suggestions-popup.ad-show {
+  display: flex;
+}
+
+.ad-suggestion-item {
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #cbd5e1;
   cursor: pointer;
-  transition: all 0.15s ease;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.ad-suggest-pill:hover {
-  background: rgba(10, 132, 255, 0.15);
-  border-color: rgba(10, 132, 255, 0.35);
+.ad-suggestion-item:hover,
+.ad-suggestion-item.is-focused {
+  background: rgba(10, 132, 255, 0.25);
+  color: #ffffff;
+}
+
+.ad-suggestion-item .ad-suggest-tag-name {
+  font-weight: 500;
+}
+
+.ad-suggestion-item .ad-suggest-tag-hint {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.ad-suggestion-item:hover .ad-suggest-tag-hint,
+.ad-suggestion-item.is-focused .ad-suggest-tag-hint {
   color: #93c5fd;
 }
 

@@ -14,7 +14,6 @@ interface AppDirectoryState {
 
 function detectFavicon(): string {
   const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel*="icon"]'));
-  // Prefer apple-touch-icon or largest icon
   const appleIcon = links.find(l => l.rel.includes('apple-touch-icon'));
   if (appleIcon && appleIcon.href) return appleIcon.href;
 
@@ -24,11 +23,17 @@ function detectFavicon(): string {
     }
   }
 
-  // Fallback to Google Favicon Service
-  const domain = window.location.hostname;
   return `https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(
     window.location.origin
   )}&size=128`;
+}
+
+function detectDescription(): string {
+  const metaDesc =
+    document.querySelector<HTMLMetaElement>('meta[name="description" i]')?.content ||
+    document.querySelector<HTMLMetaElement>('meta[property="og:description" i]')?.content ||
+    document.querySelector<HTMLMetaElement>('meta[name="twitter:description" i]')?.content;
+  return (metaDesc || '').trim();
 }
 
 function toggleModal(): void {
@@ -65,9 +70,11 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   const initialTitle = document.title.trim() || window.location.hostname;
   const initialUrl = window.location.href;
   const initialIcon = detectFavicon();
+  const initialDesc = detectDescription();
 
   const selectedCategories: string[] = [];
   let isFavorite = false;
+  let suggestionHighlightedIndex = -1;
 
   const backdrop = document.createElement('div');
   backdrop.className = 'ad-modal-backdrop';
@@ -117,28 +124,22 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
           </div>
         </div>
 
-        <div class="ad-form-group">
+        <div class="ad-form-group ad-categories-field">
           <label class="ad-form-label">Categories</label>
           <div class="ad-tags-wrapper" id="ad-tags-wrapper">
-            <input type="text" class="ad-tag-input" id="ad-tag-input" placeholder="Type category and press Enter...">
+            <input type="text" class="ad-tag-input" id="ad-tag-input" placeholder="Type category and press Enter..." autocomplete="off">
           </div>
-          ${availableCategories.length > 0 ? `
-            <div class="ad-suggestions" id="ad-suggestions">
-              ${availableCategories.slice(0, 10).map(cat => `
-                <span class="ad-suggest-pill" data-cat="${escapeHtml(cat)}">+ ${escapeHtml(cat)}</span>
-              `).join('')}
-            </div>
-          ` : ''}
+          <div class="ad-suggestions-popup" id="ad-suggestions-popup"></div>
         </div>
 
         <div class="ad-form-group">
-          <label class="ad-form-label" for="ad-desc-input">Description / Notes <span style="font-size:10px;text-transform:none;opacity:0.7;">(Optional)</span></label>
-          <textarea id="ad-desc-input" class="ad-textarea" placeholder="Add optional notes..."></textarea>
+          <label class="ad-form-label" for="ad-desc-input">Description / Notes <span style="font-size:10px;text-transform:none;opacity:0.7;">(Auto-detected)</span></label>
+          <textarea id="ad-desc-input" class="ad-textarea" placeholder="Add optional notes...">${escapeHtml(initialDesc)}</textarea>
         </div>
       </div>
 
       <div class="ad-modal-footer">
-        <span class="ad-shortcut-hint"><kbd>Alt+D</kbd> or <kbd>Ctrl+Enter</kbd> to save</span>
+        <span class="ad-shortcut-hint"><kbd>Alt+Shift+D</kbd> or <kbd>Ctrl+Enter</kbd> to save</span>
         <div class="ad-btn-group">
           <button type="button" class="ad-btn ad-btn-secondary" id="ad-cancel-btn">Cancel</button>
           <button type="button" class="ad-btn ad-btn-primary" id="ad-save-btn">✓ Save to App</button>
@@ -192,10 +193,10 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     });
   }
 
-  // Tag manager
+  // Tag manager & Suggestions
   const tagsWrapper = shadow.getElementById('ad-tags-wrapper');
   const tagInput = shadow.getElementById('ad-tag-input') as HTMLInputElement | null;
-  const suggestionsBox = shadow.getElementById('ad-suggestions');
+  const suggestionsPopup = shadow.getElementById('ad-suggestions-popup');
 
   const addCategoryChip = (catName: string): void => {
     const trimmed = catName.trim();
@@ -207,10 +208,12 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     chip.setAttribute('data-tag', trimmed);
     chip.innerHTML = `${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">✕</span>`;
 
-    chip.querySelector('.ad-remove-tag')?.addEventListener('click', () => {
+    chip.querySelector('.ad-remove-tag')?.addEventListener('click', (e) => {
+      e.stopPropagation();
       const idx = selectedCategories.indexOf(trimmed);
       if (idx !== -1) selectedCategories.splice(idx, 1);
       chip.remove();
+      renderSuggestions();
     });
 
     if (tagInput && tagsWrapper) {
@@ -219,27 +222,119 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     }
   };
 
+  const renderSuggestions = (): void => {
+    if (!suggestionsPopup || !tagInput) return;
+
+    const query = tagInput.value.trim().toLowerCase();
+    const unselected = availableCategories.filter(cat => !selectedCategories.includes(cat));
+    const matches = query ? unselected.filter(cat => cat.toLowerCase().includes(query)) : unselected;
+
+    suggestionsPopup.innerHTML = '';
+    suggestionHighlightedIndex = -1;
+
+    if (matches.length === 0) {
+      suggestionsPopup.classList.remove('ad-show');
+      return;
+    }
+
+    matches.slice(0, 8).forEach((cat) => {
+      const item = document.createElement('div');
+      item.className = 'ad-suggestion-item';
+      item.innerHTML = `
+        <span class="ad-suggest-tag-name">${escapeHtml(cat)}</span>
+        <span class="ad-suggest-tag-hint">Press Enter</span>
+      `;
+
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        addCategoryChip(cat);
+        tagInput.value = '';
+        renderSuggestions();
+        tagInput.focus();
+      });
+
+      suggestionsPopup.appendChild(item);
+    });
+
+    suggestionsPopup.classList.add('ad-show');
+  };
+
+  const updateSuggestionHighlight = (items: HTMLElement[]): void => {
+    items.forEach((el, idx) => {
+      el.classList.toggle('is-focused', idx === suggestionHighlightedIndex);
+    });
+    if (suggestionHighlightedIndex >= 0 && items[suggestionHighlightedIndex]) {
+      items[suggestionHighlightedIndex].scrollIntoView({ block: 'nearest' });
+    }
+  };
+
   if (tagInput) {
     tagInput.addEventListener('keydown', (e: KeyboardEvent) => {
+      const items = suggestionsPopup
+        ? Array.from(suggestionsPopup.querySelectorAll<HTMLElement>('.ad-suggestion-item'))
+        : [];
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length > 0) {
+          suggestionHighlightedIndex = (suggestionHighlightedIndex + 1) % items.length;
+          updateSuggestionHighlight(items);
+        }
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length > 0) {
+          suggestionHighlightedIndex = (suggestionHighlightedIndex - 1 + items.length) % items.length;
+          updateSuggestionHighlight(items);
+        }
+        return;
+      }
+
       if (e.key === 'Enter' || e.key === ',') {
         e.preventDefault();
-        addCategoryChip(tagInput.value);
-      } else if (e.key === 'Backspace' && tagInput.value === '' && selectedCategories.length > 0) {
-        const last = selectedCategories.pop();
+        if (suggestionHighlightedIndex >= 0 && items[suggestionHighlightedIndex]) {
+          const selectedName = items[suggestionHighlightedIndex].querySelector('.ad-suggest-tag-name')?.textContent;
+          if (selectedName) {
+            addCategoryChip(selectedName);
+          }
+        } else if (tagInput.value.trim()) {
+          addCategoryChip(tagInput.value.trim());
+        }
+        tagInput.value = '';
+        renderSuggestions();
+        return;
+      }
+
+      if (e.key === 'Escape' && suggestionsPopup?.classList.contains('ad-show')) {
+        e.stopPropagation();
+        suggestionsPopup.classList.remove('ad-show');
+        return;
+      }
+
+      if (e.key === 'Backspace' && tagInput.value === '' && selectedCategories.length > 0) {
+        selectedCategories.pop();
         const chips = tagsWrapper?.querySelectorAll('.ad-tag-chip');
         if (chips && chips.length > 0) {
           chips[chips.length - 1].remove();
         }
+        renderSuggestions();
       }
     });
-  }
 
-  if (suggestionsBox) {
-    suggestionsBox.addEventListener('click', (e) => {
-      const target = (e.target as HTMLElement).closest('.ad-suggest-pill') as HTMLElement | null;
-      if (target && target.dataset.cat) {
-        addCategoryChip(target.dataset.cat);
-      }
+    tagInput.addEventListener('input', () => {
+      renderSuggestions();
+    });
+
+    tagInput.addEventListener('focus', () => {
+      renderSuggestions();
+    });
+
+    tagInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (suggestionsPopup) suggestionsPopup.classList.remove('ad-show');
+      }, 150);
     });
   }
 
@@ -315,6 +410,18 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Page-level keyboard shortcut fallback for Alt+Shift+D
+window.addEventListener(
+  'keydown',
+  (e: KeyboardEvent) => {
+    if (e.altKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+      e.preventDefault();
+      toggleModal();
+    }
+  },
+  true
+);
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

@@ -32,14 +32,16 @@ Because Chrome restricts extensions from interacting with local `file://` URLs b
 
 ## 🎯 How to Use
 
-1. **Browse to any website** (e.g., `https://github.com`, `https://news.ycombinator.com`, or any docs).
-2. Press **`Alt + D`** on your keyboard (or click the 📁 icon in your Chrome toolbar).
+1. **Browse to any website** (e.g., `https://github.com`, `https://news.ycombinator.com`, or any documentation).
+2. Press **`Alt + Shift + D`** on your keyboard (or click the 📁 icon in your Chrome toolbar).
+   > **Note on Shortcut**: `Alt + D` is hardcoded in Chrome to focus the browser address bar. We use **`Alt + Shift + D`** by default so it never conflicts. You can also customize this anytime in Chrome at `chrome://extensions/shortcuts`.
 3. The **In-Page Injected Modal** pops up immediately:
    - **Name**: Pre-filled from the page's title.
    - **URL**: Pre-filled from the current address.
    - **Icon**: Automatically detected from the page's favicon / apple-touch-icon.
+   - **Description**: Automatically extracted from the page's `<meta name="description">` or `<meta property="og:description">`.
    - **Folder**: Select from your existing App Directory folders.
-   - **Categories**: Select from existing tags or type new ones and press `Enter`.
+   - **Categories**: Type to see **interactive autocomplete suggestions** from your existing categories, navigate with `ArrowUp` / `ArrowDown`, and press `Enter` to add!
    - **Favorites**: Toggle the star button.
 4. Hit **Save to App** (or press **`Ctrl + Enter`**).
    - Press **`Escape`** or click outside to cancel at any time.
