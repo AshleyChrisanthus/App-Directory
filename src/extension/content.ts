@@ -292,6 +292,14 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
         return;
       }
 
+      // Allow Ctrl+Enter to save immediately even from within tag input
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
+        e.preventDefault();
+        e.stopPropagation();
+        doSave();
+        return;
+      }
+
       if (e.key === 'Enter' || e.key === ',') {
         e.preventDefault();
         if (suggestionHighlightedIndex >= 0 && items[suggestionHighlightedIndex]) {
@@ -388,18 +396,34 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
 
   if (saveBtn) saveBtn.addEventListener('click', doSave);
 
-  // Global keys within host
+  // Global keys within modal - captured at window level for reliable Ctrl+Enter & Escape
   const keyHandler = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape') {
+    const isCtrlEnter =
+      (e.ctrlKey || e.metaKey) &&
+      (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter');
+
+    if (isCtrlEnter) {
       e.preventDefault();
-      closeModal();
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
+      e.stopPropagation();
       doSave();
+      return;
+    }
+
+    if (e.key === 'Escape' || e.code === 'Escape') {
+      const popup = shadow.getElementById('ad-suggestions-popup');
+      if (popup && popup.classList.contains('ad-show')) {
+        e.preventDefault();
+        e.stopPropagation();
+        popup.classList.remove('ad-show');
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
     }
   };
 
-  host.addEventListener('keydown', keyHandler);
+  window.addEventListener('keydown', keyHandler, true);
 }
 
 function escapeHtml(str: string): string {
@@ -411,12 +435,14 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
-// Page-level keyboard shortcut fallback for Alt+Shift+D
+// Page-level keyboard shortcut fallback for Alt+Shift+D or Alt+D
 window.addEventListener(
   'keydown',
   (e: KeyboardEvent) => {
-    if (e.altKey && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+    const isKeyD = e.code === 'KeyD' || e.key === 'D' || e.key === 'd';
+    if (e.altKey && isKeyD) {
       e.preventDefault();
+      e.stopPropagation();
       toggleModal();
     }
   },

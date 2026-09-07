@@ -238,6 +238,12 @@
           }
           return;
         }
+        if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter")) {
+          e.preventDefault();
+          e.stopPropagation();
+          doSave();
+          return;
+        }
         if (e.key === "Enter" || e.key === ",") {
           e.preventDefault();
           if (suggestionHighlightedIndex >= 0 && items[suggestionHighlightedIndex]) {
@@ -321,15 +327,27 @@
     };
     if (saveBtn) saveBtn.addEventListener("click", doSave);
     const keyHandler = (e) => {
-      if (e.key === "Escape") {
+      const isCtrlEnter = (e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter");
+      if (isCtrlEnter) {
         e.preventDefault();
-        closeModal();
-      } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
+        e.stopPropagation();
         doSave();
+        return;
+      }
+      if (e.key === "Escape" || e.code === "Escape") {
+        const popup = shadow.getElementById("ad-suggestions-popup");
+        if (popup && popup.classList.contains("ad-show")) {
+          e.preventDefault();
+          e.stopPropagation();
+          popup.classList.remove("ad-show");
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        closeModal();
       }
     };
-    host.addEventListener("keydown", keyHandler);
+    window.addEventListener("keydown", keyHandler, true);
   }
   function escapeHtml(str) {
     return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -337,8 +355,10 @@
   window.addEventListener(
     "keydown",
     (e) => {
-      if (e.altKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
+      const isKeyD = e.code === "KeyD" || e.key === "D" || e.key === "d";
+      if (e.altKey && isKeyD) {
         e.preventDefault();
+        e.stopPropagation();
         toggleModal();
       }
     },
