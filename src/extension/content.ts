@@ -1,5 +1,12 @@
 import modalCss from './modal.css';
 
+// Clean up any stale modal or listeners from previous injections
+if (typeof (window as any).__APP_DIRECTORY_CLEANUP__ === 'function') {
+  try {
+    (window as any).__APP_DIRECTORY_CLEANUP__();
+  } catch (_) {}
+}
+
 interface CachedFolder {
   id: string;
   name: string;
@@ -466,13 +473,22 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
+// Register global cleanup handler
+(window as any).__APP_DIRECTORY_CLEANUP__ = () => {
+  try {
+    window.removeEventListener('keydown', handlePageShortcut, true);
+    document.removeEventListener('keydown', handlePageShortcut, true);
+    const host = document.getElementById('app-directory-modal-host');
+    if (host) host.remove();
+  } catch (_) {}
+};
+
 // Page-level keyboard shortcut listeners for Alt+A (Add), Alt+S (Save), Alt+B (Bookmark), or Alt+D
 function handlePageShortcut(e: KeyboardEvent): void {
   if (!isExtensionContextValid()) {
-    try {
-      window.removeEventListener('keydown', handlePageShortcut, true);
-      document.removeEventListener('keydown', handlePageShortcut, true);
-    } catch (_) {}
+    if (typeof (window as any).__APP_DIRECTORY_CLEANUP__ === 'function') {
+      (window as any).__APP_DIRECTORY_CLEANUP__();
+    }
     return;
   }
 
