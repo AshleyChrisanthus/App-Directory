@@ -79,4 +79,18 @@ export function initExtensionSync(onDataChanged: () => void): void {
 
   // Announce readiness so the bridge knows App Directory is active
   setTimeout(broadcastState, 200);
+
+  if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        broadcastState();
+      }
+    });
+  }
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('focus', () => {
+      broadcastState();
+    });
+  }
 }
