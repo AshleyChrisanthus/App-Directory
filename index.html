@@ -864,21 +864,27 @@
   </div>
 
   <!-- Security & Passcode Settings Modal -->
-  <div class="modal-backdrop" id="securityModalBackdrop" style="display: none;">
-    <div class="modal-dialog security-modal-dialog">
+  <div class="modal-backdrop" id="securityModalBackdrop">
+    <div class="modal security-modal-dialog">
       <div class="modal-header">
-        <h2 class="modal-title">
+        <div class="modal-title-with-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          Master Passcode Security
-        </h2>
-        <button type="button" class="btn btn-icon modal-close" id="securityModalCloseBtn">✕</button>
+          <h2>Master Passcode Security</h2>
+        </div>
+        <button type="button" class="btn btn-icon modal-close" id="securityModalCloseBtn" title="Close">✕</button>
       </div>
       <div class="modal-body">
-        <p class="security-info-text">
-          Set a master passcode to protect your online App Directory instance. When enabled, visitors must enter this passcode before bookmarks or data can be seen.
-        </p>
-
         <div id="securityCurrentStatus" class="security-status-box"></div>
+
+        <div style="margin-bottom: 16px;">
+          <button type="button" class="btn btn-primary" id="modalLockNowBtn" style="width: 100%; justify-content: center; padding: 10px; font-weight: 600;">
+            🔒 Lock App Now
+          </button>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
+
+        <h4 style="font-size: 0.9rem; margin-bottom: 12px; color: var(--text-primary); font-weight: 600;">Change Master Passcode</h4>
 
         <div class="form-group" id="currentPasscodeGroup" style="display: none;">
           <label for="currentPasscodeInput">Current Passcode</label>
@@ -900,7 +906,7 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-danger" id="disablePasscodeBtn" style="display: none;">Remove Passcode</button>
         <button type="button" class="btn btn-ghost" id="securityModalCancelBtn">Cancel</button>
-        <button type="button" class="btn btn-primary" id="savePasscodeBtn">Save Passcode</button>
+        <button type="button" class="btn btn-primary" id="savePasscodeBtn">Update Passcode</button>
       </div>
     </div>
   </div>
@@ -908,6 +914,6 @@
   <!-- Toast container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=6ddfb3df"></script>
+  <script src="app.js?v=020006f9"></script>
 </body>
 </html>

@@ -217,7 +217,8 @@ export function openSecurityModal(): void {
     errorEl.textContent = '';
   }
 
-  modal.style.display = 'flex';
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
   if (enabled && currentInput) {
     setTimeout(() => currentInput.focus(), 100);
   } else if (newInput) {
@@ -228,7 +229,8 @@ export function openSecurityModal(): void {
 export function closeSecurityModal(): void {
   const modal = document.getElementById('securityModalBackdrop');
   if (modal) {
-    modal.style.display = 'none';
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
   }
 }
 
@@ -331,6 +333,16 @@ export async function initPasscodeProtection(options: {
   const saveBtn = document.getElementById('savePasscodeBtn');
   const disableBtn = document.getElementById('disablePasscodeBtn');
   const modalBackdrop = document.getElementById('securityModalBackdrop');
+
+  const modalLockNowBtn = document.getElementById('modalLockNowBtn');
+  if (modalLockNowBtn) {
+    modalLockNowBtn.addEventListener('click', () => {
+      closeSecurityModal();
+      lockApp();
+      showLockScreen();
+      showToast('App Directory locked');
+    });
+  }
 
   if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeSecurityModal);
   if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeSecurityModal);
