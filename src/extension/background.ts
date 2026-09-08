@@ -17,7 +17,7 @@ function isAppDirectoryTab(url?: string, title?: string): boolean {
   const isLocalhost =
     (u.includes('localhost:') || u.includes('127.0.0.1:')) &&
     (t.includes('app directory') || u.includes('index.html'));
-  const isHosted = u.includes('.here.now');
+  const isHosted = u.includes('smooth-harbor-jsy6.here.now');
   return isFile || isLocalhost || isHosted;
 }
 

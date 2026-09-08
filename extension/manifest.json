@@ -36,8 +36,7 @@
         "file://*/*app-directory/*",
         "http://localhost/*",
         "http://127.0.0.1/*",
-        "https://smooth-harbor-jsy6.here.now/*",
-        "https://*.here.now/*"
+        "https://smooth-harbor-jsy6.here.now/*"
       ],
       "js": ["dist/bridge.js"],
       "run_at": "document_idle"
@@ -54,8 +53,7 @@
         "file://*/*app-directory/*",
         "http://localhost/*",
         "http://127.0.0.1/*",
-        "https://smooth-harbor-jsy6.here.now/*",
-        "https://*.here.now/*"
+        "https://smooth-harbor-jsy6.here.now/*"
       ],
       "js": ["dist/content.js"],
       "run_at": "document_idle"
