@@ -119,6 +119,18 @@ import {
 import { initExtensionSync } from './modules/extension/sync';
 import { importData } from './modules/io/import';
 
+// Security & Master Passcode
+import {
+  initPasscodeProtection,
+  isPasscodeEnabled,
+  isAppUnlocked,
+  showLockScreen,
+  hideLockScreen,
+  openSecurityModal,
+  closeSecurityModal,
+  lockApp
+} from './modules/security/passcode';
+
 // ── DOM References ───────────────────────────────────────
 const addBtn = document.getElementById('addBtn');
 const modalClose = document.getElementById('modalClose');
@@ -268,7 +280,18 @@ const paletteCallbacks: CommandPaletteCallbacks = {
   toggleInsightsDrawer: () => handleToggleInsights(),
   setActiveFolder: (folderId: string) => setActiveFolder(folderId as any, render),
   visitEntry: (id: string) => visitEntry(id, render),
-  updateCardsOnly: () => renderCardsOnly()
+  updateCardsOnly: () => renderCardsOnly(),
+  lockApp: () => {
+    if (isPasscodeEnabled()) {
+      lockApp();
+      showLockScreen();
+      showToast('App Directory locked');
+    } else {
+      openSecurityModal();
+      showToast('Set a master passcode first to lock');
+    }
+  },
+  openSecurityModal: () => openSecurityModal()
 };
 
 // ── Form Submission ──────────────────────────────────────
@@ -1165,11 +1188,27 @@ async function init(): Promise<void> {
   await initStorage();
   initTopNavReveal();
   initCommandPalette(paletteCallbacks);
-  render();
-  cacheExistingIconsOffline(render);
-  initExtensionSync(render);
+
   registerServiceWorker();
-  handleIncomingWebShare();
+
+  initPasscodeProtection({
+    onUnlocked: () => {
+      render();
+      cacheExistingIconsOffline(render);
+      initExtensionSync(render);
+      handleIncomingWebShare();
+    },
+    onLocked: () => {
+      // Handled by lock overlay
+    }
+  });
+
+  if (isAppUnlocked()) {
+    render();
+    cacheExistingIconsOffline(render);
+    initExtensionSync(render);
+    handleIncomingWebShare();
+  }
 
   let isSyncingTheme = false;
   const syncThemeFromExternal = () => {

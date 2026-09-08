@@ -5117,3 +5117,201 @@ select:focus {
   .toolbar-left select { width: 100%; }
 }
 
+/* ── Master Passcode Lock Screen & Security Modal ──────────────── */
+body.app-is-locked > *:not(#appLockOverlay) {
+  filter: blur(12px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(10, 11, 14, 0.85);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.lock-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 36px 30px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.lock-card-logo {
+  font-size: 42px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.lock-card-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.lock-card-subtitle {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  margin-bottom: 22px;
+  line-height: 1.45;
+}
+
+.lock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lock-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lock-input {
+  width: 100%;
+  padding: 13px 44px 13px 16px;
+  font-size: 1.05rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.lock-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.25);
+}
+
+.lock-visibility-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+  padding: 4px;
+}
+
+.lock-visibility-btn:hover {
+  opacity: 1;
+}
+
+.lock-remember-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+}
+
+.lock-submit-btn {
+  width: 100%;
+  padding: 13px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.lock-error-msg {
+  margin-top: 14px;
+  font-size: 0.84rem;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+@keyframes shakeAnim {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.lock-card.shake {
+  animation: shakeAnim 0.4s ease-in-out;
+}
+
+.security-modal-dialog {
+  max-width: 440px;
+}
+
+.security-info-text {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.security-status-box {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.security-status-box .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+
+.security-status-box .status-badge.active {
+  background: rgba(16, 185, 129, 0.16);
+  color: #10b981;
+}
+
+.security-status-box .status-badge.inactive {
+  background: rgba(245, 158, 11, 0.16);
+  color: #f59e0b;
+}
+
+.security-status-box .status-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.security-error {
+  font-size: 0.84rem;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  margin-top: 12px;
+}
+

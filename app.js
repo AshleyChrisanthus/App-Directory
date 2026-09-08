@@ -5091,6 +5091,30 @@
         }
       },
       {
+        id: "action-lock-app",
+        type: "action",
+        title: "Lock App Directory",
+        subtitle: "Lock with Master Passcode immediately",
+        icon: "\u{1F512}",
+        badge: "Security",
+        keywords: ["lock", "passcode", "password", "security", "protect"],
+        run: () => {
+          if (callbacks.lockApp) callbacks.lockApp();
+        }
+      },
+      {
+        id: "action-security-settings",
+        type: "action",
+        title: "Master Passcode Security Settings",
+        subtitle: "Configure, change, or remove your app master passcode",
+        icon: "\u{1F6E1}\uFE0F",
+        badge: "Security",
+        keywords: ["security", "passcode", "password", "pin", "lock", "settings"],
+        run: () => {
+          if (callbacks.openSecurityModal) callbacks.openSecurityModal();
+        }
+      },
+      {
         id: "action-view-cards",
         type: "action",
         title: "Switch to Bento Cards View",
@@ -5925,6 +5949,326 @@
     reader.readAsText(file);
   }
 
+  // src/modules/security/passcode.ts
+  var SECURITY_STORAGE_KEY = "appDirectory_security";
+  var SESSION_UNLOCKED_KEY = "appDirectory_session_unlocked";
+  var REMEMBER_TOKEN_KEY = "appDirectory_remember_token";
+  function bufToHex(buf) {
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  function generateRandomHex(bytes = 16) {
+    const arr = new Uint8Array(bytes);
+    if (typeof window !== "undefined" && window.crypto) {
+      window.crypto.getRandomValues(arr);
+    } else {
+      for (let i = 0; i < bytes; i++) arr[i] = Math.floor(Math.random() * 256);
+    }
+    return bufToHex(arr.buffer);
+  }
+  async function hashPasscode(passcode, salt) {
+    const enc = new TextEncoder();
+    const data = enc.encode(passcode + ":" + salt);
+    if (typeof crypto !== "undefined" && crypto.subtle) {
+      const hashBuf = await crypto.subtle.digest("SHA-256", data);
+      return bufToHex(hashBuf);
+    }
+    let hash = 0;
+    const str = passcode + ":" + salt;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(16).padStart(32, "0");
+  }
+  function getSecurityConfig() {
+    try {
+      const raw = localStorage.getItem(SECURITY_STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+  function isPasscodeEnabled() {
+    const cfg = getSecurityConfig();
+    return !!(cfg && cfg.enabled && cfg.hash && cfg.salt);
+  }
+  function isAppUnlocked() {
+    if (!isPasscodeEnabled()) return true;
+    try {
+      if (sessionStorage.getItem(SESSION_UNLOCKED_KEY) === "true") {
+        return true;
+      }
+    } catch (_) {
+    }
+    try {
+      const cfg = getSecurityConfig();
+      const token = localStorage.getItem(REMEMBER_TOKEN_KEY);
+      if (cfg && cfg.rememberToken && token && cfg.rememberToken === token) {
+        return true;
+      }
+    } catch (_) {
+    }
+    return false;
+  }
+  async function setupPasscode(passcode, rememberDevice = true) {
+    const salt = generateRandomHex(16);
+    const hash = await hashPasscode(passcode, salt);
+    const rememberToken = rememberDevice ? generateRandomHex(24) : void 0;
+    const cfg = {
+      enabled: true,
+      salt,
+      hash,
+      rememberToken
+    };
+    localStorage.setItem(SECURITY_STORAGE_KEY, JSON.stringify(cfg));
+    sessionStorage.setItem(SESSION_UNLOCKED_KEY, "true");
+    if (rememberToken) {
+      localStorage.setItem(REMEMBER_TOKEN_KEY, rememberToken);
+    } else {
+      localStorage.removeItem(REMEMBER_TOKEN_KEY);
+    }
+  }
+  async function verifyPasscode(passcode) {
+    const cfg = getSecurityConfig();
+    if (!cfg || !cfg.enabled) return true;
+    const testHash = await hashPasscode(passcode, cfg.salt);
+    return testHash === cfg.hash;
+  }
+  async function unlockWithPasscode(passcode, rememberDevice = false) {
+    const isValid = await verifyPasscode(passcode);
+    if (!isValid) return false;
+    const cfg = getSecurityConfig();
+    if (cfg) {
+      sessionStorage.setItem(SESSION_UNLOCKED_KEY, "true");
+      if (rememberDevice) {
+        const token = cfg.rememberToken || generateRandomHex(24);
+        cfg.rememberToken = token;
+        localStorage.setItem(SECURITY_STORAGE_KEY, JSON.stringify(cfg));
+        localStorage.setItem(REMEMBER_TOKEN_KEY, token);
+      }
+    }
+    return true;
+  }
+  function lockApp() {
+    try {
+      sessionStorage.removeItem(SESSION_UNLOCKED_KEY);
+      localStorage.removeItem(REMEMBER_TOKEN_KEY);
+    } catch (_) {
+    }
+  }
+  function disablePasscode() {
+    try {
+      localStorage.removeItem(SECURITY_STORAGE_KEY);
+      localStorage.removeItem(REMEMBER_TOKEN_KEY);
+      sessionStorage.removeItem(SESSION_UNLOCKED_KEY);
+    } catch (_) {
+    }
+  }
+  var unlockedCallback = null;
+  var lockedCallback = null;
+  function showLockScreen() {
+    const overlay = document.getElementById("appLockOverlay");
+    const input = document.getElementById("lockPasscodeInput");
+    const errorMsg = document.getElementById("lockErrorMsg");
+    if (overlay) {
+      overlay.style.display = "flex";
+      document.body.classList.add("app-is-locked");
+    }
+    if (errorMsg) {
+      errorMsg.style.display = "none";
+      errorMsg.textContent = "";
+    }
+    if (input) {
+      input.value = "";
+      setTimeout(() => input.focus(), 100);
+    }
+    if (lockedCallback) {
+      lockedCallback();
+    }
+  }
+  function hideLockScreen() {
+    const overlay = document.getElementById("appLockOverlay");
+    if (overlay) {
+      overlay.style.display = "none";
+      document.body.classList.remove("app-is-locked");
+    }
+    if (unlockedCallback) {
+      unlockedCallback();
+    }
+  }
+  function openSecurityModal() {
+    const modal = document.getElementById("securityModalBackdrop");
+    const statusBox = document.getElementById("securityCurrentStatus");
+    const currentGroup = document.getElementById("currentPasscodeGroup");
+    const currentInput = document.getElementById("currentPasscodeInput");
+    const newInput = document.getElementById("newPasscodeInput");
+    const confirmInput = document.getElementById("confirmPasscodeInput");
+    const disableBtn = document.getElementById("disablePasscodeBtn");
+    const errorEl = document.getElementById("securityModalError");
+    if (!modal) return;
+    const enabled = isPasscodeEnabled();
+    if (statusBox) {
+      if (enabled) {
+        statusBox.innerHTML = '<span class="status-badge active">\u{1F512} Master Passcode Active</span><p class="status-desc">Your app is protected. You can change or remove your passcode below.</p>';
+      } else {
+        statusBox.innerHTML = '<span class="status-badge inactive">\u{1F513} No Passcode Configured</span><p class="status-desc">Anyone who accesses this URL can view your bookmarks. Set a master passcode to restrict access.</p>';
+      }
+    }
+    if (currentGroup) {
+      currentGroup.style.display = enabled ? "block" : "none";
+    }
+    if (disableBtn) {
+      disableBtn.style.display = enabled ? "inline-block" : "none";
+    }
+    if (currentInput) currentInput.value = "";
+    if (newInput) newInput.value = "";
+    if (confirmInput) confirmInput.value = "";
+    if (errorEl) {
+      errorEl.style.display = "none";
+      errorEl.textContent = "";
+    }
+    modal.style.display = "flex";
+    if (enabled && currentInput) {
+      setTimeout(() => currentInput.focus(), 100);
+    } else if (newInput) {
+      setTimeout(() => newInput.focus(), 100);
+    }
+  }
+  function closeSecurityModal() {
+    const modal = document.getElementById("securityModalBackdrop");
+    if (modal) {
+      modal.style.display = "none";
+    }
+  }
+  function initPasscodeProtection(options) {
+    unlockedCallback = options.onUnlocked;
+    lockedCallback = options.onLocked;
+    const securityBtn = document.getElementById("securityLockBtn");
+    if (securityBtn) {
+      securityBtn.addEventListener("click", () => {
+        if (isPasscodeEnabled()) {
+          openSecurityModal();
+        } else {
+          openSecurityModal();
+        }
+      });
+    }
+    const form = document.getElementById("lockPasscodeForm");
+    const passInput = document.getElementById("lockPasscodeInput");
+    const rememberCheckbox = document.getElementById("lockRememberDeviceCheckbox");
+    const errorMsg = document.getElementById("lockErrorMsg");
+    const toggleVisibilityBtn = document.getElementById("lockToggleVisibilityBtn");
+    if (toggleVisibilityBtn && passInput) {
+      toggleVisibilityBtn.addEventListener("click", () => {
+        const isPassword = passInput.type === "password";
+        passInput.type = isPassword ? "text" : "password";
+        toggleVisibilityBtn.textContent = isPassword ? "\u{1F648}" : "\u{1F441}\uFE0F";
+      });
+    }
+    if (form && passInput) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const val = passInput.value.trim();
+        if (!val) return;
+        const remember = rememberCheckbox ? rememberCheckbox.checked : true;
+        const success = await unlockWithPasscode(val, remember);
+        if (success) {
+          hideLockScreen();
+          showToast("App Directory unlocked");
+        } else {
+          if (errorMsg) {
+            errorMsg.textContent = "Incorrect passcode. Please try again.";
+            errorMsg.style.display = "block";
+          }
+          const card = document.querySelector(".lock-card");
+          if (card) {
+            card.classList.remove("shake");
+            void card.offsetWidth;
+            card.classList.add("shake");
+          }
+          passInput.select();
+        }
+      });
+    }
+    const modalCloseBtn = document.getElementById("securityModalCloseBtn");
+    const modalCancelBtn = document.getElementById("securityModalCancelBtn");
+    const saveBtn = document.getElementById("savePasscodeBtn");
+    const disableBtn = document.getElementById("disablePasscodeBtn");
+    const modalBackdrop2 = document.getElementById("securityModalBackdrop");
+    if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeSecurityModal);
+    if (modalCancelBtn) modalCancelBtn.addEventListener("click", closeSecurityModal);
+    if (modalBackdrop2) {
+      modalBackdrop2.addEventListener("click", (e) => {
+        if (e.target === modalBackdrop2) closeSecurityModal();
+      });
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        const currentInput = document.getElementById("currentPasscodeInput");
+        const newInput = document.getElementById("newPasscodeInput");
+        const confirmInput = document.getElementById("confirmPasscodeInput");
+        const errorEl = document.getElementById("securityModalError");
+        const showError = (msg) => {
+          if (errorEl) {
+            errorEl.textContent = msg;
+            errorEl.style.display = "block";
+          }
+        };
+        if (isPasscodeEnabled() && currentInput) {
+          const isValid = await verifyPasscode(currentInput.value);
+          if (!isValid) {
+            showError("Current passcode is incorrect.");
+            currentInput.focus();
+            return;
+          }
+        }
+        const newPass = newInput ? newInput.value : "";
+        const confirmPass = confirmInput ? confirmInput.value : "";
+        if (!newPass || newPass.length < 4) {
+          showError("Passcode must be at least 4 characters.");
+          if (newInput) newInput.focus();
+          return;
+        }
+        if (newPass !== confirmPass) {
+          showError("New passcodes do not match.");
+          if (confirmInput) confirmInput.focus();
+          return;
+        }
+        await setupPasscode(newPass, true);
+        closeSecurityModal();
+        showToast("Master Passcode successfully updated");
+      });
+    }
+    if (disableBtn) {
+      disableBtn.addEventListener("click", async () => {
+        const currentInput = document.getElementById("currentPasscodeInput");
+        const errorEl = document.getElementById("securityModalError");
+        if (currentInput) {
+          const isValid = await verifyPasscode(currentInput.value);
+          if (!isValid) {
+            if (errorEl) {
+              errorEl.textContent = "Enter your current passcode to remove protection.";
+              errorEl.style.display = "block";
+            }
+            currentInput.focus();
+            return;
+          }
+        }
+        if (confirm("Are you sure you want to disable passcode protection? Anyone with the link will be able to access the app.")) {
+          disablePasscode();
+          closeSecurityModal();
+          showToast("Passcode protection removed");
+        }
+      });
+    }
+    if (isPasscodeEnabled() && !isAppUnlocked()) {
+      showLockScreen();
+    } else {
+      hideLockScreen();
+    }
+  }
+
   // src/main.ts
   var addBtn = document.getElementById("addBtn");
   var modalClose = document.getElementById("modalClose");
@@ -6057,7 +6401,18 @@
     toggleInsightsDrawer: () => handleToggleInsights(),
     setActiveFolder: (folderId) => setActiveFolder(folderId, render),
     visitEntry: (id) => visitEntry(id, render),
-    updateCardsOnly: () => renderCardsOnly()
+    updateCardsOnly: () => renderCardsOnly(),
+    lockApp: () => {
+      if (isPasscodeEnabled()) {
+        lockApp();
+        showLockScreen();
+        showToast("App Directory locked");
+      } else {
+        openSecurityModal();
+        showToast("Set a master passcode first to lock");
+      }
+    },
+    openSecurityModal: () => openSecurityModal()
   };
   function handleSubmit(e) {
     e.preventDefault();
@@ -6831,11 +7186,23 @@
     await initStorage();
     initTopNavReveal();
     initCommandPalette(paletteCallbacks);
-    render();
-    cacheExistingIconsOffline(render);
-    initExtensionSync(render);
     registerServiceWorker();
-    handleIncomingWebShare();
+    initPasscodeProtection({
+      onUnlocked: () => {
+        render();
+        cacheExistingIconsOffline(render);
+        initExtensionSync(render);
+        handleIncomingWebShare();
+      },
+      onLocked: () => {
+      }
+    });
+    if (isAppUnlocked()) {
+      render();
+      cacheExistingIconsOffline(render);
+      initExtensionSync(render);
+      handleIncomingWebShare();
+    }
     let isSyncingTheme = false;
     const syncThemeFromExternal = () => {
       if (isSyncingTheme) return;

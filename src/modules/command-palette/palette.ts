@@ -17,6 +17,8 @@ export interface CommandPaletteCallbacks {
   setActiveFolder: (folderId: string) => void;
   visitEntry: (id: string) => void;
   updateCardsOnly: () => void;
+  lockApp?: () => void;
+  openSecurityModal?: () => void;
 }
 
 export interface PaletteItem {
@@ -177,6 +179,30 @@ export function getCommandPaletteActions(callbacks: CommandPaletteCallbacks): Pa
         localStorage.setItem(PIN_FAVORITES_KEY, String(state.pinFavorites));
         callbacks.updateCardsOnly();
         showToast(state.pinFavorites ? 'Favorites pinned to top ⭐' : 'Natural sort order restored');
+      }
+    },
+    {
+      id: 'action-lock-app',
+      type: 'action',
+      title: 'Lock App Directory',
+      subtitle: 'Lock with Master Passcode immediately',
+      icon: '🔒',
+      badge: 'Security',
+      keywords: ['lock', 'passcode', 'password', 'security', 'protect'],
+      run: () => {
+        if (callbacks.lockApp) callbacks.lockApp();
+      }
+    },
+    {
+      id: 'action-security-settings',
+      type: 'action',
+      title: 'Master Passcode Security Settings',
+      subtitle: 'Configure, change, or remove your app master passcode',
+      icon: '🛡️',
+      badge: 'Security',
+      keywords: ['security', 'passcode', 'password', 'pin', 'lock', 'settings'],
+      run: () => {
+        if (callbacks.openSecurityModal) callbacks.openSecurityModal();
       }
     },
     {
