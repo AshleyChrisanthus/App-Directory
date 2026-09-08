@@ -5263,29 +5263,35 @@ body.app-is-locked > *:not(#appLockOverlay) {
 }
 
 .security-modal-dialog {
-  max-width: 440px;
+  max-width: 480px;
   width: 100%;
+}
+
+.security-modal-dialog .modal-body {
+  padding: 22px 26px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .security-card-box {
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
-  margin-bottom: 20px;
+  padding: 16px 18px;
 }
 
 .security-status-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 
 .security-status-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .security-status-box .status-badge {
@@ -5294,7 +5300,7 @@ body.app-is-locked > *:not(#appLockOverlay) {
   gap: 5px;
   font-size: 0.76rem;
   font-weight: 600;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 6px;
   width: fit-content;
 }
@@ -5310,32 +5316,45 @@ body.app-is-locked > *:not(#appLockOverlay) {
 }
 
 .security-status-box .status-desc {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .security-form-section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  margin-top: 4px;
 }
 
 .security-section-title {
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 2px;
+}
+
+.security-form-section .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.security-form-section .form-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .security-modal-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 22px;
-  padding-top: 14px;
+  padding: 18px 26px 24px;
   border-top: 1px solid var(--border-light);
+  margin-top: 16px;
 }
 
 .security-modal-footer .footer-left {
@@ -5346,7 +5365,7 @@ body.app-is-locked > *:not(#appLockOverlay) {
 .security-modal-footer .footer-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin-left: auto;
 }
 
