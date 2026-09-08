@@ -1168,6 +1168,8 @@ async function init(): Promise<void> {
   render();
   cacheExistingIconsOffline(render);
   initExtensionSync(render);
+  registerServiceWorker();
+  handleIncomingWebShare();
 
   let isSyncingTheme = false;
   const syncThemeFromExternal = () => {
@@ -1205,6 +1207,72 @@ async function init(): Promise<void> {
       syncThemeFromExternal();
     }
   });
+}
+
+function registerServiceWorker(): void {
+  if (
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch((err) => {
+        console.warn('[PWA] Service worker registration failed:', err);
+      });
+    });
+  }
+}
+
+function handleIncomingWebShare(): void {
+  if (typeof window === 'undefined') return;
+
+  const search = window.location.search;
+  if (!search) return;
+
+  const params = new URLSearchParams(search);
+  const rawUrl = params.get('share_url') || params.get('url') || '';
+  const rawTitle = params.get('share_title') || params.get('title') || '';
+  const rawText = params.get('share_text') || params.get('text') || '';
+
+  if (!rawUrl && !rawText && !rawTitle) return;
+
+  // Extract clean URL from url or text
+  let finalUrl = rawUrl.trim();
+  let finalTitle = rawTitle.trim();
+  let finalDescription = '';
+
+  if (!finalUrl && rawText) {
+    const urlMatch = rawText.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) {
+      finalUrl = urlMatch[0];
+      const remainder = rawText.replace(finalUrl, '').trim();
+      if (!finalTitle && remainder) {
+        finalTitle = remainder;
+      } else if (remainder) {
+        finalDescription = remainder;
+      }
+    } else {
+      finalDescription = rawText;
+    }
+  } else if (rawText && rawText !== finalUrl) {
+    finalDescription = rawText;
+  }
+
+  // Clear query params from address bar so refreshing doesn't re-trigger modal
+  try {
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, '', cleanUrl || '/');
+  } catch (_) {}
+
+  if (finalUrl || finalTitle) {
+    setTimeout(() => {
+      openModal(null, {
+        url: finalUrl,
+        name: finalTitle,
+        description: finalDescription
+      });
+    }, 150);
+  }
 }
 
 // Bootstrap

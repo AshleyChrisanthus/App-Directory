@@ -25,7 +25,14 @@ async function deploy(targetSlug = 'smooth-harbor-jsy6') {
   const fileDefs = [
     { path: 'index.html', contentType: 'text/html; charset=utf-8' },
     { path: 'style.css', contentType: 'text/css; charset=utf-8' },
-    { path: 'app.js', contentType: 'text/javascript; charset=utf-8' }
+    { path: 'app.js', contentType: 'text/javascript; charset=utf-8' },
+    { path: 'manifest.webmanifest', contentType: 'application/manifest+json; charset=utf-8' },
+    { path: 'sw.js', contentType: 'text/javascript; charset=utf-8' },
+    { path: 'icons/icon-192.png', contentType: 'image/png' },
+    { path: 'icons/icon-512.png', contentType: 'image/png' },
+    { path: 'icons/icon-512-maskable.png', contentType: 'image/png' },
+    { path: 'icons/apple-touch-icon.png', contentType: 'image/png' },
+    { path: 'icons/favicon-32.png', contentType: 'image/png' }
   ];
 
   const filesPayload = [];

@@ -2501,7 +2501,7 @@
       entryIconPreview2.innerHTML = '<span class="icon-fallback">\u{1F310}</span>';
     }
   }
-  function openModal(id = null) {
+  function openModal(id = null, initialData) {
     state.editingId = id;
     lastAutoDetectedUrl = "";
     const urlAutofillStatus = document.getElementById("urlAutofillStatus");
@@ -2535,10 +2535,18 @@
       if (modalTitle) modalTitle.textContent = "Add Website";
       if (saveBtn) saveBtn.textContent = "Save";
       if (entryForm2) entryForm2.reset();
-      const defaultFid = state.activeFolderId && state.activeFolderId.startsWith("f-") ? state.activeFolderId : "";
+      const defaultFid = initialData?.folderId || (state.activeFolderId && state.activeFolderId.startsWith("f-") ? state.activeFolderId : "");
       populateFolderSelect(defaultFid);
-      state.selectedCategories = [];
+      state.selectedCategories = initialData?.categories ? [...initialData.categories] : [];
       if (iconCandidatesWrapper) iconCandidatesWrapper.style.display = "none";
+      if (initialData) {
+        if (entryName2 && initialData.name) entryName2.value = initialData.name;
+        if (entryDescription2 && initialData.description) entryDescription2.value = initialData.description;
+        if (entryUrl2 && initialData.url) {
+          entryUrl2.value = initialData.url;
+          autoFillUrlMetadata(true);
+        }
+      }
     }
     if (entryCategory2) entryCategory2.value = "";
     hideCategorySuggestions();
@@ -6826,6 +6834,8 @@
     render();
     cacheExistingIconsOffline(render);
     initExtensionSync(render);
+    registerServiceWorker();
+    handleIncomingWebShare();
     let isSyncingTheme = false;
     const syncThemeFromExternal = () => {
       if (isSyncingTheme) return;
@@ -6855,6 +6865,58 @@
         syncThemeFromExternal();
       }
     });
+  }
+  function registerServiceWorker() {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator && (window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch((err) => {
+          console.warn("[PWA] Service worker registration failed:", err);
+        });
+      });
+    }
+  }
+  function handleIncomingWebShare() {
+    if (typeof window === "undefined") return;
+    const search = window.location.search;
+    if (!search) return;
+    const params = new URLSearchParams(search);
+    const rawUrl = params.get("share_url") || params.get("url") || "";
+    const rawTitle = params.get("share_title") || params.get("title") || "";
+    const rawText = params.get("share_text") || params.get("text") || "";
+    if (!rawUrl && !rawText && !rawTitle) return;
+    let finalUrl = rawUrl.trim();
+    let finalTitle = rawTitle.trim();
+    let finalDescription = "";
+    if (!finalUrl && rawText) {
+      const urlMatch = rawText.match(/https?:\/\/[^\s]+/i);
+      if (urlMatch) {
+        finalUrl = urlMatch[0];
+        const remainder = rawText.replace(finalUrl, "").trim();
+        if (!finalTitle && remainder) {
+          finalTitle = remainder;
+        } else if (remainder) {
+          finalDescription = remainder;
+        }
+      } else {
+        finalDescription = rawText;
+      }
+    } else if (rawText && rawText !== finalUrl) {
+      finalDescription = rawText;
+    }
+    try {
+      const cleanUrl = window.location.pathname + window.location.hash;
+      window.history.replaceState({}, "", cleanUrl || "/");
+    } catch (_) {
+    }
+    if (finalUrl || finalTitle) {
+      setTimeout(() => {
+        openModal(null, {
+          url: finalUrl,
+          name: finalTitle,
+          description: finalDescription
+        });
+      }, 150);
+    }
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {

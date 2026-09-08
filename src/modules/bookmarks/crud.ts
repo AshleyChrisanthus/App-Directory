@@ -118,7 +118,15 @@ export function updateModalIconPreview(): void {
   }
 }
 
-export function openModal(id: string | null = null): void {
+export interface InitialModalData {
+  name?: string;
+  url?: string;
+  description?: string;
+  folderId?: string;
+  categories?: string[];
+}
+
+export function openModal(id: string | null = null, initialData?: InitialModalData): void {
   state.editingId = id;
   lastAutoDetectedUrl = '';
   const urlAutofillStatus = document.getElementById('urlAutofillStatus');
@@ -154,10 +162,19 @@ export function openModal(id: string | null = null): void {
     if (modalTitle) modalTitle.textContent = 'Add Website';
     if (saveBtn) saveBtn.textContent = 'Save';
     if (entryForm) entryForm.reset();
-    const defaultFid = state.activeFolderId && state.activeFolderId.startsWith('f-') ? state.activeFolderId : '';
+    const defaultFid = initialData?.folderId || (state.activeFolderId && state.activeFolderId.startsWith('f-') ? state.activeFolderId : '');
     populateFolderSelect(defaultFid);
-    state.selectedCategories = [];
+    state.selectedCategories = initialData?.categories ? [...initialData.categories] : [];
     if (iconCandidatesWrapper) iconCandidatesWrapper.style.display = 'none';
+
+    if (initialData) {
+      if (entryName && initialData.name) entryName.value = initialData.name;
+      if (entryDescription && initialData.description) entryDescription.value = initialData.description;
+      if (entryUrl && initialData.url) {
+        entryUrl.value = initialData.url;
+        autoFillUrlMetadata(true);
+      }
+    }
   }
 
   if (entryCategory) entryCategory.value = '';
