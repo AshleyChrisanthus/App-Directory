@@ -2419,7 +2419,7 @@
   // src/modules/bookmarks/crud.ts
   var lastAutoDetectedUrl = "";
   var isAutoDetecting = false;
-  async function autoFillUrlMetadata(force = false) {
+  async function autoFillUrlMetadata(force = false, overwriteTitle = false) {
     const entryUrl2 = document.getElementById("entryUrl");
     const entryName2 = document.getElementById("entryName");
     const entryIcon2 = document.getElementById("entryIcon");
@@ -2451,11 +2451,11 @@
       const meta = await fetchWebsiteMetadata(rawUrl);
       if (meta) {
         const currentName = entryName2 ? entryName2.value.trim() : "";
-        if (meta.title && (force || !currentName)) {
+        if (meta.title && (overwriteTitle || !currentName)) {
           if (entryName2) entryName2.value = meta.title;
         }
         const currentDesc = entryDescription2 ? entryDescription2.value.trim() : "";
-        if (meta.description && (force || !currentDesc)) {
+        if (meta.description && !currentDesc) {
           if (entryDescription2) entryDescription2.value = meta.description;
         }
         renderIconCandidates(rawUrl, meta.iconUrl, "google");
@@ -2544,7 +2544,7 @@
         if (entryDescription2 && initialData.description) entryDescription2.value = initialData.description;
         if (entryUrl2 && initialData.url) {
           entryUrl2.value = initialData.url;
-          autoFillUrlMetadata(true);
+          autoFillUrlMetadata(true, false);
         }
       }
     }
@@ -6141,9 +6141,37 @@
       modal.style.display = "none";
     }
   }
-  function initPasscodeProtection(options) {
+  async function syncServerSecurityConfig() {
+    if (typeof window === "undefined") return;
+    if (window.location.protocol === "file:") return;
+    try {
+      const res = await fetch("./security-config.json?v=" + Date.now());
+      if (res.ok) {
+        const serverCfg = await res.json();
+        if (serverCfg && serverCfg.enabled && serverCfg.salt && serverCfg.hash) {
+          const localCfg = getSecurityConfig();
+          if (!localCfg || localCfg.hash !== serverCfg.hash || localCfg.salt !== serverCfg.salt || !localCfg.enabled) {
+            const updated = {
+              enabled: true,
+              salt: serverCfg.salt,
+              hash: serverCfg.hash,
+              rememberToken: localCfg && localCfg.hash === serverCfg.hash ? localCfg.rememberToken : void 0
+            };
+            localStorage.setItem(SECURITY_STORAGE_KEY, JSON.stringify(updated));
+            if (!updated.rememberToken) {
+              localStorage.removeItem(REMEMBER_TOKEN_KEY);
+              sessionStorage.removeItem(SESSION_UNLOCKED_KEY);
+            }
+          }
+        }
+      }
+    } catch (_) {
+    }
+  }
+  async function initPasscodeProtection(options) {
     unlockedCallback = options.onUnlocked;
     lockedCallback = options.onLocked;
+    await syncServerSecurityConfig();
     const securityBtn = document.getElementById("securityLockBtn");
     if (securityBtn) {
       securityBtn.addEventListener("click", () => {
@@ -6883,7 +6911,7 @@
   if (autoDetectBtn) {
     autoDetectBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      autoFillUrlMetadata(true);
+      autoFillUrlMetadata(true, true);
     });
   }
   if (entryIcon) {
@@ -7187,7 +7215,7 @@
     initTopNavReveal();
     initCommandPalette(paletteCallbacks);
     registerServiceWorker();
-    initPasscodeProtection({
+    await initPasscodeProtection({
       onUnlocked: () => {
         render();
         cacheExistingIconsOffline(render);

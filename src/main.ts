@@ -839,7 +839,7 @@ if (entryUrl) {
 if (autoDetectBtn) {
   autoDetectBtn.addEventListener('click', (e: MouseEvent) => {
     e.preventDefault();
-    autoFillUrlMetadata(true);
+    autoFillUrlMetadata(true, true);
   });
 }
 
@@ -1191,7 +1191,7 @@ async function init(): Promise<void> {
 
   registerServiceWorker();
 
-  initPasscodeProtection({
+  await initPasscodeProtection({
     onUnlocked: () => {
       render();
       cacheExistingIconsOffline(render);

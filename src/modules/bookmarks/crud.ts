@@ -19,7 +19,7 @@ import { populateFolderSelect } from '../folders/sidebar';
 let lastAutoDetectedUrl = '';
 let isAutoDetecting = false;
 
-export async function autoFillUrlMetadata(force = false): Promise<void> {
+export async function autoFillUrlMetadata(force: boolean = false, overwriteTitle: boolean = false): Promise<void> {
   const entryUrl = document.getElementById('entryUrl') as HTMLInputElement | null;
   const entryName = document.getElementById('entryName') as HTMLInputElement | null;
   const entryIcon = document.getElementById('entryIcon') as HTMLInputElement | null;
@@ -59,12 +59,12 @@ export async function autoFillUrlMetadata(force = false): Promise<void> {
     const meta = await fetchWebsiteMetadata(rawUrl);
     if (meta) {
       const currentName = entryName ? entryName.value.trim() : '';
-      if (meta.title && (force || !currentName)) {
+      if (meta.title && (overwriteTitle || !currentName)) {
         if (entryName) entryName.value = meta.title;
       }
 
       const currentDesc = entryDescription ? entryDescription.value.trim() : '';
-      if (meta.description && (force || !currentDesc)) {
+      if (meta.description && !currentDesc) {
         if (entryDescription) entryDescription.value = meta.description;
       }
 
@@ -172,7 +172,7 @@ export function openModal(id: string | null = null, initialData?: InitialModalDa
       if (entryDescription && initialData.description) entryDescription.value = initialData.description;
       if (entryUrl && initialData.url) {
         entryUrl.value = initialData.url;
-        autoFillUrlMetadata(true);
+        autoFillUrlMetadata(true, false);
       }
     }
   }

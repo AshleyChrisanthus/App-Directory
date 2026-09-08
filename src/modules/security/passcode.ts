@@ -232,12 +232,42 @@ export function closeSecurityModal(): void {
   }
 }
 
-export function initPasscodeProtection(options: {
+export async function syncServerSecurityConfig(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (window.location.protocol === 'file:') return;
+
+  try {
+    const res = await fetch('./security-config.json?v=' + Date.now());
+    if (res.ok) {
+      const serverCfg = await res.json();
+      if (serverCfg && serverCfg.enabled && serverCfg.salt && serverCfg.hash) {
+        const localCfg = getSecurityConfig();
+        if (!localCfg || localCfg.hash !== serverCfg.hash || localCfg.salt !== serverCfg.salt || !localCfg.enabled) {
+          const updated: SecurityConfig = {
+            enabled: true,
+            salt: serverCfg.salt,
+            hash: serverCfg.hash,
+            rememberToken: (localCfg && localCfg.hash === serverCfg.hash) ? localCfg.rememberToken : undefined
+          };
+          localStorage.setItem(SECURITY_STORAGE_KEY, JSON.stringify(updated));
+          if (!updated.rememberToken) {
+            localStorage.removeItem(REMEMBER_TOKEN_KEY);
+            sessionStorage.removeItem(SESSION_UNLOCKED_KEY);
+          }
+        }
+      }
+    }
+  } catch (_) {}
+}
+
+export async function initPasscodeProtection(options: {
   onUnlocked: () => void;
   onLocked: () => void;
-}): void {
+}): Promise<void> {
   unlockedCallback = options.onUnlocked;
   lockedCallback = options.onLocked;
+
+  await syncServerSecurityConfig();
 
   // Header Security / Lock Button
   const securityBtn = document.getElementById('securityLockBtn');
