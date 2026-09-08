@@ -23,13 +23,20 @@
     } catch (_) {
     }
   }
+  function getBridgeOrigin() {
+    if (typeof window === "undefined") return "unknown";
+    return window.location.protocol === "file:" ? "file://" : window.location.origin;
+  }
   function checkAndIngestPending() {
     if (!isExtensionContextValid()) {
       cleanupListeners();
       return;
     }
     try {
-      chrome.runtime.sendMessage({ type: "GET_PENDING_BOOKMARKS" }, (response) => {
+      chrome.runtime.sendMessage({
+        type: "GET_PENDING_BOOKMARKS",
+        origin: getBridgeOrigin()
+      }, (response) => {
         try {
           if (!isExtensionContextValid()) return;
           if (chrome.runtime.lastError) return;
@@ -49,7 +56,7 @@
   window.addEventListener("message", (event) => {
     if (!isExtensionContextValid()) return;
     if (!event.data || typeof event.data !== "object") return;
-    const { type, folders, categories } = event.data;
+    const { type, folders, categories, entryIds } = event.data;
     if (type === "APP_DIRECTORY_SYNC_RESPONSE" || type === "APP_DIRECTORY_READY") {
       try {
         chrome.runtime.sendMessage({
@@ -62,7 +69,11 @@
       checkAndIngestPending();
     } else if (type === "APP_DIRECTORY_INGEST_SUCCESS") {
       try {
-        chrome.runtime.sendMessage({ type: "CLEAR_PENDING_BOOKMARKS" });
+        chrome.runtime.sendMessage({
+          type: "MARK_PENDING_INGESTED",
+          origin: getBridgeOrigin(),
+          entryIds: Array.isArray(entryIds) ? entryIds : []
+        });
       } catch (_) {
       }
     }

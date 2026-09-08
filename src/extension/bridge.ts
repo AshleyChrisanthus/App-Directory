@@ -27,6 +27,11 @@ function cleanupListeners(): void {
   } catch (_) {}
 }
 
+function getBridgeOrigin(): string {
+  if (typeof window === 'undefined') return 'unknown';
+  return window.location.protocol === 'file:' ? 'file://' : window.location.origin;
+}
+
 function checkAndIngestPending(): void {
   if (!isExtensionContextValid()) {
     cleanupListeners();
@@ -34,7 +39,10 @@ function checkAndIngestPending(): void {
   }
 
   try {
-    chrome.runtime.sendMessage({ type: 'GET_PENDING_BOOKMARKS' }, (response) => {
+    chrome.runtime.sendMessage({
+      type: 'GET_PENDING_BOOKMARKS',
+      origin: getBridgeOrigin()
+    }, (response) => {
       try {
         if (!isExtensionContextValid()) return;
         if (chrome.runtime.lastError) return;
@@ -58,7 +66,7 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (!isExtensionContextValid()) return;
   if (!event.data || typeof event.data !== 'object') return;
 
-  const { type, folders, categories } = event.data;
+  const { type, folders, categories, entryIds } = event.data;
 
   if (type === 'APP_DIRECTORY_SYNC_RESPONSE' || type === 'APP_DIRECTORY_READY') {
     // Cache latest folders and categories in extension storage
@@ -73,9 +81,13 @@ window.addEventListener('message', (event: MessageEvent) => {
     // Check if there are any pending bookmarks queued while App Directory was closed or asleep
     checkAndIngestPending();
   } else if (type === 'APP_DIRECTORY_INGEST_SUCCESS') {
-    // App Directory ingested all pending bookmarks; clear the extension queue
+    // App Directory ingested pending bookmarks; record ingestion for this origin
     try {
-      chrome.runtime.sendMessage({ type: 'CLEAR_PENDING_BOOKMARKS' });
+      chrome.runtime.sendMessage({
+        type: 'MARK_PENDING_INGESTED',
+        origin: getBridgeOrigin(),
+        entryIds: Array.isArray(entryIds) ? entryIds : []
+      });
     } catch (_) {}
   }
 });

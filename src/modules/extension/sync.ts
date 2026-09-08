@@ -70,7 +70,8 @@ export function initExtensionSync(onDataChanged: () => void): void {
 
       if (typeof window !== 'undefined' && typeof window.postMessage === 'function') {
         window.postMessage({
-          type: 'APP_DIRECTORY_INGEST_SUCCESS'
+          type: 'APP_DIRECTORY_INGEST_SUCCESS',
+          entryIds: entries.map((e: any) => e.id).filter(Boolean)
         }, '*');
       }
     }

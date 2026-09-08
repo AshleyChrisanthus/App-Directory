@@ -6,6 +6,24 @@
     CACHED_CATEGORIES: "ad_cached_categories",
     PENDING_BOOKMARKS: "ad_pending_bookmarks"
   };
+  function isAppDirectoryTab(url, title) {
+    if (!url) return false;
+    const u = url.toLowerCase();
+    const t = (title || "").toLowerCase();
+    const isFile = u.startsWith("file://") && (u.includes("app%20directory") || u.includes("app-directory") || u.endsWith("index.html") || t.includes("app directory"));
+    const isLocalhost = (u.includes("localhost:") || u.includes("127.0.0.1:")) && (t.includes("app directory") || u.includes("index.html"));
+    const isHosted = u.includes(".here.now");
+    return isFile || isLocalhost || isHosted;
+  }
+  function getOriginKey(url) {
+    if (!url) return "unknown";
+    if (url.startsWith("file://")) return "file://";
+    try {
+      return new URL(url).origin;
+    } catch {
+      return url;
+    }
+  }
   chrome.runtime.onInstalled.addListener(async () => {
     try {
       const tabs = await chrome.tabs.query({});
@@ -15,9 +33,8 @@
         if (u.startsWith("chrome://") || u.startsWith("edge://") || u.startsWith("about:") || u.startsWith("chrome-extension://")) {
           continue;
         }
-        const isAppDir = u.startsWith("file://") && (u.includes("app%20directory") || u.includes("app-directory") || u.endsWith("index.html"));
-        const isLocalhost = u.includes("localhost:") || u.includes("127.0.0.1:");
-        const scriptFile = isAppDir || isLocalhost ? "dist/bridge.js" : "dist/content.js";
+        const isAppDir = isAppDirectoryTab(tab.url, tab.title);
+        const scriptFile = isAppDir ? "dist/bridge.js" : "dist/content.js";
         try {
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
@@ -82,9 +99,58 @@
         return false;
       }
       case "GET_PENDING_BOOKMARKS": {
+        const origin = typeof message.origin === "string" ? message.origin : "";
         chrome.storage.local.get([STORAGE_KEYS.PENDING_BOOKMARKS], (res) => {
-          sendResponse({
-            pendingEntries: res[STORAGE_KEYS.PENDING_BOOKMARKS] || []
+          const stored = res[STORAGE_KEYS.PENDING_BOOKMARKS];
+          const rawQueue = Array.isArray(stored) ? stored : [];
+          const now = Date.now();
+          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1e3;
+          const pendingEntries = [];
+          for (const item of rawQueue) {
+            if (!item) continue;
+            const isStructured = item.entry && typeof item.timestamp === "number";
+            const entryData = isStructured ? item.entry : item;
+            const timestamp = isStructured ? item.timestamp : now;
+            const ingestedByOrigins = isStructured && Array.isArray(item.ingestedByOrigins) ? item.ingestedByOrigins : [];
+            if (now - timestamp > SEVEN_DAYS_MS) continue;
+            if (!origin || !ingestedByOrigins.includes(origin)) {
+              pendingEntries.push(entryData);
+            }
+          }
+          sendResponse({ pendingEntries });
+        });
+        return true;
+      }
+      case "MARK_PENDING_INGESTED": {
+        const origin = typeof message.origin === "string" ? message.origin : "";
+        const entryIds = Array.isArray(message.entryIds) ? message.entryIds : [];
+        chrome.storage.local.get([STORAGE_KEYS.PENDING_BOOKMARKS], (res) => {
+          const stored = res[STORAGE_KEYS.PENDING_BOOKMARKS];
+          const rawQueue = Array.isArray(stored) ? stored : [];
+          const now = Date.now();
+          const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1e3;
+          const updatedQueue = [];
+          for (const item of rawQueue) {
+            if (!item) continue;
+            const isStructured = item.entry && typeof item.timestamp === "number";
+            const entryData = isStructured ? item.entry : item;
+            const timestamp = isStructured ? item.timestamp : now;
+            const ingestedByOrigins = isStructured && Array.isArray(item.ingestedByOrigins) ? [...item.ingestedByOrigins] : [];
+            if (now - timestamp > SEVEN_DAYS_MS) continue;
+            const isMatch = entryIds.length === 0 || entryIds.includes(entryData.id);
+            if (isMatch && origin && !ingestedByOrigins.includes(origin)) {
+              ingestedByOrigins.push(origin);
+            }
+            if (ingestedByOrigins.length < 2) {
+              updatedQueue.push({
+                entry: entryData,
+                timestamp,
+                ingestedByOrigins
+              });
+            }
+          }
+          chrome.storage.local.set({ [STORAGE_KEYS.PENDING_BOOKMARKS]: updatedQueue }, () => {
+            sendResponse({ success: true, remaining: updatedQueue.length });
           });
         });
         return true;
@@ -103,37 +169,57 @@
             return;
           }
           const tabs = await chrome.tabs.query({});
-          const appDirTab = tabs.find((t) => {
-            if (!t.url) return false;
-            const u = t.url.toLowerCase();
-            const title = (t.title || "").toLowerCase();
-            const isFile = u.startsWith("file://") && (u.includes("app%20directory") || u.includes("app-directory") || u.endsWith("index.html") || title.includes("app directory"));
-            const isLocalhost = (u.includes("localhost:") || u.includes("127.0.0.1:")) && (title.includes("app directory") || u.includes("index.html"));
-            const isHosted = u.includes("smooth-harbor-jsy6.here.now");
-            return isFile || isLocalhost || isHosted;
-          });
-          if (appDirTab && appDirTab.id) {
-            try {
-              const resp = await chrome.tabs.sendMessage(appDirTab.id, {
-                type: "SAVE_BOOKMARK_DIRECT",
-                entry
-              });
-              if (resp && resp.success) {
-                sendResponse({ success: true, direct: true });
-                return;
+          const appDirTabs = tabs.filter((t) => isAppDirectoryTab(t.url, t.title));
+          const deliveredOrigins = [];
+          if (appDirTabs.length > 0) {
+            const results = await Promise.allSettled(
+              appDirTabs.map(async (tab) => {
+                if (!tab.id) throw new Error("No tab id");
+                const resp = await chrome.tabs.sendMessage(tab.id, {
+                  type: "SAVE_BOOKMARK_DIRECT",
+                  entry
+                });
+                if (resp && resp.success) {
+                  return getOriginKey(tab.url);
+                }
+                throw new Error("Tab did not acknowledge save");
+              })
+            );
+            for (const r of results) {
+              if (r.status === "fulfilled" && r.value) {
+                if (!deliveredOrigins.includes(r.value)) {
+                  deliveredOrigins.push(r.value);
+                }
               }
-            } catch {
             }
           }
           const currentData = await chrome.storage.local.get([STORAGE_KEYS.PENDING_BOOKMARKS]);
           const queue = Array.isArray(currentData[STORAGE_KEYS.PENDING_BOOKMARKS]) ? [...currentData[STORAGE_KEYS.PENDING_BOOKMARKS]] : [];
-          queue.push(entry);
-          await chrome.storage.local.set({ [STORAGE_KEYS.PENDING_BOOKMARKS]: queue });
-          sendResponse({
-            success: true,
-            queued: true,
-            pendingCount: queue.length
-          });
+          if (deliveredOrigins.length < 2) {
+            queue.push({
+              entry,
+              timestamp: Date.now(),
+              ingestedByOrigins: deliveredOrigins
+            });
+            if (queue.length > 100) {
+              queue.splice(0, queue.length - 100);
+            }
+            await chrome.storage.local.set({ [STORAGE_KEYS.PENDING_BOOKMARKS]: queue });
+          }
+          if (deliveredOrigins.length > 0) {
+            sendResponse({
+              success: true,
+              direct: true,
+              tabCount: deliveredOrigins.length,
+              deliveredOrigins
+            });
+          } else {
+            sendResponse({
+              success: true,
+              queued: true,
+              pendingCount: queue.length
+            });
+          }
         })();
         return true;
       }
