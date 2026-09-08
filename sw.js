@@ -1,16 +1,16 @@
 // Service Worker for App Directory PWA
-const CACHE_NAME = 'app-directory-v1.0';
+const CACHE_NAME = 'app-directory-v1.1';
 const PRECACHE_ASSETS = [
-  './',
-  './index.html',
-  './style.css',
-  './app.js',
-  './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-512-maskable.png',
-  './icons/apple-touch-icon.png',
-  './icons/favicon-32.png'
+  '/',
+  '/index.html',
+  '/style.css',
+  '/app.js',
+  '/manifest.webmanifest',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-512-maskable.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/favicon-32.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -49,8 +49,8 @@ self.addEventListener('fetch', (event) => {
     if (req.mode === 'navigate') {
       event.respondWith(
         fetch(req).catch(() => {
-          return caches.match('./index.html').then((cached) => {
-            return cached || caches.match('./');
+          return caches.match('/index.html').then((cached) => {
+            return cached || caches.match('/') || caches.match('./index.html');
           });
         })
       );

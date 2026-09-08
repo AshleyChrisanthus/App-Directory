@@ -1,10 +1,10 @@
 {
-  "id": "app-directory-pwa",
+  "id": "/",
   "name": "App Directory",
   "short_name": "App Directory",
   "description": "Modern privacy-first bookmark and web application manager",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "theme_color": "#121316",
@@ -12,26 +12,26 @@
   "categories": ["utilities", "productivity"],
   "icons": [
     {
-      "src": "icons/icon-192.png",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512-maskable.png",
+      "src": "/icons/icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
   ],
   "share_target": {
-    "action": "./",
+    "action": "/",
     "method": "GET",
     "params": {
       "title": "share_title",

@@ -6868,11 +6868,16 @@
   }
   function registerServiceWorker() {
     if (typeof window !== "undefined" && "serviceWorker" in navigator && (window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
-      window.addEventListener("load", () => {
+      const register = () => {
         navigator.serviceWorker.register("./sw.js").catch((err) => {
           console.warn("[PWA] Service worker registration failed:", err);
         });
-      });
+      };
+      if (document.readyState === "complete") {
+        register();
+      } else {
+        window.addEventListener("load", register);
+      }
     }
   }
   function handleIncomingWebShare() {
