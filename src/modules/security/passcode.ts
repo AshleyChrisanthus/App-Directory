@@ -204,7 +204,7 @@ export function openSecurityModal(): void {
   }
 
   if (currentGroup) {
-    currentGroup.style.display = enabled ? 'block' : 'none';
+    currentGroup.style.display = enabled ? 'flex' : 'none';
   }
   if (disableBtn) {
     disableBtn.style.display = enabled ? 'inline-block' : 'none';

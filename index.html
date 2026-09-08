@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=63ee0661">
+  <link rel="stylesheet" href="style.css?v=ed70888a">
 </head>
 <body>
   <!-- Top Navigation Wrapper (Smart Reveal on Hover/Scroll) -->
@@ -874,39 +874,45 @@
         <button type="button" class="btn btn-icon modal-close" id="securityModalCloseBtn" title="Close">✕</button>
       </div>
       <div class="modal-body">
-        <div id="securityCurrentStatus" class="security-status-box"></div>
-
-        <div style="margin-bottom: 16px;">
-          <button type="button" class="btn btn-primary" id="modalLockNowBtn" style="width: 100%; justify-content: center; padding: 10px; font-weight: 600;">
-            🔒 Lock App Now
-          </button>
+        <div class="security-card-box">
+          <div class="security-status-header">
+            <div id="securityCurrentStatus" class="security-status-box"></div>
+            <button type="button" class="btn btn-secondary btn-sm" id="modalLockNowBtn" title="Lock App Directory immediately">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Lock App Now
+            </button>
+          </div>
         </div>
 
-        <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
+        <div class="security-form-section">
+          <h4 class="security-section-title">Change Master Passcode</h4>
 
-        <h4 style="font-size: 0.9rem; margin-bottom: 12px; color: var(--text-primary); font-weight: 600;">Change Master Passcode</h4>
+          <div class="form-group" id="currentPasscodeGroup" style="display: none;">
+            <label for="currentPasscodeInput">Current Passcode</label>
+            <input type="password" id="currentPasscodeInput" class="form-input" placeholder="Enter current passcode" autocomplete="current-password">
+          </div>
 
-        <div class="form-group" id="currentPasscodeGroup" style="display: none;">
-          <label for="currentPasscodeInput">Current Passcode</label>
-          <input type="password" id="currentPasscodeInput" class="form-input" placeholder="Enter current passcode">
+          <div class="form-group">
+            <label for="newPasscodeInput" id="newPasscodeLabel">New Master Passcode</label>
+            <input type="password" id="newPasscodeInput" class="form-input" placeholder="Enter new passcode (min. 4 characters)" autocomplete="new-password">
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPasscodeInput">Confirm Passcode</label>
+            <input type="password" id="confirmPasscodeInput" class="form-input" placeholder="Repeat new passcode" autocomplete="new-password">
+          </div>
+
+          <p class="security-error" id="securityModalError" style="display: none;"></p>
         </div>
-
-        <div class="form-group">
-          <label for="newPasscodeInput" id="newPasscodeLabel">New Master Passcode</label>
-          <input type="password" id="newPasscodeInput" class="form-input" placeholder="Enter new passcode (min. 4 characters)">
-        </div>
-
-        <div class="form-group">
-          <label for="confirmPasscodeInput">Confirm Passcode</label>
-          <input type="password" id="confirmPasscodeInput" class="form-input" placeholder="Repeat new passcode">
-        </div>
-
-        <p class="security-error" id="securityModalError" style="display: none;"></p>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-danger" id="disablePasscodeBtn" style="display: none;">Remove Passcode</button>
-        <button type="button" class="btn btn-ghost" id="securityModalCancelBtn">Cancel</button>
-        <button type="button" class="btn btn-primary" id="savePasscodeBtn">Update Passcode</button>
+      <div class="modal-footer security-modal-footer">
+        <div class="footer-left">
+          <button type="button" class="btn btn-danger btn-sm" id="disablePasscodeBtn" style="display: none;">Remove Passcode</button>
+        </div>
+        <div class="footer-right">
+          <button type="button" class="btn btn-ghost" id="securityModalCancelBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="savePasscodeBtn">Update Passcode</button>
+        </div>
       </div>
     </div>
   </div>
@@ -914,6 +920,6 @@
   <!-- Toast container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=020006f9"></script>
+  <script src="app.js?v=8c5446cd"></script>
 </body>
 </html>
