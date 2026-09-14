@@ -408,6 +408,9 @@
       console.warn("[Storage] Failed to reload from IndexedDB:", err);
     }
   }
+  function loadEntries() {
+    return state.entries;
+  }
   function saveEntries(targetList = null) {
     if (targetList) {
       state.entries = targetList;
@@ -416,6 +419,12 @@
     }
     return idbSetAllEntries(state.entries).then(() => {
       notifyOtherTabs("SYNC_DATA");
+      try {
+        if (typeof window.__APP_SYNC_MANAGER__ !== "undefined") {
+          window.__APP_SYNC_MANAGER__.schedulePush();
+        }
+      } catch (_) {
+      }
     }).catch((err) => {
       console.error("[Storage] Failed to save entries to IndexedDB:", err);
       try {
@@ -424,10 +433,19 @@
       }
     });
   }
+  function loadFolders() {
+    return state.folders;
+  }
   function saveFolders(data = state.folders, notify = true) {
     state.folders = data;
     return idbSetAllFolders(state.folders).then(() => {
       if (notify) notifyOtherTabs("SYNC_DATA");
+      try {
+        if (typeof window.__APP_SYNC_MANAGER__ !== "undefined") {
+          window.__APP_SYNC_MANAGER__.schedulePush();
+        }
+      } catch (_) {
+      }
     }).catch((err) => {
       console.error("[Storage] Failed to save folders to IndexedDB:", err);
       try {
@@ -2314,6 +2332,12 @@
     if (!confirm(`Delete folder "${folder.name}"? Bookmarks inside will become unorganized.`)) return;
     state.folders = state.folders.filter((f) => f.id !== folderId);
     saveFolders(state.folders);
+    try {
+      if (typeof window.__APP_SYNC_MANAGER__ !== "undefined") {
+        window.__APP_SYNC_MANAGER__.recordDeletion(folderId, "folder");
+      }
+    } catch (_) {
+    }
     const diskList = getLatestStoredEntries();
     diskList.forEach((e) => {
       if (e.folderId === folderId) {
@@ -2689,6 +2713,12 @@
     const diskList = getLatestStoredEntries();
     const filtered = diskList.filter((e) => e.id !== id);
     saveEntries(filtered);
+    try {
+      if (typeof window.__APP_SYNC_MANAGER__ !== "undefined") {
+        window.__APP_SYNC_MANAGER__.recordDeletion(id, "entry");
+      }
+    } catch (_) {
+    }
     showToast(`"${entry.name}" deleted.`);
     if (onUpdate) onUpdate();
   }
@@ -4994,7 +5024,7 @@
   }
   function getCommandPaletteActions(callbacks) {
     const isDark = document.documentElement.getAttribute("data-theme") !== "light";
-    return [
+    const actions = [
       {
         id: "action-add",
         type: "action",
@@ -5155,6 +5185,19 @@
         run: () => callbacks.toggleInsightsDrawer()
       }
     ];
+    if (callbacks.openSyncModal) {
+      actions.push({
+        id: "action-cloud-sync",
+        type: "action",
+        title: "Cloud Sync & Devices (E2EE)",
+        subtitle: "Pair mobile devices via QR code and sync bookmarks end-to-end encrypted",
+        icon: "\u2601\uFE0F",
+        badge: "Sync",
+        keywords: ["sync", "cloud", "e2ee", "devices", "mobile", "qr", "pair", "vault"],
+        run: callbacks.openSyncModal
+      });
+    }
+    return actions;
   }
   function getCommandPaletteFolders(callbacks) {
     const list = [
@@ -6308,6 +6351,1295 @@
     }
   }
 
+  // src/modules/sync/crypto.ts
+  function bytesToBase64(bytes) {
+    let binary = "";
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  function base64ToBytes(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  function bytesToBase64Url(bytes) {
+    return bytesToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function base64UrlToBytes(base64url) {
+    let str = base64url.replace(/-/g, "+").replace(/_/g, "/");
+    while (str.length % 4) {
+      str += "=";
+    }
+    return base64ToBytes(str);
+  }
+  async function generateSecretKey() {
+    const rawKey = new Uint8Array(32);
+    crypto.getRandomValues(rawKey);
+    return bytesToBase64Url(rawKey);
+  }
+  function generateVaultId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID().replace(/-/g, "");
+    }
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function importAesKey(secretKeyBase64Url) {
+    const rawBytes = base64UrlToBytes(secretKeyBase64Url);
+    return await crypto.subtle.importKey(
+      "raw",
+      rawBytes,
+      { name: "AES-GCM" },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+  async function encryptPayload(payload, secretKeyBase64Url, deviceId) {
+    const key = await importAesKey(secretKeyBase64Url);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encoder = new TextEncoder();
+    const plaintextBytes = encoder.encode(JSON.stringify(payload));
+    const ciphertextBuffer = await crypto.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv,
+        tagLength: 128
+      },
+      key,
+      plaintextBytes
+    );
+    return {
+      v: 1,
+      iv: bytesToBase64(iv),
+      ciphertext: bytesToBase64(new Uint8Array(ciphertextBuffer)),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      deviceId
+    };
+  }
+  async function decryptPayload(envelope, secretKeyBase64Url) {
+    if (envelope.v !== 1) {
+      throw new Error(`Unsupported envelope version: ${envelope.v}`);
+    }
+    const key = await importAesKey(secretKeyBase64Url);
+    const iv = base64ToBytes(envelope.iv);
+    const ciphertextBytes = base64ToBytes(envelope.ciphertext);
+    const decryptedBuffer = await crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv,
+        tagLength: 128
+      },
+      key,
+      ciphertextBytes
+    );
+    const decoder = new TextDecoder();
+    const jsonStr = decoder.decode(decryptedBuffer);
+    return JSON.parse(jsonStr);
+  }
+
+  // src/modules/sync/merger.ts
+  var TOMBSTONE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1e3;
+  function pruneTombstones(tombstones) {
+    const cutoff = Date.now() - TOMBSTONE_MAX_AGE_MS;
+    return tombstones.filter((t) => {
+      const time = new Date(t.deletedAt).getTime();
+      return !isNaN(time) && time > cutoff;
+    });
+  }
+  function mergeSyncPayload(localEntries, localFolders, localTombstones, remotePayload) {
+    const tombstoneMap = /* @__PURE__ */ new Map();
+    for (const t of [...localTombstones, ...remotePayload.tombstones || []]) {
+      if (!t || !t.id) continue;
+      const existing = tombstoneMap.get(t.id);
+      if (!existing) {
+        tombstoneMap.set(t.id, t);
+      } else {
+        const existingTime = new Date(existing.deletedAt).getTime();
+        const newTime = new Date(t.deletedAt).getTime();
+        if (newTime > existingTime) {
+          tombstoneMap.set(t.id, t);
+        }
+      }
+    }
+    const mergedTombstones = pruneTombstones(Array.from(tombstoneMap.values()));
+    const activeTombstoneLookup = /* @__PURE__ */ new Map();
+    for (const t of mergedTombstones) {
+      activeTombstoneLookup.set(t.id, new Date(t.deletedAt).getTime());
+    }
+    const entryMap = /* @__PURE__ */ new Map();
+    const processEntry = (entry) => {
+      if (!entry || !entry.id) return;
+      const entryTime = new Date(entry.dateModified || entry.dateAdded || 0).getTime();
+      const deletedTime = activeTombstoneLookup.get(entry.id);
+      if (deletedTime && deletedTime >= entryTime) {
+        return;
+      }
+      if (!entryMap.has(entry.id)) {
+        entryMap.set(entry.id, entry);
+      } else {
+        const current = entryMap.get(entry.id);
+        const currentTime = new Date(current.dateModified || current.dateAdded || 0).getTime();
+        if (entryTime >= currentTime) {
+          entryMap.set(entry.id, entry);
+        }
+      }
+    };
+    for (const item of localEntries) processEntry(item);
+    for (const item of remotePayload.entries || []) processEntry(item);
+    const mergedEntries = Array.from(entryMap.values());
+    const folderMap = /* @__PURE__ */ new Map();
+    const DEFAULT_FOLDER_IDS = /* @__PURE__ */ new Set(["all", "favorites", "unorganized", "broken"]);
+    const processFolder = (folder) => {
+      if (!folder || !folder.id) return;
+      const deletedTime = activeTombstoneLookup.get(folder.id);
+      if (deletedTime && !DEFAULT_FOLDER_IDS.has(folder.id)) {
+        return;
+      }
+      if (!folderMap.has(folder.id)) {
+        folderMap.set(folder.id, folder);
+      } else {
+        const current = folderMap.get(folder.id);
+        folderMap.set(folder.id, {
+          ...current,
+          ...folder
+        });
+      }
+    };
+    for (const f of localFolders) processFolder(f);
+    for (const f of remotePayload.folders || []) processFolder(f);
+    const mergedFolders = Array.from(folderMap.values());
+    const hasEntriesChanged = mergedEntries.length !== localEntries.length || mergedEntries.some((e, i) => localEntries[i]?.id !== e.id || localEntries[i]?.name !== e.name);
+    const hasFoldersChanged = mergedFolders.length !== localFolders.length || mergedFolders.some((f, i) => localFolders[i]?.id !== f.id || localFolders[i]?.name !== f.name);
+    const hasTombstonesChanged = mergedTombstones.length !== localTombstones.length;
+    return {
+      mergedEntries,
+      mergedFolders,
+      mergedTombstones,
+      hasChanges: hasEntriesChanged || hasFoldersChanged || hasTombstonesChanged
+    };
+  }
+
+  // src/modules/sync/backend.ts
+  var DEFAULT_RELAY_ENDPOINT = "https://app-directory-sync.onrender.com";
+  var CustomWorkerLocker = class {
+    constructor(endpoint, authHeader) {
+      __publicField(this, "endpoint");
+      __publicField(this, "authHeader");
+      this.endpoint = endpoint.replace(/\/+$/, "");
+      this.authHeader = authHeader;
+    }
+    getHeaders() {
+      const headers = {
+        "Content-Type": "application/json",
+        "X-App-Client": "AppDirectory-E2EE-v1"
+      };
+      if (this.authHeader) {
+        headers["Authorization"] = this.authHeader.startsWith("Bearer ") ? this.authHeader : `Bearer ${this.authHeader}`;
+      }
+      return headers;
+    }
+    async get(vaultId) {
+      const url = `${this.endpoint}/api/vault/${encodeURIComponent(vaultId)}`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1e4);
+      try {
+        const res = await fetch(url, {
+          method: "GET",
+          headers: this.getHeaders(),
+          signal: controller.signal
+        });
+        if (res.status === 404) {
+          return null;
+        }
+        if (!res.ok) {
+          throw new Error(`Cloud locker returned HTTP ${res.status}: ${res.statusText}`);
+        }
+        const data = await res.json();
+        return data;
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error("Cloud sync request timed out (10s)");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async put(vaultId, envelope) {
+      const url = `${this.endpoint}/api/vault/${encodeURIComponent(vaultId)}`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1e4);
+      try {
+        const res = await fetch(url, {
+          method: "PUT",
+          headers: this.getHeaders(),
+          body: JSON.stringify(envelope),
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error(`Cloud locker update failed (HTTP ${res.status}): ${res.statusText}`);
+        }
+        return true;
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error("Cloud sync upload timed out (10s)");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+  var SupabaseLocker = class {
+    constructor(supabaseUrl, anonKey) {
+      __publicField(this, "url");
+      __publicField(this, "anonKey");
+      this.url = supabaseUrl.replace(/\/+$/, "");
+      this.anonKey = anonKey;
+    }
+    getHeaders() {
+      return {
+        "Content-Type": "application/json",
+        apikey: this.anonKey,
+        Authorization: `Bearer ${this.anonKey}`,
+        Prefer: "return=representation"
+      };
+    }
+    async get(vaultId) {
+      const endpoint = `${this.url}/rest/v1/sync_vaults?vault_id=eq.${encodeURIComponent(vaultId)}&select=envelope`;
+      const res = await fetch(endpoint, {
+        method: "GET",
+        headers: this.getHeaders()
+      });
+      if (!res.ok) {
+        throw new Error(`Supabase query failed: HTTP ${res.status}`);
+      }
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0 && rows[0].envelope) {
+        return rows[0].envelope;
+      }
+      return null;
+    }
+    async put(vaultId, envelope) {
+      const endpoint = `${this.url}/rest/v1/sync_vaults`;
+      const headers = {
+        ...this.getHeaders(),
+        Prefer: "resolution=merge-duplicates"
+      };
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          vault_id: vaultId,
+          envelope,
+          updated_at: (/* @__PURE__ */ new Date()).toISOString()
+        })
+      });
+      if (!res.ok) {
+        throw new Error(`Supabase upsert failed: HTTP ${res.status}`);
+      }
+      return true;
+    }
+  };
+  function createLockerAdapter(config) {
+    if (config.provider === "custom" && config.customEndpoint) {
+      return new CustomWorkerLocker(config.customEndpoint, config.customAuthHeader);
+    }
+    if (config.provider === "supabase" && config.supabaseUrl && config.supabaseAnonKey) {
+      return new SupabaseLocker(config.supabaseUrl, config.supabaseAnonKey);
+    }
+    const endpoint = config.customEndpoint || DEFAULT_RELAY_ENDPOINT;
+    return new CustomWorkerLocker(endpoint, config.customAuthHeader);
+  }
+
+  // src/modules/sync/qr.ts
+  var GF256_EXP = new Uint8Array(512);
+  var GF256_LOG = new Uint8Array(256);
+  (() => {
+    let x = 1;
+    for (let i = 0; i < 255; i++) {
+      GF256_EXP[i] = x;
+      GF256_LOG[x] = i;
+      x <<= 1;
+      if (x & 256) x ^= 285;
+    }
+    for (let i = 255; i < 512; i++) {
+      GF256_EXP[i] = GF256_EXP[i - 255];
+    }
+  })();
+  function gfMul(x, y) {
+    if (x === 0 || y === 0) return 0;
+    return GF256_EXP[GF256_LOG[x] + GF256_LOG[y]];
+  }
+  function rsCompute(data, ecCount) {
+    let gen = new Uint8Array([1]);
+    for (let i = 0; i < ecCount; i++) {
+      const nextGen = new Uint8Array(gen.length + 1);
+      for (let j = 0; j < gen.length; j++) {
+        nextGen[j] ^= gfMul(gen[j], GF256_EXP[i]);
+        nextGen[j + 1] ^= gen[j];
+      }
+      gen = nextGen;
+    }
+    const res = new Uint8Array(ecCount);
+    for (let i = 0; i < data.length; i++) {
+      const coef = data[i] ^ res[0];
+      for (let j = 0; j < ecCount - 1; j++) {
+        res[j] = res[j + 1] ^ gfMul(gen[j], coef);
+      }
+      res[ecCount - 1] = gfMul(gen[ecCount - 1], coef);
+    }
+    return res;
+  }
+  var VERSION_SPECS = {
+    1: [21, 16, 10, 1],
+    2: [25, 28, 16, 1],
+    3: [29, 44, 26, 1],
+    4: [33, 64, 18, 2],
+    5: [37, 86, 24, 2],
+    6: [41, 108, 16, 4],
+    7: [45, 124, 18, 4],
+    8: [49, 154, 22, 4],
+    9: [53, 182, 22, 5],
+    10: [57, 216, 26, 5]
+  };
+  var ALIGNMENT_PATTERN_POS = {
+    2: [6, 18],
+    3: [6, 22],
+    4: [6, 26],
+    5: [6, 30],
+    6: [6, 34],
+    7: [6, 22, 38],
+    8: [6, 24, 42],
+    9: [6, 26, 46],
+    10: [6, 28, 50]
+  };
+  function generateQrMatrix(text) {
+    const encoder = new TextEncoder();
+    const rawBytes = encoder.encode(text);
+    let chosenVersion = 1;
+    while (chosenVersion <= 10) {
+      const spec = VERSION_SPECS[chosenVersion];
+      const maxDataBytes = spec[1];
+      const countBits2 = chosenVersion <= 9 ? 8 : 16;
+      const requiredBits = 4 + countBits2 + rawBytes.length * 8;
+      if (requiredBits <= maxDataBytes * 8) {
+        break;
+      }
+      chosenVersion++;
+    }
+    if (chosenVersion > 10) {
+      throw new Error("QR payload exceeds supported version 10 capacity");
+    }
+    const [dim, totalDataBytes, ecBytesPerBlock, numBlocks] = VERSION_SPECS[chosenVersion];
+    const countBits = chosenVersion <= 9 ? 8 : 16;
+    const bits = [];
+    function pushBits(val, len) {
+      for (let i = len - 1; i >= 0; i--) {
+        bits.push(val >> i & 1);
+      }
+    }
+    pushBits(4, 4);
+    pushBits(rawBytes.length, countBits);
+    for (let i = 0; i < rawBytes.length; i++) {
+      pushBits(rawBytes[i], 8);
+    }
+    const maxBits = totalDataBytes * 8;
+    const termLen = Math.min(4, maxBits - bits.length);
+    pushBits(0, termLen);
+    while (bits.length % 8 !== 0) {
+      bits.push(0);
+    }
+    const padBytes = [236, 17];
+    let padIdx = 0;
+    while (bits.length < maxBits) {
+      pushBits(padBytes[padIdx % 2], 8);
+      padIdx++;
+    }
+    const dataBytes = new Uint8Array(totalDataBytes);
+    for (let i = 0; i < totalDataBytes; i++) {
+      let byteVal = 0;
+      for (let b = 0; b < 8; b++) {
+        byteVal = byteVal << 1 | bits[i * 8 + b];
+      }
+      dataBytes[i] = byteVal;
+    }
+    const dataBytesPerBlock = Math.floor(totalDataBytes / numBlocks);
+    const blocksData = [];
+    const blocksEc = [];
+    let offset = 0;
+    for (let b = 0; b < numBlocks; b++) {
+      const isLong = b >= numBlocks - totalDataBytes % numBlocks;
+      const bLen = dataBytesPerBlock + (isLong ? 1 : 0);
+      const slice = dataBytes.slice(offset, offset + bLen);
+      offset += bLen;
+      blocksData.push(slice);
+      blocksEc.push(rsCompute(slice, ecBytesPerBlock));
+    }
+    const finalCodewords = [];
+    const maxBDataLen = dataBytesPerBlock + (totalDataBytes % numBlocks ? 1 : 0);
+    for (let i = 0; i < maxBDataLen; i++) {
+      for (let b = 0; b < numBlocks; b++) {
+        if (i < blocksData[b].length) {
+          finalCodewords.push(blocksData[b][i]);
+        }
+      }
+    }
+    for (let i = 0; i < ecBytesPerBlock; i++) {
+      for (let b = 0; b < numBlocks; b++) {
+        finalCodewords.push(blocksEc[b][i]);
+      }
+    }
+    const matrix = Array.from(
+      { length: dim },
+      () => Array.from({ length: dim }, () => null)
+    );
+    const isFunction = Array.from(
+      { length: dim },
+      () => Array.from({ length: dim }, () => false)
+    );
+    function setModule(r, c, val) {
+      matrix[r][c] = val;
+      isFunction[r][c] = true;
+    }
+    function placeFinder(top, left) {
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 7; c++) {
+          const isBorder = r === 0 || r === 6 || c === 0 || c === 6;
+          const isCenter = r >= 2 && r <= 4 && c >= 2 && c <= 4;
+          setModule(top + r, left + c, isBorder || isCenter);
+        }
+      }
+      for (let r = -1; r <= 7; r++) {
+        for (let c = -1; c <= 7; c++) {
+          if (r === -1 || r === 7 || c === -1 || c === 7) {
+            const rr = top + r;
+            const cc = left + c;
+            if (rr >= 0 && rr < dim && cc >= 0 && cc < dim) {
+              setModule(rr, cc, false);
+            }
+          }
+        }
+      }
+    }
+    placeFinder(0, 0);
+    placeFinder(0, dim - 7);
+    placeFinder(dim - 7, 0);
+    for (let i = 8; i < dim - 8; i++) {
+      if (matrix[6][i] === null) setModule(6, i, i % 2 === 0);
+      if (matrix[i][6] === null) setModule(i, 6, i % 2 === 0);
+    }
+    setModule(4 * chosenVersion + 9, 8, true);
+    if (chosenVersion >= 2) {
+      const posList = ALIGNMENT_PATTERN_POS[chosenVersion];
+      for (const r of posList) {
+        for (const c of posList) {
+          if (isFunction[r][c]) continue;
+          for (let dr = -2; dr <= 2; dr++) {
+            for (let dc = -2; dc <= 2; dc++) {
+              const isBorder = Math.abs(dr) === 2 || Math.abs(dc) === 2;
+              const isCenter = dr === 0 && dc === 0;
+              setModule(r + dr, c + dc, isBorder || isCenter);
+            }
+          }
+        }
+      }
+    }
+    const markFunc = (r, c) => {
+      isFunction[r][c] = true;
+    };
+    for (let i = 0; i < 9; i++) {
+      markFunc(8, i);
+      markFunc(i, 8);
+    }
+    for (let i = 0; i < 8; i++) {
+      markFunc(8, dim - 1 - i);
+      markFunc(dim - 1 - i, 8);
+    }
+    let bitIdx = 0;
+    const totalBitLen = finalCodewords.length * 8;
+    let upwards = true;
+    for (let right = dim - 1; right > 0; right -= 2) {
+      if (right === 6) right--;
+      const rows = upwards ? Array.from({ length: dim }, (_, i) => dim - 1 - i) : Array.from({ length: dim }, (_, i) => i);
+      for (const r of rows) {
+        for (const col of [right, right - 1]) {
+          if (!isFunction[r][col]) {
+            let bit = false;
+            if (bitIdx < totalBitLen) {
+              const byte = finalCodewords[Math.floor(bitIdx / 8)];
+              const bShift = 7 - bitIdx % 8;
+              bit = (byte >> bShift & 1) === 1;
+              bitIdx++;
+            }
+            matrix[r][col] = bit;
+          }
+        }
+      }
+      upwards = !upwards;
+    }
+    const formatBits = [1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0];
+    for (let r = 0; r < dim; r++) {
+      for (let c = 0; c < dim; c++) {
+        if (!isFunction[r][c]) {
+          const mask = (r + c) % 2 === 0;
+          matrix[r][c] = matrix[r][c] !== mask;
+        }
+      }
+    }
+    for (let i = 0; i < 6; i++) matrix[8][i] = formatBits[i] === 1;
+    matrix[8][7] = formatBits[6] === 1;
+    matrix[8][8] = formatBits[7] === 1;
+    matrix[7][8] = formatBits[8] === 1;
+    for (let i = 9; i < 15; i++) matrix[14 - i][8] = formatBits[i] === 1;
+    for (let i = 0; i < 8; i++) matrix[dim - 1 - i][8] = formatBits[i] === 1;
+    for (let i = 8; i < 15; i++) matrix[8][dim - 15 + i] = formatBits[i] === 1;
+    return matrix.map((row) => row.map((cell) => cell === true));
+  }
+  function generateQrSvg(text, options = {}) {
+    const matrix = generateQrMatrix(text);
+    const dim = matrix.length;
+    const padding = options.padding !== void 0 ? options.padding : 3;
+    const totalDim = dim + padding * 2;
+    const color = options.color || "#ffffff";
+    const bg = options.background || "#0f172a";
+    let pathData = "";
+    for (let r = 0; r < dim; r++) {
+      for (let c = 0; c < dim; c++) {
+        if (matrix[r][c]) {
+          const x = c + padding;
+          const y = r + padding;
+          pathData += `M${x},${y}h1v1h-1z `;
+        }
+      }
+    }
+    return `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalDim} ${totalDim}" width="100%" height="100%" shape-rendering="crispEdges">
+      <rect width="${totalDim}" height="${totalDim}" fill="${bg}" rx="6" />
+      <path d="${pathData.trim()}" fill="${color}" />
+    </svg>
+  `.trim();
+  }
+
+  // src/modules/sync/scanner.ts
+  var QrCameraScanner = class {
+    constructor() {
+      __publicField(this, "videoEl", null);
+      __publicField(this, "stream", null);
+      __publicField(this, "isScanning", false);
+      __publicField(this, "animFrameId", null);
+      __publicField(this, "detector", null);
+    }
+    static isSupported() {
+      return typeof navigator !== "undefined" && !!navigator.mediaDevices && typeof window.BarcodeDetector !== "undefined";
+    }
+    async start(videoElement, callbacks) {
+      this.stop();
+      this.videoEl = videoElement;
+      if (typeof window.BarcodeDetector !== "undefined") {
+        try {
+          this.detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        } catch (_) {
+          this.detector = null;
+        }
+      }
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: "environment",
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+        this.videoEl.srcObject = this.stream;
+        await this.videoEl.play();
+        this.isScanning = true;
+        this.scanLoop(callbacks);
+        return true;
+      } catch (err) {
+        this.stop();
+        callbacks.onError(err.name === "NotAllowedError" ? "Camera access denied" : err.message || "Could not open camera");
+        return false;
+      }
+    }
+    scanLoop(callbacks) {
+      if (!this.isScanning || !this.videoEl || !this.detector) return;
+      if (this.videoEl.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        this.detector.detect(this.videoEl).then((barcodes) => {
+          if (!this.isScanning) return;
+          if (barcodes && barcodes.length > 0) {
+            const rawValue = barcodes[0].rawValue;
+            if (rawValue) {
+              this.stop();
+              callbacks.onDetected(rawValue);
+              return;
+            }
+          }
+          this.animFrameId = requestAnimationFrame(() => this.scanLoop(callbacks));
+        }).catch(() => {
+          if (this.isScanning) {
+            this.animFrameId = requestAnimationFrame(() => this.scanLoop(callbacks));
+          }
+        });
+      } else {
+        this.animFrameId = requestAnimationFrame(() => this.scanLoop(callbacks));
+      }
+    }
+    stop() {
+      this.isScanning = false;
+      if (this.animFrameId !== null) {
+        cancelAnimationFrame(this.animFrameId);
+        this.animFrameId = null;
+      }
+      if (this.stream) {
+        this.stream.getTracks().forEach((track) => track.stop());
+        this.stream = null;
+      }
+      if (this.videoEl) {
+        this.videoEl.srcObject = null;
+        this.videoEl = null;
+      }
+    }
+  };
+
+  // src/modules/sync/sync-manager.ts
+  var CONFIG_STORAGE_KEY = "appDirectory_sync_config_v1";
+  var TOMBSTONES_STORAGE_KEY = "appDirectory_sync_tombstones_v1";
+  var DEVICE_ID_KEY = "appDirectory_device_id";
+  var SyncManager = class {
+    constructor() {
+      __publicField(this, "config", null);
+      __publicField(this, "status", {
+        state: "disconnected",
+        lastSyncedAt: null
+      });
+      __publicField(this, "statusListeners", []);
+      __publicField(this, "debounceTimer", null);
+      __publicField(this, "isSyncing", false);
+      this.loadConfig();
+      this.setupLifecycleListeners();
+    }
+    // ── Device ID ──────────────────────────────────────────────
+    getDeviceId() {
+      let id = localStorage.getItem(DEVICE_ID_KEY);
+      if (!id) {
+        id = "dev_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+        localStorage.setItem(DEVICE_ID_KEY, id);
+      }
+      return id;
+    }
+    // ── Config Persistence ─────────────────────────────────────
+    loadConfig() {
+      try {
+        const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+        if (raw) {
+          this.config = JSON.parse(raw);
+          if (this.config && this.config.enabled) {
+            this.setStatus("synced", this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
+          } else {
+            this.setStatus("disconnected", null);
+          }
+          return this.config;
+        }
+      } catch (_) {
+      }
+      this.config = null;
+      this.setStatus("disconnected", null);
+      return null;
+    }
+    saveConfig(newConfig) {
+      this.config = newConfig;
+      if (newConfig) {
+        localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(newConfig));
+        this.setStatus("synced", newConfig.lastSyncedAt ? new Date(newConfig.lastSyncedAt) : null);
+      } else {
+        localStorage.removeItem(CONFIG_STORAGE_KEY);
+        this.setStatus("disconnected", null);
+      }
+    }
+    getConfig() {
+      return this.config;
+    }
+    isConfigured() {
+      return !!(this.config && this.config.enabled && this.config.vaultId && this.config.secretKey);
+    }
+    // ── Status Management ──────────────────────────────────────
+    getStatus() {
+      return { ...this.status };
+    }
+    onStatusChange(fn) {
+      this.statusListeners.push(fn);
+      fn(this.getStatus());
+      return () => {
+        this.statusListeners = this.statusListeners.filter((l) => l !== fn);
+      };
+    }
+    setStatus(state2, lastSyncedAt, errorMessage) {
+      this.status = {
+        state: state2,
+        lastSyncedAt,
+        errorMessage,
+        itemCount: state2 === "synced" ? this.config ? this.getLocalEntries().length : void 0 : void 0
+      };
+      for (const listener of this.statusListeners) {
+        try {
+          listener(this.getStatus());
+        } catch (_) {
+        }
+      }
+    }
+    // ── Tombstone Management ───────────────────────────────────
+    getLocalTombstones() {
+      try {
+        const raw = localStorage.getItem(TOMBSTONES_STORAGE_KEY);
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            return pruneTombstones(list);
+          }
+        }
+      } catch (_) {
+      }
+      return [];
+    }
+    saveLocalTombstones(tombstones) {
+      try {
+        localStorage.setItem(TOMBSTONES_STORAGE_KEY, JSON.stringify(pruneTombstones(tombstones)));
+      } catch (_) {
+      }
+    }
+    recordDeletion(id, type) {
+      const tombstones = this.getLocalTombstones();
+      tombstones.push({
+        id,
+        type,
+        deletedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      this.saveLocalTombstones(tombstones);
+      if (this.isConfigured()) {
+        this.schedulePush();
+      }
+    }
+    // ── Helpers for Local State ────────────────────────────────
+    getLocalEntries() {
+      return state.entries || loadEntries() || [];
+    }
+    getLocalFolders() {
+      return state.folders || loadFolders() || [];
+    }
+    // ── Vault Setup & Pairing ──────────────────────────────────
+    async createNewVault() {
+      const vaultId = generateVaultId();
+      const secretKey = await generateSecretKey();
+      const deviceId = this.getDeviceId();
+      const newConfig = {
+        enabled: true,
+        vaultId,
+        secretKey,
+        provider: "relay",
+        autoSync: true,
+        deviceId
+      };
+      this.saveConfig(newConfig);
+      await this.syncNow();
+      return newConfig;
+    }
+    joinVault(vaultId, secretKey, provider = "relay") {
+      const cleanVaultId = vaultId.trim();
+      const cleanSecretKey = secretKey.trim();
+      if (!cleanVaultId || !cleanSecretKey) {
+        throw new Error("Vault ID and Secret Key are required to pair.");
+      }
+      const newConfig = {
+        enabled: true,
+        vaultId: cleanVaultId,
+        secretKey: cleanSecretKey,
+        provider,
+        autoSync: true,
+        deviceId: this.getDeviceId()
+      };
+      this.saveConfig(newConfig);
+      return newConfig;
+    }
+    disconnectVault() {
+      this.saveConfig(null);
+      localStorage.removeItem(TOMBSTONES_STORAGE_KEY);
+      showToast("Cloud Sync disconnected");
+    }
+    getPairingUrl() {
+      if (!this.config) return "";
+      const base = window.location.origin + window.location.pathname;
+      const hash = `sync=v1:${this.config.vaultId}:${this.config.secretKey}:${this.config.provider}`;
+      return `${base}#${hash}`;
+    }
+    /**
+     * Checks if current page was opened with pairing hash `#sync=v1:vaultId:secretKey:...`
+     * Cleans URL hash immediately for privacy.
+     */
+    checkUrlHashForPairing() {
+      try {
+        const hash = window.location.hash;
+        if (!hash || !hash.includes("sync=v1:")) return false;
+        const match = hash.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?/);
+        if (match) {
+          const vaultId = match[1];
+          const secretKey = match[2];
+          const provider = match[3] || "relay";
+          history.replaceState(null, "", window.location.pathname + window.location.search);
+          this.joinVault(vaultId, secretKey, provider);
+          showToast("Paired with sync vault! Synchronizing\u2026");
+          this.syncNow().then(() => {
+            showToast("Bookmarks successfully synchronized!");
+          }).catch((err) => {
+            showToast(`Initial sync error: ${err.message}`, 4e3);
+          });
+          return true;
+        }
+      } catch (_) {
+      }
+      return false;
+    }
+    // ── Sync Engine (Bi-Directional E2EE) ───────────────────────
+    async syncNow() {
+      if (!this.isConfigured() || !this.config) return;
+      if (this.isSyncing) return;
+      if (!navigator.onLine) {
+        this.setStatus("offline", this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
+        return;
+      }
+      this.isSyncing = true;
+      this.setStatus("syncing", this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
+      try {
+        const adapter = createLockerAdapter(this.config);
+        const remoteEnvelope = await adapter.get(this.config.vaultId);
+        let remotePayload = null;
+        if (remoteEnvelope) {
+          try {
+            remotePayload = await decryptPayload(remoteEnvelope, this.config.secretKey);
+          } catch (decryptErr) {
+            throw new Error(`Decryption failed: Incorrect secret key or corrupted data. (${decryptErr.message})`);
+          }
+        }
+        const localEntries = this.getLocalEntries();
+        const localFolders = this.getLocalFolders();
+        const localTombstones = this.getLocalTombstones();
+        let mergedEntries = localEntries;
+        let mergedFolders = localFolders;
+        let mergedTombstones = localTombstones;
+        if (remotePayload) {
+          const mergeResult = mergeSyncPayload(
+            localEntries,
+            localFolders,
+            localTombstones,
+            remotePayload
+          );
+          mergedEntries = mergeResult.mergedEntries;
+          mergedFolders = mergeResult.mergedFolders;
+          mergedTombstones = mergeResult.mergedTombstones;
+          if (mergeResult.hasChanges) {
+            await saveEntries(mergedEntries);
+            await saveFolders(mergedFolders);
+            this.saveLocalTombstones(mergedTombstones);
+            if (typeof window.refreshAppDirectoryViews === "function") {
+              window.refreshAppDirectoryViews();
+            }
+          }
+        }
+        const newPayload = {
+          version: 1,
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          deviceId: this.config.deviceId,
+          entries: mergedEntries,
+          folders: mergedFolders,
+          tombstones: mergedTombstones
+        };
+        const encryptedEnvelope = await encryptPayload(
+          newPayload,
+          this.config.secretKey,
+          this.config.deviceId
+        );
+        await adapter.put(this.config.vaultId, encryptedEnvelope);
+        const now = /* @__PURE__ */ new Date();
+        this.config.lastSyncedAt = now.toISOString();
+        this.saveConfig(this.config);
+        this.setStatus("synced", now);
+      } catch (err) {
+        console.warn("[Sync] Sync failed:", err);
+        this.setStatus(
+          "error",
+          this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null,
+          err.message || "Sync error"
+        );
+        throw err;
+      } finally {
+        this.isSyncing = false;
+      }
+    }
+    schedulePush() {
+      if (!this.isConfigured()) return;
+      if (this.debounceTimer) clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(() => {
+        this.syncNow().catch((err) => {
+          console.warn("[Sync] Scheduled push failed:", err);
+        });
+      }, 1500);
+    }
+    setupLifecycleListeners() {
+      window.addEventListener("online", () => {
+        if (this.isConfigured()) {
+          this.syncNow().catch(() => {
+          });
+        }
+      });
+      window.addEventListener("offline", () => {
+        if (this.isConfigured()) {
+          this.setStatus("offline", this.config?.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
+        }
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && this.isConfigured()) {
+          this.syncNow().catch(() => {
+          });
+        }
+      });
+    }
+  };
+  var syncManager = new SyncManager();
+
+  // src/modules/sync/modal.ts
+  var modalEl = null;
+  var scanner = null;
+  function openSyncModal() {
+    let existing = document.getElementById("syncModal");
+    if (existing) {
+      existing.remove();
+    }
+    modalEl = document.createElement("div");
+    modalEl.id = "syncModal";
+    modalEl.className = "modal-backdrop sync-modal-backdrop";
+    renderSyncModalContent();
+    document.body.appendChild(modalEl);
+    requestAnimationFrame(() => {
+      if (modalEl) modalEl.classList.add("visible");
+    });
+    const unsubscribe = syncManager.onStatusChange(() => {
+      if (modalEl && modalEl.classList.contains("visible")) {
+        renderSyncModalContent();
+      }
+    });
+    modalEl.__cleanup = () => {
+      unsubscribe();
+      if (scanner) {
+        scanner.stop();
+        scanner = null;
+      }
+    };
+  }
+  function closeSyncModal() {
+    if (!modalEl) return;
+    if (modalEl.__cleanup) {
+      modalEl.__cleanup();
+    }
+    modalEl.classList.remove("visible");
+    setTimeout(() => {
+      if (modalEl) {
+        modalEl.remove();
+        modalEl = null;
+      }
+    }, 200);
+  }
+  function renderSyncModalContent() {
+    if (!modalEl) return;
+    const isConfigured = syncManager.isConfigured();
+    const config = syncManager.getConfig();
+    const status = syncManager.getStatus();
+    let bodyHtml = "";
+    if (!isConfigured) {
+      bodyHtml = `
+      <div class="sync-intro-banner">
+        <div class="sync-intro-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            <path d="m9 13 2 2 4-4"/>
+          </svg>
+        </div>
+        <div class="sync-intro-text">
+          <h3>Zero-Knowledge Cloud Sync</h3>
+          <p>Seamlessly synchronize bookmarks, folders, and tags between your desktop and mobile devices. All data is encrypted client-side with <strong>AES-GCM (256-bit)</strong> before leaving your browser.</p>
+        </div>
+      </div>
+
+      <div class="sync-actions-grid" id="syncSetupChoices">
+        <div class="sync-choice-card" id="btnCreateNewVault">
+          <div class="sync-choice-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          </div>
+          <h4>Create New Vault</h4>
+          <p>Generate a new private encryption vault and get a QR code to pair your phone in 1 second.</p>
+          <button type="button" class="btn btn-primary" style="margin-top: 10px; width: 100%;">Create Vault</button>
+        </div>
+
+        <div class="sync-choice-card" id="btnJoinExistingVault">
+          <div class="sync-choice-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          </div>
+          <h4>Join Existing Vault</h4>
+          <p>Already created a vault on your other device? Scan a QR code or paste your secret key.</p>
+          <button type="button" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">Pair Device</button>
+        </div>
+      </div>
+
+      <div class="sync-join-form" id="syncJoinForm" style="display: none;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <h4 style="margin: 0; font-size: 15px;">Enter Vault Credentials</h4>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnBackToChoices">\u2190 Back</button>
+        </div>
+
+        <div class="sync-form-group">
+          <label class="sync-label">Pairing Link or Key</label>
+          <textarea id="syncPairingInput" class="sync-input" rows="2" placeholder="Paste pairing link or secret key..."></textarea>
+        </div>
+
+        <div id="syncScannerContainer" style="display: none; margin-bottom: 12px;">
+          <video id="syncCameraVideo" style="width: 100%; border-radius: 8px; background: #000; max-height: 220px;"></video>
+          <div style="font-size: 11px; text-align: center; color: var(--text-muted); margin-top: 4px;">Point camera at the QR code on your desktop</div>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button type="button" class="btn btn-secondary" id="btnStartCamera" style="flex: 1;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Scan QR
+          </button>
+          <button type="button" class="btn btn-primary" id="btnSubmitJoin" style="flex: 1.5;">Join Vault</button>
+        </div>
+      </div>
+    `;
+    } else {
+      const pairingUrl = syncManager.getPairingUrl();
+      const qrSvg = generateQrSvg(pairingUrl, { padding: 2 });
+      const lastSyncStr = status.lastSyncedAt ? status.lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Never";
+      let statusPill = `<span class="sync-badge sync-badge-synced">\u25CF Synced</span>`;
+      if (status.state === "syncing") {
+        statusPill = `<span class="sync-badge sync-badge-syncing">\u21BB Syncing\u2026</span>`;
+      } else if (status.state === "offline") {
+        statusPill = `<span class="sync-badge sync-badge-offline">\u25CB Offline</span>`;
+      } else if (status.state === "error") {
+        statusPill = `<span class="sync-badge sync-badge-error" title="${status.errorMessage || ""}">\u26A0 Error</span>`;
+      }
+      bodyHtml = `
+      <div class="sync-status-card">
+        <div class="sync-status-header">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h4 style="margin: 0; font-size: 15px;">Encrypted Sync Active</h4>
+              ${statusPill}
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+              Last synced: ${lastSyncStr} &bull; Provider: ${config?.provider || "relay"}
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary btn-sm" id="btnManualSync" ${status.state === "syncing" ? "disabled" : ""}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${status.state === "syncing" ? "spin" : ""}"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Sync Now
+          </button>
+        </div>
+      </div>
+
+      <div class="sync-pair-section">
+        <h5 style="margin: 0 0 6px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Pair Mobile Device</h5>
+        <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 12px 0;">Open your phone's camera and scan this code to link devices instantly:</p>
+
+        <div class="sync-qr-wrapper">
+          <div class="sync-qr-code">${qrSvg}</div>
+        </div>
+
+        <div class="sync-form-group" style="margin-top: 14px;">
+          <label class="sync-label">Pairing URL (Fragment contains secret key):</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" class="sync-input" id="syncPairingUrlInput" value="${pairingUrl}" readonly />
+            <button type="button" class="btn btn-secondary btn-sm" id="btnCopyPairingUrl" title="Copy pairing URL">Copy</button>
+          </div>
+        </div>
+
+        <div class="sync-form-group" style="margin-top: 10px;">
+          <label class="sync-label">Vault ID:</label>
+          <input type="text" class="sync-input" value="${config?.vaultId || ""}" readonly style="font-family: monospace; font-size: 11px;" />
+        </div>
+      </div>
+
+      <div class="sync-danger-section" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">Disconnect Sync</div>
+          <div style="font-size: 11px; color: var(--text-muted);">Stop syncing on this device (local bookmarks remain intact).</div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnDisconnectVault" style="color: #ef4444;">Disconnect</button>
+      </div>
+    `;
+    }
+    modalEl.innerHTML = `
+    <div class="modal-card sync-modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+            <path d="m9 13 2 2 4-4"/>
+          </svg>
+          <h2 class="modal-title">Cloud Sync (E2EE)</h2>
+        </div>
+        <button type="button" class="modal-close-btn" id="syncModalCloseBtn">\u2715</button>
+      </div>
+      <div class="modal-body sync-modal-body">
+        ${bodyHtml}
+      </div>
+    </div>
+  `;
+    attachSyncModalEvents();
+  }
+  function attachSyncModalEvents() {
+    if (!modalEl) return;
+    const closeBtn = modalEl.querySelector("#syncModalCloseBtn");
+    if (closeBtn) closeBtn.addEventListener("click", closeSyncModal);
+    modalEl.addEventListener("click", (e) => {
+      if (e.target === modalEl) closeSyncModal();
+    });
+    const btnCreate = modalEl.querySelector("#btnCreateNewVault");
+    if (btnCreate) {
+      btnCreate.addEventListener("click", async () => {
+        try {
+          btnCreate.classList.add("loading");
+          await syncManager.createNewVault();
+          showToast("Sync vault created and paired!");
+          renderSyncModalContent();
+        } catch (err) {
+          showToast(`Error creating vault: ${err.message}`, 4e3);
+        }
+      });
+    }
+    const btnJoinChoice = modalEl.querySelector("#btnJoinExistingVault");
+    const setupChoices = modalEl.querySelector("#syncSetupChoices");
+    const joinForm = modalEl.querySelector("#syncJoinForm");
+    const btnBack = modalEl.querySelector("#btnBackToChoices");
+    if (btnJoinChoice && setupChoices && joinForm) {
+      btnJoinChoice.addEventListener("click", () => {
+        setupChoices.style.display = "none";
+        joinForm.style.display = "block";
+      });
+    }
+    if (btnBack && setupChoices && joinForm) {
+      btnBack.addEventListener("click", () => {
+        joinForm.style.display = "none";
+        setupChoices.style.display = "grid";
+        if (scanner) {
+          scanner.stop();
+          scanner = null;
+        }
+      });
+    }
+    const btnStartCamera = modalEl.querySelector("#btnStartCamera");
+    const scannerContainer = modalEl.querySelector("#syncScannerContainer");
+    const cameraVideo = modalEl.querySelector("#syncCameraVideo");
+    const pairingInput = modalEl.querySelector("#syncPairingInput");
+    if (btnStartCamera && cameraVideo && scannerContainer) {
+      btnStartCamera.addEventListener("click", async () => {
+        if (!QrCameraScanner.isSupported()) {
+          showToast("Camera scanner is not supported on this browser. Please paste the pairing link.");
+          return;
+        }
+        scannerContainer.style.display = "block";
+        scanner = new QrCameraScanner();
+        await scanner.start(cameraVideo, {
+          onDetected: (scannedText) => {
+            if (pairingInput) {
+              pairingInput.value = scannedText;
+            }
+            scannerContainer.style.display = "none";
+            showToast("QR Code scanned successfully!");
+          },
+          onError: (err) => {
+            showToast(`Camera error: ${err}`);
+            scannerContainer.style.display = "none";
+          }
+        });
+      });
+    }
+    const btnSubmitJoin = modalEl.querySelector("#btnSubmitJoin");
+    if (btnSubmitJoin && pairingInput) {
+      btnSubmitJoin.addEventListener("click", async () => {
+        const raw = pairingInput.value.trim();
+        if (!raw) {
+          showToast("Please enter a pairing link or secret key.");
+          return;
+        }
+        let vaultId = "";
+        let secretKey = "";
+        let provider = "relay";
+        if (raw.includes("sync=v1:")) {
+          const match = raw.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?/);
+          if (match) {
+            vaultId = match[1];
+            secretKey = match[2];
+            if (match[3]) provider = match[3];
+          }
+        } else if (raw.includes(":")) {
+          const parts = raw.split(":");
+          vaultId = parts[0];
+          secretKey = parts[1];
+        }
+        if (!vaultId || !secretKey) {
+          showToast("Invalid pairing format. Expected link or vaultId:secretKey.");
+          return;
+        }
+        try {
+          syncManager.joinVault(vaultId, secretKey, provider);
+          showToast("Connected to vault! Syncing\u2026");
+          renderSyncModalContent();
+          await syncManager.syncNow();
+          showToast("Bookmarks synchronized!");
+          renderSyncModalContent();
+        } catch (err) {
+          showToast(`Failed to pair: ${err.message}`, 4e3);
+        }
+      });
+    }
+    const btnManualSync = modalEl.querySelector("#btnManualSync");
+    if (btnManualSync) {
+      btnManualSync.addEventListener("click", async () => {
+        try {
+          await syncManager.syncNow();
+          showToast("Bookmarks synchronized!");
+        } catch (err) {
+          showToast(`Sync failed: ${err.message}`, 4e3);
+        }
+      });
+    }
+    const btnCopyPairingUrl = modalEl.querySelector("#btnCopyPairingUrl");
+    const pairingUrlInput = modalEl.querySelector("#syncPairingUrlInput");
+    if (btnCopyPairingUrl && pairingUrlInput) {
+      btnCopyPairingUrl.addEventListener("click", () => {
+        navigator.clipboard.writeText(pairingUrlInput.value).then(() => {
+          showToast("Pairing link copied to clipboard!");
+        });
+      });
+    }
+    const btnDisconnect = modalEl.querySelector("#btnDisconnectVault");
+    if (btnDisconnect) {
+      btnDisconnect.addEventListener("click", () => {
+        if (confirm("Disconnect from Cloud Sync? Your local bookmarks will remain on this device.")) {
+          syncManager.disconnectVault();
+          renderSyncModalContent();
+        }
+      });
+    }
+  }
+
   // src/main.ts
   var addBtn = document.getElementById("addBtn");
   var modalClose = document.getElementById("modalClose");
@@ -6451,7 +7783,8 @@
         showToast("Set a master passcode first to lock");
       }
     },
-    openSecurityModal: () => openSecurityModal()
+    openSecurityModal: () => openSecurityModal(),
+    openSyncModal: () => openSyncModal()
   };
   function handleSubmit(e) {
     e.preventDefault();
@@ -7271,6 +8604,29 @@
         syncThemeFromExternal();
       }
     });
+    window.__APP_SYNC_MANAGER__ = syncManager;
+    window.refreshAppDirectoryViews = () => {
+      render();
+      initSidebar();
+      populateCategories();
+      populateFolderSelect();
+    };
+    const cloudSyncBtn = document.getElementById("cloudSyncBtn");
+    const syncDotIndicator = document.getElementById("syncDotIndicator");
+    if (cloudSyncBtn) {
+      cloudSyncBtn.addEventListener("click", openSyncModal);
+    }
+    syncManager.onStatusChange((status) => {
+      if (syncDotIndicator) {
+        syncDotIndicator.className = `sync-dot-indicator ${status.state}`;
+      }
+    });
+    syncManager.checkUrlHashForPairing();
+    if (syncManager.isConfigured()) {
+      syncManager.syncNow().catch((err) => {
+        console.warn("[Sync] Launch sync failed:", err);
+      });
+    }
   }
   function registerServiceWorker() {
     if (typeof window !== "undefined" && "serviceWorker" in navigator && (window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {

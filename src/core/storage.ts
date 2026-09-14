@@ -229,6 +229,11 @@ export function saveEntries(targetList: BookmarkEntry[] | null = null): Promise<
   return idbSetAllEntries(state.entries)
     .then(() => {
       notifyOtherTabs('SYNC_DATA');
+      try {
+        if (typeof (window as any).__APP_SYNC_MANAGER__ !== 'undefined') {
+          (window as any).__APP_SYNC_MANAGER__.schedulePush();
+        }
+      } catch (_) {}
     })
     .catch((err) => {
       console.error('[Storage] Failed to save entries to IndexedDB:', err);
@@ -248,6 +253,11 @@ export function saveFolders(data: Folder[] = state.folders, notify = true): Prom
   return idbSetAllFolders(state.folders)
     .then(() => {
       if (notify) notifyOtherTabs('SYNC_DATA');
+      try {
+        if (typeof (window as any).__APP_SYNC_MANAGER__ !== 'undefined') {
+          (window as any).__APP_SYNC_MANAGER__.schedulePush();
+        }
+      } catch (_) {}
     })
     .catch((err) => {
       console.error('[Storage] Failed to save folders to IndexedDB:', err);

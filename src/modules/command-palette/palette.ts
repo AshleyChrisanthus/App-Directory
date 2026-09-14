@@ -19,6 +19,7 @@ export interface CommandPaletteCallbacks {
   updateCardsOnly: () => void;
   lockApp?: () => void;
   openSecurityModal?: () => void;
+  openSyncModal?: () => void;
 }
 
 export interface PaletteItem {
@@ -85,7 +86,7 @@ export function updatePaletteSelection(): void {
 
 export function getCommandPaletteActions(callbacks: CommandPaletteCallbacks): PaletteItem[] {
   const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-  return [
+  const actions: PaletteItem[] = [
     {
       id: 'action-add',
       type: 'action',
@@ -246,6 +247,21 @@ export function getCommandPaletteActions(callbacks: CommandPaletteCallbacks): Pa
       run: () => callbacks.toggleInsightsDrawer()
     }
   ];
+
+  if (callbacks.openSyncModal) {
+    actions.push({
+      id: 'action-cloud-sync',
+      type: 'action',
+      title: 'Cloud Sync & Devices (E2EE)',
+      subtitle: 'Pair mobile devices via QR code and sync bookmarks end-to-end encrypted',
+      icon: '☁️',
+      badge: 'Sync',
+      keywords: ['sync', 'cloud', 'e2ee', 'devices', 'mobile', 'qr', 'pair', 'vault'],
+      run: callbacks.openSyncModal
+    });
+  }
+
+  return actions;
 }
 
 export function getCommandPaletteFolders(callbacks: CommandPaletteCallbacks): PaletteItem[] {

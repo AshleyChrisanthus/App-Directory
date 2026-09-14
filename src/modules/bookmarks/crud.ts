@@ -354,6 +354,13 @@ export function deleteEntry(id: string, onUpdate?: () => void): void {
   const diskList = getLatestStoredEntries();
   const filtered = diskList.filter(e => e.id !== id);
   saveEntries(filtered);
+
+  try {
+    if (typeof (window as any).__APP_SYNC_MANAGER__ !== 'undefined') {
+      (window as any).__APP_SYNC_MANAGER__.recordDeletion(id, 'entry');
+    }
+  } catch (_) {}
+
   showToast(`"${entry.name}" deleted.`);
   if (onUpdate) onUpdate();
 }

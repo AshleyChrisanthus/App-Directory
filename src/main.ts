@@ -131,6 +131,9 @@ import {
   lockApp
 } from './modules/security/passcode';
 
+// Cloud Sync (E2EE)
+import { syncManager, openSyncModal } from './modules/sync';
+
 // ── DOM References ───────────────────────────────────────
 const addBtn = document.getElementById('addBtn');
 const modalClose = document.getElementById('modalClose');
@@ -291,7 +294,8 @@ const paletteCallbacks: CommandPaletteCallbacks = {
       showToast('Set a master passcode first to lock');
     }
   },
-  openSecurityModal: () => openSecurityModal()
+  openSecurityModal: () => openSecurityModal(),
+  openSyncModal: () => openSyncModal()
 };
 
 // ── Form Submission ──────────────────────────────────────
@@ -1246,6 +1250,37 @@ async function init(): Promise<void> {
       syncThemeFromExternal();
     }
   });
+
+  // ── Cloud Sync (E2EE) Initialization ────────────────────
+  (window as any).__APP_SYNC_MANAGER__ = syncManager;
+  (window as any).refreshAppDirectoryViews = () => {
+    render();
+    initSidebar();
+    populateCategories();
+    populateFolderSelect();
+  };
+
+  const cloudSyncBtn = document.getElementById('cloudSyncBtn');
+  const syncDotIndicator = document.getElementById('syncDotIndicator');
+  if (cloudSyncBtn) {
+    cloudSyncBtn.addEventListener('click', openSyncModal);
+  }
+
+  syncManager.onStatusChange((status) => {
+    if (syncDotIndicator) {
+      syncDotIndicator.className = `sync-dot-indicator ${status.state}`;
+    }
+  });
+
+  // Check URL hash for pairing link on launch
+  syncManager.checkUrlHashForPairing();
+
+  // If configured, trigger background sync
+  if (syncManager.isConfigured()) {
+    syncManager.syncNow().catch((err) => {
+      console.warn('[Sync] Launch sync failed:', err);
+    });
+  }
 }
 
 function registerServiceWorker(): void {

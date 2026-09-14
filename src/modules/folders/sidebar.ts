@@ -138,6 +138,12 @@ export function deleteFolder(folderId: string, onFolderDeleted?: () => void): vo
   state.folders = state.folders.filter(f => f.id !== folderId);
   saveFolders(state.folders);
 
+  try {
+    if (typeof (window as any).__APP_SYNC_MANAGER__ !== 'undefined') {
+      (window as any).__APP_SYNC_MANAGER__.recordDeletion(folderId, 'folder');
+    }
+  } catch (_) {}
+
   const diskList = getLatestStoredEntries();
   diskList.forEach(e => {
     if (e.folderId === folderId) {
