@@ -164,7 +164,16 @@
         nameInput.select();
       }
     });
+    let closeTimer = null;
+    let keyHandler = null;
     const closeModal = () => {
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
+      if (keyHandler) {
+        window.removeEventListener("keydown", keyHandler, true);
+      }
       backdrop.classList.remove("ad-visible");
       setTimeout(() => host.remove(), 200);
     };
@@ -310,7 +319,17 @@
       });
     }
     const saveBtn = shadow.getElementById("ad-save-btn");
+    let isSaving = false;
     const doSave = () => {
+      if (isSaving) return;
+      try {
+        if (!isExtensionContextValid()) {
+          alert("The extension was reloaded. Please refresh this page to save bookmarks.");
+          return;
+        }
+      } catch (_) {
+        return;
+      }
       const nameInput = shadow.getElementById("ad-name-input");
       const urlInput = shadow.getElementById("ad-url-input");
       const folderSelect = shadow.getElementById("ad-folder-select");
@@ -334,17 +353,30 @@
         dateAdded: (/* @__PURE__ */ new Date()).toISOString(),
         visitCount: 0
       };
+      isSaving = true;
+      const successOverlay = shadow.getElementById("ad-success-overlay");
+      const successSub = shadow.getElementById("ad-success-sub");
+      if (successOverlay) {
+        successOverlay.classList.add("ad-show");
+      }
+      closeTimer = setTimeout(() => {
+        closeModal();
+      }, 750);
       try {
-        if (!isExtensionContextValid()) {
-          alert("The extension was reloaded. Please refresh this page to save bookmarks.");
-          return;
-        }
         chrome.runtime.sendMessage({ type: "SAVE_BOOKMARK", entry: newBookmark }, (res) => {
           try {
             if (!isExtensionContextValid()) return;
-            if (chrome.runtime.lastError) return;
-            const successOverlay = shadow.getElementById("ad-success-overlay");
-            const successSub = shadow.getElementById("ad-success-sub");
+            if (chrome.runtime.lastError || res && res.success === false) {
+              if (closeTimer) {
+                clearTimeout(closeTimer);
+                closeTimer = null;
+              }
+              if (successOverlay) successOverlay.classList.remove("ad-show");
+              isSaving = false;
+              const errorMsg = chrome.runtime.lastError?.message || res?.error || "Failed to save bookmark";
+              alert(`App Directory: ${errorMsg}`);
+              return;
+            }
             if (successSub && res) {
               if (res.direct) {
                 successSub.textContent = "Saved directly to your open App Directory tab!";
@@ -352,18 +384,21 @@
                 successSub.textContent = `Queued (${res.pendingCount || 1} pending) \u2014 will sync when App Directory opens.`;
               }
             }
-            if (successOverlay) successOverlay.classList.add("ad-show");
-            setTimeout(() => {
-              closeModal();
-            }, 700);
           } catch (_) {
           }
         });
-      } catch (_) {
+      } catch (err) {
+        if (closeTimer) {
+          clearTimeout(closeTimer);
+          closeTimer = null;
+        }
+        if (successOverlay) successOverlay.classList.remove("ad-show");
+        isSaving = false;
+        alert(`App Directory: ${err?.message || "Failed to send save request"}`);
       }
     };
     if (saveBtn) saveBtn.addEventListener("click", doSave);
-    const keyHandler = (e) => {
+    keyHandler = (e) => {
       const isCtrlEnter = (e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter");
       if (isCtrlEnter) {
         e.preventDefault();

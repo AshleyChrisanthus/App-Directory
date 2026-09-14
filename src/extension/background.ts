@@ -228,10 +228,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const results = await Promise.allSettled(
             appDirTabs.map(async (tab) => {
               if (!tab.id) throw new Error('No tab id');
-              const resp = await chrome.tabs.sendMessage(tab.id, {
-                type: 'SAVE_BOOKMARK_DIRECT',
-                entry
-              });
+              const resp = await Promise.race([
+                chrome.tabs.sendMessage(tab.id, {
+                  type: 'SAVE_BOOKMARK_DIRECT',
+                  entry
+                }),
+                new Promise<never>((_, reject) =>
+                  setTimeout(() => reject(new Error('Tab message timeout')), 2000)
+                )
+              ]);
               if (resp && resp.success) {
                 return getOriginKey(tab.url);
               }

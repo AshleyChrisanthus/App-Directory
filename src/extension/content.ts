@@ -195,8 +195,18 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     }
   });
 
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
+  let keyHandler: ((e: KeyboardEvent) => void) | null = null;
+
   // Close logic
   const closeModal = (): void => {
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
+    if (keyHandler) {
+      window.removeEventListener('keydown', keyHandler, true);
+    }
     backdrop.classList.remove('ad-visible');
     setTimeout(() => host.remove(), 200);
   };
@@ -376,7 +386,20 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
 
   // Save handler
   const saveBtn = shadow.getElementById('ad-save-btn');
+  let isSaving = false;
+
   const doSave = (): void => {
+    if (isSaving) return;
+
+    try {
+      if (!isExtensionContextValid()) {
+        alert('The extension was reloaded. Please refresh this page to save bookmarks.');
+        return;
+      }
+    } catch (_) {
+      return;
+    }
+
     const nameInput = shadow.getElementById('ad-name-input') as HTMLInputElement | null;
     const urlInput = shadow.getElementById('ad-url-input') as HTMLInputElement | null;
     const folderSelect = shadow.getElementById('ad-folder-select') as HTMLSelectElement | null;
@@ -404,17 +427,40 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
       visitCount: 0
     };
 
+    isSaving = true;
+
+    const successOverlay = shadow.getElementById('ad-success-overlay');
+    const successSub = shadow.getElementById('ad-success-sub');
+
+    // Optimistic UI: Immediately show the checkmark overlay with zero latency
+    if (successOverlay) {
+      successOverlay.classList.add('ad-show');
+    }
+
+    // Schedule modal close after the user sees the confirmation tick
+    closeTimer = setTimeout(() => {
+      closeModal();
+    }, 750);
+
     try {
-      if (!isExtensionContextValid()) {
-        alert('The extension was reloaded. Please refresh this page to save bookmarks.');
-        return;
-      }
       chrome.runtime.sendMessage({ type: 'SAVE_BOOKMARK', entry: newBookmark }, (res) => {
         try {
           if (!isExtensionContextValid()) return;
-          if (chrome.runtime.lastError) return;
-          const successOverlay = shadow.getElementById('ad-success-overlay');
-          const successSub = shadow.getElementById('ad-success-sub');
+
+          // In case of unexpected failure, cancel the close timer and display error
+          if (chrome.runtime.lastError || (res && res.success === false)) {
+            if (closeTimer) {
+              clearTimeout(closeTimer);
+              closeTimer = null;
+            }
+            if (successOverlay) successOverlay.classList.remove('ad-show');
+            isSaving = false;
+            const errorMsg = chrome.runtime.lastError?.message || res?.error || 'Failed to save bookmark';
+            alert(`App Directory: ${errorMsg}`);
+            return;
+          }
+
+          // Update subtitle dynamically if still open
           if (successSub && res) {
             if (res.direct) {
               successSub.textContent = 'Saved directly to your open App Directory tab!';
@@ -422,20 +468,23 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
               successSub.textContent = `Queued (${res.pendingCount || 1} pending) — will sync when App Directory opens.`;
             }
           }
-
-          if (successOverlay) successOverlay.classList.add('ad-show');
-          setTimeout(() => {
-            closeModal();
-          }, 700);
         } catch (_) {}
       });
-    } catch (_) {}
+    } catch (err: any) {
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
+      if (successOverlay) successOverlay.classList.remove('ad-show');
+      isSaving = false;
+      alert(`App Directory: ${err?.message || 'Failed to send save request'}`);
+    }
   };
 
   if (saveBtn) saveBtn.addEventListener('click', doSave);
 
   // Global keys within modal - captured at window level for reliable Ctrl+Enter & Escape
-  const keyHandler = (e: KeyboardEvent): void => {
+  keyHandler = (e: KeyboardEvent): void => {
     const isCtrlEnter =
       (e.ctrlKey || e.metaKey) &&
       (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter');
