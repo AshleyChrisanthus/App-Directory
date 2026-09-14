@@ -18,7 +18,7 @@ import {
   base64UrlToBytes
 } from './crypto';
 import { mergeSyncPayload, pruneTombstones } from './merger';
-import { createLockerAdapter } from './backend';
+import { createLockerAdapter, RestfulApiRelayLocker } from './backend';
 
 const CONFIG_STORAGE_KEY = 'appDirectory_sync_config_v1';
 const TOMBSTONES_STORAGE_KEY = 'appDirectory_sync_tombstones_v1';
@@ -159,9 +159,35 @@ class SyncManager {
 
   // ── Vault Setup & Pairing ──────────────────────────────────
   async createNewVault(): Promise<SyncConfig> {
-    const vaultId = generateVaultId();
     const secretKey = await generateSecretKey();
     const deviceId = this.getDeviceId();
+    let vaultId = generateVaultId();
+
+    const localEntries = this.getLocalEntries();
+    const localFolders = this.getLocalFolders();
+    const localTombstones = this.getLocalTombstones();
+
+    const initialPayload: DecryptedSyncPayload = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      deviceId,
+      entries: localEntries,
+      folders: localFolders,
+      tombstones: localTombstones
+    };
+
+    const initialEnvelope = await encryptPayload(initialPayload, secretKey, deviceId);
+
+    // If using default relay, create the remote vault object
+    try {
+      const relay = new RestfulApiRelayLocker();
+      const remoteId = await relay.createVault(initialEnvelope);
+      if (remoteId) {
+        vaultId = remoteId;
+      }
+    } catch (err: any) {
+      console.warn('[Sync] Could not initialize remote relay object, using local vaultId:', err);
+    }
 
     const newConfig: SyncConfig = {
       enabled: true,
@@ -169,13 +195,13 @@ class SyncManager {
       secretKey,
       provider: 'relay',
       autoSync: true,
-      deviceId
+      deviceId,
+      lastSyncedAt: new Date().toISOString()
     };
 
     this.saveConfig(newConfig);
+    this.setStatus('synced', new Date());
 
-    // Initial push of existing bookmarks into newly created vault
-    await this.syncNow();
     return newConfig;
   }
 

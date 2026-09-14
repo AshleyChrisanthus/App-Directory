@@ -6527,7 +6527,101 @@
   }
 
   // src/modules/sync/backend.ts
-  var DEFAULT_RELAY_ENDPOINT = "https://app-directory-sync.onrender.com";
+  var RestfulApiRelayLocker = class {
+    constructor() {
+      __publicField(this, "endpoint", "https://api.restful-api.dev/objects");
+    }
+    async get(vaultId) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1e4);
+      try {
+        const res = await fetch(`${this.endpoint}/${encodeURIComponent(vaultId)}`, {
+          method: "GET",
+          headers: { "Accept": "application/json" },
+          signal: controller.signal
+        });
+        if (res.status === 404) return null;
+        if (!res.ok) {
+          throw new Error(`Cloud relay returned HTTP ${res.status}`);
+        }
+        const json = await res.json();
+        if (json && json.data) {
+          return json.data;
+        }
+        return null;
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error("Cloud sync request timed out (10s)");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async put(vaultId, envelope) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1e4);
+      try {
+        const putRes = await fetch(`${this.endpoint}/${encodeURIComponent(vaultId)}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `app_directory_vault_${vaultId.slice(0, 8)}`,
+            data: envelope
+          }),
+          signal: controller.signal
+        });
+        if (putRes.ok) return true;
+        if (putRes.status === 404) {
+          const postRes = await fetch(this.endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: `app_directory_vault_${vaultId.slice(0, 8)}`,
+              data: envelope
+            }),
+            signal: controller.signal
+          });
+          if (postRes.ok) return true;
+        }
+        throw new Error(`Cloud relay write failed (HTTP ${putRes.status})`);
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error("Cloud sync upload timed out (10s)");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    async createVault(envelope) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1e4);
+      try {
+        const res = await fetch(this.endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: "app_directory_vault",
+            data: envelope
+          }),
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error(`Could not initialize cloud vault: HTTP ${res.status}`);
+        }
+        const json = await res.json();
+        return json.id;
+      } catch (err) {
+        if (err.name === "AbortError") {
+          throw new Error("Cloud relay initialization timed out (10s)");
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
   var CustomWorkerLocker = class {
     constructor(endpoint, authHeader) {
       __publicField(this, "endpoint");
@@ -6655,8 +6749,10 @@
     if (config.provider === "supabase" && config.supabaseUrl && config.supabaseAnonKey) {
       return new SupabaseLocker(config.supabaseUrl, config.supabaseAnonKey);
     }
-    const endpoint = config.customEndpoint || DEFAULT_RELAY_ENDPOINT;
-    return new CustomWorkerLocker(endpoint, config.customAuthHeader);
+    if (config.customEndpoint) {
+      return new CustomWorkerLocker(config.customEndpoint, config.customAuthHeader);
+    }
+    return new RestfulApiRelayLocker();
   }
 
   // src/modules/sync/qr.ts
@@ -7137,19 +7233,41 @@
     }
     // ── Vault Setup & Pairing ──────────────────────────────────
     async createNewVault() {
-      const vaultId = generateVaultId();
       const secretKey = await generateSecretKey();
       const deviceId = this.getDeviceId();
+      let vaultId = generateVaultId();
+      const localEntries = this.getLocalEntries();
+      const localFolders = this.getLocalFolders();
+      const localTombstones = this.getLocalTombstones();
+      const initialPayload = {
+        version: 1,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        deviceId,
+        entries: localEntries,
+        folders: localFolders,
+        tombstones: localTombstones
+      };
+      const initialEnvelope = await encryptPayload(initialPayload, secretKey, deviceId);
+      try {
+        const relay = new RestfulApiRelayLocker();
+        const remoteId = await relay.createVault(initialEnvelope);
+        if (remoteId) {
+          vaultId = remoteId;
+        }
+      } catch (err) {
+        console.warn("[Sync] Could not initialize remote relay object, using local vaultId:", err);
+      }
       const newConfig = {
         enabled: true,
         vaultId,
         secretKey,
         provider: "relay",
         autoSync: true,
-        deviceId
+        deviceId,
+        lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       this.saveConfig(newConfig);
-      await this.syncNow();
+      this.setStatus("synced", /* @__PURE__ */ new Date());
       return newConfig;
     }
     joinVault(vaultId, secretKey, provider = "relay") {

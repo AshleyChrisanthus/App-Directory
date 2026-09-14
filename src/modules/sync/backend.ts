@@ -5,8 +5,118 @@ export interface CloudLockerAdapter {
   put(vaultId: string, envelope: EncryptedVaultEnvelope): Promise<boolean>;
 }
 
-// Built-in free serverless relay fallback endpoint
-const DEFAULT_RELAY_ENDPOINT = 'https://app-directory-sync.onrender.com';
+/**
+ * Default Public Zero-Knowledge REST Relay
+ * Uses public REST storage endpoint for zero-configuration testing and syncing.
+ * Note: Data is 100% client-side encrypted with AES-GCM (256-bit).
+ */
+export class RestfulApiRelayLocker implements CloudLockerAdapter {
+  private endpoint = 'https://api.restful-api.dev/objects';
+
+  async get(vaultId: string): Promise<EncryptedVaultEnvelope | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const res = await fetch(`${this.endpoint}/${encodeURIComponent(vaultId)}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal
+      });
+
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        throw new Error(`Cloud relay returned HTTP ${res.status}`);
+      }
+
+      const json = await res.json();
+      if (json && json.data) {
+        return json.data as EncryptedVaultEnvelope;
+      }
+      return null;
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error('Cloud sync request timed out (10s)');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async put(vaultId: string, envelope: EncryptedVaultEnvelope): Promise<boolean> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      // First attempt update via PUT
+      const putRes = await fetch(`${this.endpoint}/${encodeURIComponent(vaultId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `app_directory_vault_${vaultId.slice(0, 8)}`,
+          data: envelope
+        }),
+        signal: controller.signal
+      });
+
+      if (putRes.ok) return true;
+
+      // If object not found (e.g. initial setup), create it via POST
+      if (putRes.status === 404) {
+        const postRes = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `app_directory_vault_${vaultId.slice(0, 8)}`,
+            data: envelope
+          }),
+          signal: controller.signal
+        });
+        if (postRes.ok) return true;
+      }
+
+      throw new Error(`Cloud relay write failed (HTTP ${putRes.status})`);
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error('Cloud sync upload timed out (10s)');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async createVault(envelope: EncryptedVaultEnvelope): Promise<string> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const res = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'app_directory_vault',
+          data: envelope
+        }),
+        signal: controller.signal
+      });
+
+      if (!res.ok) {
+        throw new Error(`Could not initialize cloud vault: HTTP ${res.status}`);
+      }
+      const json = await res.json();
+      return json.id as string;
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error('Cloud relay initialization timed out (10s)');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
 
 /**
  * Custom Serverless / Cloudflare Worker Locker
@@ -98,7 +208,6 @@ export class CustomWorkerLocker implements CloudLockerAdapter {
 /**
  * Supabase Locker Adapter
  * Uses standard PostgREST table:
- * Table schema:
  *   create table sync_vaults (
  *     vault_id text primary key,
  *     envelope jsonb not null,
@@ -177,7 +286,10 @@ export function createLockerAdapter(config: SyncConfig): CloudLockerAdapter {
     return new SupabaseLocker(config.supabaseUrl, config.supabaseAnonKey);
   }
 
-  // Default serverless relay
-  const endpoint = config.customEndpoint || DEFAULT_RELAY_ENDPOINT;
-  return new CustomWorkerLocker(endpoint, config.customAuthHeader);
+  if (config.customEndpoint) {
+    return new CustomWorkerLocker(config.customEndpoint, config.customAuthHeader);
+  }
+
+  // Default serverless relay with live zero-config endpoint
+  return new RestfulApiRelayLocker();
 }
