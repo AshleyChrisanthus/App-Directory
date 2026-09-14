@@ -5384,6 +5384,11 @@ body.app-is-locked > *:not(#appLockOverlay) {
   position: relative;
 }
 
+.cloud-sync-header-btn svg,
+.cloud-sync-header-btn .sync-dot-indicator {
+  pointer-events: none;
+}
+
 .sync-dot-indicator {
   position: absolute;
   top: 6px;
@@ -5421,6 +5426,7 @@ body.app-is-locked > *:not(#appLockOverlay) {
   100% { transform: scale(1.3); opacity: 1; }
 }
 
+.sync-modal-dialog,
 .sync-modal-card {
   max-width: 520px;
   width: 92%;

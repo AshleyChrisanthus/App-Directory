@@ -3,35 +3,28 @@ import { generateQrSvg } from './qr';
 import { QrCameraScanner } from './scanner';
 import { showToast } from '../../utils/dom';
 
-let modalEl: HTMLElement | null = null;
 let scanner: QrCameraScanner | null = null;
 
 export function openSyncModal(): void {
-  let existing = document.getElementById('syncModal');
-  if (existing) {
-    existing.remove();
-  }
-
-  modalEl = document.createElement('div');
-  modalEl.id = 'syncModal';
-  modalEl.className = 'modal-backdrop sync-modal-backdrop';
+  const backdrop = document.getElementById('syncModalBackdrop');
+  if (!backdrop) return;
 
   renderSyncModalContent();
-  document.body.appendChild(modalEl);
+  backdrop.classList.add('active');
 
-  requestAnimationFrame(() => {
-    if (modalEl) modalEl.classList.add('visible');
-  });
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeSyncModal();
+  };
+  window.addEventListener('keydown', onKeyDown);
 
-  // Listen for sync status changes while modal is open
   const unsubscribe = syncManager.onStatusChange(() => {
-    if (modalEl && modalEl.classList.contains('visible')) {
+    if (backdrop.classList.contains('active')) {
       renderSyncModalContent();
     }
   });
 
-  // Cleanup on close
-  (modalEl as any).__cleanup = () => {
+  (backdrop as any).__cleanup = () => {
+    window.removeEventListener('keydown', onKeyDown);
     unsubscribe();
     if (scanner) {
       scanner.stop();
@@ -41,21 +34,18 @@ export function openSyncModal(): void {
 }
 
 export function closeSyncModal(): void {
-  if (!modalEl) return;
-  if ((modalEl as any).__cleanup) {
-    (modalEl as any).__cleanup();
+  const backdrop = document.getElementById('syncModalBackdrop');
+  if (!backdrop) return;
+
+  if ((backdrop as any).__cleanup) {
+    (backdrop as any).__cleanup();
   }
-  modalEl.classList.remove('visible');
-  setTimeout(() => {
-    if (modalEl) {
-      modalEl.remove();
-      modalEl = null;
-    }
-  }, 200);
+  backdrop.classList.remove('active');
 }
 
 function renderSyncModalContent(): void {
-  if (!modalEl) return;
+  const bodyEl = document.getElementById('syncModalBody');
+  if (!bodyEl) return;
 
   const isConfigured = syncManager.isConfigured();
   const config = syncManager.getConfig();
@@ -192,39 +182,25 @@ function renderSyncModalContent(): void {
     `;
   }
 
-  modalEl.innerHTML = `
-    <div class="modal-card sync-modal-card">
-      <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
-            <path d="m9 13 2 2 4-4"/>
-          </svg>
-          <h2 class="modal-title">Cloud Sync (E2EE)</h2>
-        </div>
-        <button type="button" class="modal-close-btn" id="syncModalCloseBtn">✕</button>
-      </div>
-      <div class="modal-body sync-modal-body">
-        ${bodyHtml}
-      </div>
-    </div>
-  `;
-
+  bodyEl.innerHTML = bodyHtml;
   attachSyncModalEvents();
 }
 
 function attachSyncModalEvents(): void {
-  if (!modalEl) return;
+  const backdrop = document.getElementById('syncModalBackdrop');
+  if (!backdrop) return;
 
-  const closeBtn = modalEl.querySelector('#syncModalCloseBtn');
-  if (closeBtn) closeBtn.addEventListener('click', closeSyncModal);
+  const closeBtn = document.getElementById('syncModalCloseBtn');
+  if (closeBtn) {
+    closeBtn.onclick = () => closeSyncModal();
+  }
 
-  modalEl.addEventListener('click', (e) => {
-    if (e.target === modalEl) closeSyncModal();
-  });
+  backdrop.onclick = (e) => {
+    if (e.target === backdrop) closeSyncModal();
+  };
 
   // Setup view events
-  const btnCreate = modalEl.querySelector('#btnCreateNewVault');
+  const btnCreate = backdrop.querySelector('#btnCreateNewVault');
   if (btnCreate) {
     btnCreate.addEventListener('click', async () => {
       try {
@@ -238,10 +214,10 @@ function attachSyncModalEvents(): void {
     });
   }
 
-  const btnJoinChoice = modalEl.querySelector('#btnJoinExistingVault');
-  const setupChoices = modalEl.querySelector('#syncSetupChoices') as HTMLElement | null;
-  const joinForm = modalEl.querySelector('#syncJoinForm') as HTMLElement | null;
-  const btnBack = modalEl.querySelector('#btnBackToChoices');
+  const btnJoinChoice = backdrop.querySelector('#btnJoinExistingVault');
+  const setupChoices = backdrop.querySelector('#syncSetupChoices') as HTMLElement | null;
+  const joinForm = backdrop.querySelector('#syncJoinForm') as HTMLElement | null;
+  const btnBack = backdrop.querySelector('#btnBackToChoices');
 
   if (btnJoinChoice && setupChoices && joinForm) {
     btnJoinChoice.addEventListener('click', () => {
@@ -262,10 +238,10 @@ function attachSyncModalEvents(): void {
   }
 
   // Camera scan button
-  const btnStartCamera = modalEl.querySelector('#btnStartCamera');
-  const scannerContainer = modalEl.querySelector('#syncScannerContainer') as HTMLElement | null;
-  const cameraVideo = modalEl.querySelector('#syncCameraVideo') as HTMLVideoElement | null;
-  const pairingInput = modalEl.querySelector('#syncPairingInput') as HTMLTextAreaElement | null;
+  const btnStartCamera = backdrop.querySelector('#btnStartCamera');
+  const scannerContainer = backdrop.querySelector('#syncScannerContainer') as HTMLElement | null;
+  const cameraVideo = backdrop.querySelector('#syncCameraVideo') as HTMLVideoElement | null;
+  const pairingInput = backdrop.querySelector('#syncPairingInput') as HTMLTextAreaElement | null;
 
   if (btnStartCamera && cameraVideo && scannerContainer) {
     btnStartCamera.addEventListener('click', async () => {
@@ -292,7 +268,7 @@ function attachSyncModalEvents(): void {
   }
 
   // Submit Join
-  const btnSubmitJoin = modalEl.querySelector('#btnSubmitJoin');
+  const btnSubmitJoin = backdrop.querySelector('#btnSubmitJoin');
   if (btnSubmitJoin && pairingInput) {
     btnSubmitJoin.addEventListener('click', async () => {
       const raw = pairingInput.value.trim();
@@ -337,7 +313,7 @@ function attachSyncModalEvents(): void {
   }
 
   // Active view events
-  const btnManualSync = modalEl.querySelector('#btnManualSync');
+  const btnManualSync = backdrop.querySelector('#btnManualSync');
   if (btnManualSync) {
     btnManualSync.addEventListener('click', async () => {
       try {
@@ -349,8 +325,8 @@ function attachSyncModalEvents(): void {
     });
   }
 
-  const btnCopyPairingUrl = modalEl.querySelector('#btnCopyPairingUrl');
-  const pairingUrlInput = modalEl.querySelector('#syncPairingUrlInput') as HTMLInputElement | null;
+  const btnCopyPairingUrl = backdrop.querySelector('#btnCopyPairingUrl');
+  const pairingUrlInput = backdrop.querySelector('#syncPairingUrlInput') as HTMLInputElement | null;
   if (btnCopyPairingUrl && pairingUrlInput) {
     btnCopyPairingUrl.addEventListener('click', () => {
       navigator.clipboard.writeText(pairingUrlInput.value).then(() => {
@@ -359,7 +335,7 @@ function attachSyncModalEvents(): void {
     });
   }
 
-  const btnDisconnect = modalEl.querySelector('#btnDisconnectVault');
+  const btnDisconnect = backdrop.querySelector('#btnDisconnectVault');
   if (btnDisconnect) {
     btnDisconnect.addEventListener('click', () => {
       if (confirm('Disconnect from Cloud Sync? Your local bookmarks will remain on this device.')) {
