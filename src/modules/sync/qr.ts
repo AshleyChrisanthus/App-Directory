@@ -65,7 +65,11 @@ const VERSION_SPECS: Record<number, [number, number, number, number]> = {
   7: [45, 124, 18, 4],
   8: [49, 154, 22, 4],
   9: [53, 182, 22, 5],
-  10: [57, 216, 26, 5]
+  10: [57, 216, 26, 5],
+  11: [61, 252, 28, 5],
+  12: [65, 282, 26, 8],
+  13: [69, 331, 24, 9],
+  14: [73, 365, 20, 13]
 };
 
 const ALIGNMENT_PATTERN_POS: Record<number, number[]> = {
@@ -77,7 +81,11 @@ const ALIGNMENT_PATTERN_POS: Record<number, number[]> = {
   7: [6, 22, 38],
   8: [6, 24, 42],
   9: [6, 26, 46],
-  10: [6, 28, 50]
+  10: [6, 28, 50],
+  11: [6, 30, 54],
+  12: [6, 32, 58],
+  13: [6, 34, 62],
+  14: [6, 26, 46, 66]
 };
 
 export function generateQrMatrix(text: string): boolean[][] {
@@ -86,7 +94,7 @@ export function generateQrMatrix(text: string): boolean[][] {
 
   // Find minimum version that fits data with 8-bit byte mode + header
   let chosenVersion = 1;
-  while (chosenVersion <= 10) {
+  while (chosenVersion <= 14) {
     const spec = VERSION_SPECS[chosenVersion];
     const maxDataBytes = spec[1];
     // 4 bits mode + 8 or 16 bits count + raw bytes
@@ -98,8 +106,8 @@ export function generateQrMatrix(text: string): boolean[][] {
     chosenVersion++;
   }
 
-  if (chosenVersion > 10) {
-    throw new Error('QR payload exceeds supported version 10 capacity');
+  if (chosenVersion > 14) {
+    throw new Error('QR payload exceeds supported version 14 capacity');
   }
 
   const [dim, totalDataBytes, ecBytesPerBlock, numBlocks] = VERSION_SPECS[chosenVersion];

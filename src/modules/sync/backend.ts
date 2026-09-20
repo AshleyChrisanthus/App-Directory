@@ -274,22 +274,17 @@ export class SupabaseLocker implements CloudLockerAdapter {
   }
 }
 
+export const DEFAULT_CLOUDFLARE_WORKER_URL = 'https://app-directory-sync.ashleychrisanthus.workers.dev';
+
 /**
  * Factory to instantiate the appropriate adapter based on config.
  */
 export function createLockerAdapter(config: SyncConfig): CloudLockerAdapter {
-  if (config.provider === 'custom' && config.customEndpoint) {
-    return new CustomWorkerLocker(config.customEndpoint, config.customAuthHeader);
-  }
-
   if (config.provider === 'supabase' && config.supabaseUrl && config.supabaseAnonKey) {
     return new SupabaseLocker(config.supabaseUrl, config.supabaseAnonKey);
   }
 
-  if (config.customEndpoint) {
-    return new CustomWorkerLocker(config.customEndpoint, config.customAuthHeader);
-  }
-
-  // Default serverless relay with live zero-config endpoint
-  return new RestfulApiRelayLocker();
+  const endpoint = config.customEndpoint || DEFAULT_CLOUDFLARE_WORKER_URL;
+  return new CustomWorkerLocker(endpoint, config.customAuthHeader);
 }
+

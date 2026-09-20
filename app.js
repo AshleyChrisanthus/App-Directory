@@ -6527,101 +6527,6 @@
   }
 
   // src/modules/sync/backend.ts
-  var RestfulApiRelayLocker = class {
-    constructor() {
-      __publicField(this, "endpoint", "https://api.restful-api.dev/objects");
-    }
-    async get(vaultId) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1e4);
-      try {
-        const res = await fetch(`${this.endpoint}/${encodeURIComponent(vaultId)}`, {
-          method: "GET",
-          headers: { "Accept": "application/json" },
-          signal: controller.signal
-        });
-        if (res.status === 404) return null;
-        if (!res.ok) {
-          throw new Error(`Cloud relay returned HTTP ${res.status}`);
-        }
-        const json = await res.json();
-        if (json && json.data) {
-          return json.data;
-        }
-        return null;
-      } catch (err) {
-        if (err.name === "AbortError") {
-          throw new Error("Cloud sync request timed out (10s)");
-        }
-        throw err;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async put(vaultId, envelope) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1e4);
-      try {
-        const putRes = await fetch(`${this.endpoint}/${encodeURIComponent(vaultId)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: `app_directory_vault_${vaultId.slice(0, 8)}`,
-            data: envelope
-          }),
-          signal: controller.signal
-        });
-        if (putRes.ok) return true;
-        if (putRes.status === 404) {
-          const postRes = await fetch(this.endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: `app_directory_vault_${vaultId.slice(0, 8)}`,
-              data: envelope
-            }),
-            signal: controller.signal
-          });
-          if (postRes.ok) return true;
-        }
-        throw new Error(`Cloud relay write failed (HTTP ${putRes.status})`);
-      } catch (err) {
-        if (err.name === "AbortError") {
-          throw new Error("Cloud sync upload timed out (10s)");
-        }
-        throw err;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-    async createVault(envelope) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1e4);
-      try {
-        const res = await fetch(this.endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: "app_directory_vault",
-            data: envelope
-          }),
-          signal: controller.signal
-        });
-        if (!res.ok) {
-          throw new Error(`Could not initialize cloud vault: HTTP ${res.status}`);
-        }
-        const json = await res.json();
-        return json.id;
-      } catch (err) {
-        if (err.name === "AbortError") {
-          throw new Error("Cloud relay initialization timed out (10s)");
-        }
-        throw err;
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-  };
   var CustomWorkerLocker = class {
     constructor(endpoint, authHeader) {
       __publicField(this, "endpoint");
@@ -6742,17 +6647,13 @@
       return true;
     }
   };
+  var DEFAULT_CLOUDFLARE_WORKER_URL = "https://app-directory-sync.ashleychrisanthus.workers.dev";
   function createLockerAdapter(config) {
-    if (config.provider === "custom" && config.customEndpoint) {
-      return new CustomWorkerLocker(config.customEndpoint, config.customAuthHeader);
-    }
     if (config.provider === "supabase" && config.supabaseUrl && config.supabaseAnonKey) {
       return new SupabaseLocker(config.supabaseUrl, config.supabaseAnonKey);
     }
-    if (config.customEndpoint) {
-      return new CustomWorkerLocker(config.customEndpoint, config.customAuthHeader);
-    }
-    return new RestfulApiRelayLocker();
+    const endpoint = config.customEndpoint || DEFAULT_CLOUDFLARE_WORKER_URL;
+    return new CustomWorkerLocker(endpoint, config.customAuthHeader);
   }
 
   // src/modules/sync/qr.ts
@@ -6804,7 +6705,11 @@
     7: [45, 124, 18, 4],
     8: [49, 154, 22, 4],
     9: [53, 182, 22, 5],
-    10: [57, 216, 26, 5]
+    10: [57, 216, 26, 5],
+    11: [61, 252, 28, 5],
+    12: [65, 282, 26, 8],
+    13: [69, 331, 24, 9],
+    14: [73, 365, 20, 13]
   };
   var ALIGNMENT_PATTERN_POS = {
     2: [6, 18],
@@ -6815,13 +6720,17 @@
     7: [6, 22, 38],
     8: [6, 24, 42],
     9: [6, 26, 46],
-    10: [6, 28, 50]
+    10: [6, 28, 50],
+    11: [6, 30, 54],
+    12: [6, 32, 58],
+    13: [6, 34, 62],
+    14: [6, 26, 46, 66]
   };
   function generateQrMatrix(text) {
     const encoder = new TextEncoder();
     const rawBytes = encoder.encode(text);
     let chosenVersion = 1;
-    while (chosenVersion <= 10) {
+    while (chosenVersion <= 14) {
       const spec = VERSION_SPECS[chosenVersion];
       const maxDataBytes = spec[1];
       const countBits2 = chosenVersion <= 9 ? 8 : 16;
@@ -6831,8 +6740,8 @@
       }
       chosenVersion++;
     }
-    if (chosenVersion > 10) {
-      throw new Error("QR payload exceeds supported version 10 capacity");
+    if (chosenVersion > 14) {
+      throw new Error("QR payload exceeds supported version 14 capacity");
     }
     const [dim, totalDataBytes, ecBytesPerBlock, numBlocks] = VERSION_SPECS[chosenVersion];
     const countBits = chosenVersion <= 9 ? 8 : 16;
@@ -7138,12 +7047,19 @@
         const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
         if (raw) {
           this.config = JSON.parse(raw);
-          if (this.config && this.config.enabled) {
-            this.setStatus("synced", this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
-          } else {
-            this.setStatus("disconnected", null);
+          if (this.config) {
+            if (this.config.provider === "relay" || !this.config.customEndpoint) {
+              this.config.provider = "custom";
+              this.config.customEndpoint = DEFAULT_CLOUDFLARE_WORKER_URL;
+              this.saveConfig(this.config);
+            }
+            if (this.config.enabled) {
+              this.setStatus("synced", this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
+            } else {
+              this.setStatus("disconnected", null);
+            }
+            return this.config;
           }
-          return this.config;
         }
       } catch (_) {
       }
@@ -7248,29 +7164,27 @@
         tombstones: localTombstones
       };
       const initialEnvelope = await encryptPayload(initialPayload, secretKey, deviceId);
-      try {
-        const relay = new RestfulApiRelayLocker();
-        const remoteId = await relay.createVault(initialEnvelope);
-        if (remoteId) {
-          vaultId = remoteId;
-        }
-      } catch (err) {
-        console.warn("[Sync] Could not initialize remote relay object, using local vaultId:", err);
-      }
       const newConfig = {
         enabled: true,
         vaultId,
         secretKey,
-        provider: "relay",
+        provider: "custom",
+        customEndpoint: DEFAULT_CLOUDFLARE_WORKER_URL,
         autoSync: true,
         deviceId,
         lastSyncedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       this.saveConfig(newConfig);
+      try {
+        const adapter = createLockerAdapter(newConfig);
+        await adapter.put(vaultId, initialEnvelope);
+      } catch (err) {
+        console.warn("[Sync] Initial vault push to Cloudflare KV failed:", err);
+      }
       this.setStatus("synced", /* @__PURE__ */ new Date());
       return newConfig;
     }
-    joinVault(vaultId, secretKey, provider = "relay") {
+    joinVault(vaultId, secretKey, provider = "custom", customEndpoint = DEFAULT_CLOUDFLARE_WORKER_URL) {
       const cleanVaultId = vaultId.trim();
       const cleanSecretKey = secretKey.trim();
       if (!cleanVaultId || !cleanSecretKey) {
@@ -7281,6 +7195,7 @@
         vaultId: cleanVaultId,
         secretKey: cleanSecretKey,
         provider,
+        customEndpoint: provider === "custom" ? customEndpoint || DEFAULT_CLOUDFLARE_WORKER_URL : void 0,
         autoSync: true,
         deviceId: this.getDeviceId()
       };
@@ -7294,8 +7209,10 @@
     }
     getPairingUrl() {
       if (!this.config) return "";
-      const base = window.location.origin + window.location.pathname;
-      const hash = `sync=v1:${this.config.vaultId}:${this.config.secretKey}:${this.config.provider}`;
+      const isLocal = typeof window !== "undefined" && (window.location.protocol === "file:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+      const base = isLocal ? "https://smooth-harbor-jsy6.here.now/" : window.location.origin + window.location.pathname;
+      const isDefaultWorker = !this.config.customEndpoint || this.config.customEndpoint === DEFAULT_CLOUDFLARE_WORKER_URL;
+      const hash = isDefaultWorker ? `sync=v1:${this.config.vaultId}:${this.config.secretKey}` : `sync=v1:${this.config.vaultId}:${this.config.secretKey}:${this.config.provider}:${encodeURIComponent(this.config.customEndpoint || "")}`;
       return `${base}#${hash}`;
     }
     /**
@@ -7306,14 +7223,15 @@
       try {
         const hash = window.location.hash;
         if (!hash || !hash.includes("sync=v1:")) return false;
-        const match = hash.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?/);
+        const match = hash.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?(?::([^:]+))?/);
         if (match) {
           const vaultId = match[1];
           const secretKey = match[2];
-          const provider = match[3] || "relay";
+          const provider = match[3] || "custom";
+          const customEndpoint = match[4] ? decodeURIComponent(match[4]) : DEFAULT_CLOUDFLARE_WORKER_URL;
           history.replaceState(null, "", window.location.pathname + window.location.search);
-          this.joinVault(vaultId, secretKey, provider);
-          showToast("Paired with sync vault! Synchronizing\u2026");
+          this.joinVault(vaultId, secretKey, provider, customEndpoint);
+          showToast("Paired with Cloudflare Sync Vault! Synchronizing\u2026");
           this.syncNow().then(() => {
             showToast("Bookmarks successfully synchronized!");
           }).catch((err) => {
@@ -7534,7 +7452,13 @@
     `;
     } else {
       const pairingUrl = syncManager.getPairingUrl();
-      const qrSvg = generateQrSvg(pairingUrl, { padding: 2 });
+      let qrSvg = "";
+      try {
+        qrSvg = generateQrSvg(pairingUrl, { padding: 2 });
+      } catch (err) {
+        console.warn("[Sync] Failed generating QR SVG:", err);
+        qrSvg = `<div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">Copy the pairing link below to connect your device.</div>`;
+      }
       const lastSyncStr = status.lastSyncedAt ? status.lastSyncedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Never";
       let statusPill = `<span class="sync-badge sync-badge-synced">\u25CF Synced</span>`;
       if (status.state === "syncing") {
@@ -7553,8 +7477,9 @@
               ${statusPill}
             </div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-              Last synced: ${lastSyncStr} &bull; Provider: ${config?.provider || "relay"}
+              Last synced: ${lastSyncStr} &bull; Provider: Cloudflare Worker
             </div>
+
           </div>
           <button type="button" class="btn btn-primary btn-sm" id="btnManualSync" ${status.state === "syncing" ? "disabled" : ""}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${status.state === "syncing" ? "spin" : ""}"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -7677,13 +7602,15 @@
         }
         let vaultId = "";
         let secretKey = "";
-        let provider = "relay";
+        let provider = "custom";
+        let customEndpoint;
         if (raw.includes("sync=v1:")) {
-          const match = raw.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?/);
+          const match = raw.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?(?::([^:]+))?/);
           if (match) {
             vaultId = match[1];
             secretKey = match[2];
             if (match[3]) provider = match[3];
+            if (match[4]) customEndpoint = decodeURIComponent(match[4]);
           }
         } else if (raw.includes(":")) {
           const parts = raw.split(":");
@@ -7695,8 +7622,8 @@
           return;
         }
         try {
-          syncManager.joinVault(vaultId, secretKey, provider);
-          showToast("Connected to vault! Syncing\u2026");
+          syncManager.joinVault(vaultId, secretKey, provider, customEndpoint);
+          showToast("Connected to Cloudflare Vault! Syncing\u2026");
           renderSyncModalContent();
           await syncManager.syncNow();
           showToast("Bookmarks synchronized!");

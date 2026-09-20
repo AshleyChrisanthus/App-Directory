@@ -220,6 +220,20 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     if (e.target === backdrop) closeModal();
   });
 
+  // Prevent all keyboard events inside the extension modal from leaking to the host webpage
+  const stopKeyboardPropagation = (e: KeyboardEvent): void => {
+    e.stopPropagation();
+  };
+
+  backdrop.addEventListener('keydown', stopKeyboardPropagation);
+  backdrop.addEventListener('keyup', stopKeyboardPropagation);
+  backdrop.addEventListener('keypress', stopKeyboardPropagation);
+
+  host.addEventListener('keydown', stopKeyboardPropagation);
+  host.addEventListener('keyup', stopKeyboardPropagation);
+  host.addEventListener('keypress', stopKeyboardPropagation);
+
+
   // Favorite toggle
   const favToggle = shadow.getElementById('ad-fav-toggle');
   if (favToggle) {

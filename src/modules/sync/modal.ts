@@ -117,7 +117,14 @@ function renderSyncModalContent(): void {
   } else {
     // ── Active Vault View ────────────────────────────────────
     const pairingUrl = syncManager.getPairingUrl();
-    const qrSvg = generateQrSvg(pairingUrl, { padding: 2 });
+    let qrSvg = '';
+    try {
+      qrSvg = generateQrSvg(pairingUrl, { padding: 2 });
+    } catch (err: any) {
+      console.warn('[Sync] Failed generating QR SVG:', err);
+      qrSvg = `<div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">Copy the pairing link below to connect your device.</div>`;
+    }
+
     const lastSyncStr = status.lastSyncedAt
       ? status.lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : 'Never';
@@ -140,8 +147,9 @@ function renderSyncModalContent(): void {
               ${statusPill}
             </div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-              Last synced: ${lastSyncStr} &bull; Provider: ${config?.provider || 'relay'}
+              Last synced: ${lastSyncStr} &bull; Provider: Cloudflare Worker
             </div>
+
           </div>
           <button type="button" class="btn btn-primary btn-sm" id="btnManualSync" ${status.state === 'syncing' ? 'disabled' : ''}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${status.state === 'syncing' ? 'spin' : ''}"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -279,14 +287,16 @@ function attachSyncModalEvents(): void {
 
       let vaultId = '';
       let secretKey = '';
-      let provider: any = 'relay';
+      let provider: any = 'custom';
+      let customEndpoint: string | undefined;
 
       if (raw.includes('sync=v1:')) {
-        const match = raw.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?/);
+        const match = raw.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?(?::([^:]+))?/);
         if (match) {
           vaultId = match[1];
           secretKey = match[2];
           if (match[3]) provider = match[3];
+          if (match[4]) customEndpoint = decodeURIComponent(match[4]);
         }
       } else if (raw.includes(':')) {
         const parts = raw.split(':');
@@ -300,8 +310,9 @@ function attachSyncModalEvents(): void {
       }
 
       try {
-        syncManager.joinVault(vaultId, secretKey, provider);
-        showToast('Connected to vault! Syncing…');
+        syncManager.joinVault(vaultId, secretKey, provider, customEndpoint);
+        showToast('Connected to Cloudflare Vault! Syncing…');
+
         renderSyncModalContent();
         await syncManager.syncNow();
         showToast('Bookmarks synchronized!');

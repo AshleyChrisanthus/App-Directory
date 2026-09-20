@@ -18,9 +18,10 @@ import {
   base64UrlToBytes
 } from './crypto';
 import { mergeSyncPayload, pruneTombstones } from './merger';
-import { createLockerAdapter, RestfulApiRelayLocker } from './backend';
+import { createLockerAdapter, DEFAULT_CLOUDFLARE_WORKER_URL } from './backend';
 
 const CONFIG_STORAGE_KEY = 'appDirectory_sync_config_v1';
+
 const TOMBSTONES_STORAGE_KEY = 'appDirectory_sync_tombstones_v1';
 const DEVICE_ID_KEY = 'appDirectory_device_id';
 
@@ -55,12 +56,20 @@ class SyncManager {
       const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
       if (raw) {
         this.config = JSON.parse(raw);
-        if (this.config && this.config.enabled) {
-          this.setStatus('synced', this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
-        } else {
-          this.setStatus('disconnected', null);
+        if (this.config) {
+          // Upgrade legacy relay or missing endpoint to dedicated Cloudflare Worker
+          if (this.config.provider === 'relay' || !this.config.customEndpoint) {
+            this.config.provider = 'custom';
+            this.config.customEndpoint = DEFAULT_CLOUDFLARE_WORKER_URL;
+            this.saveConfig(this.config);
+          }
+          if (this.config.enabled) {
+            this.setStatus('synced', this.config.lastSyncedAt ? new Date(this.config.lastSyncedAt) : null);
+          } else {
+            this.setStatus('disconnected', null);
+          }
+          return this.config;
         }
-        return this.config;
       }
     } catch (_) {}
     this.config = null;
@@ -178,34 +187,38 @@ class SyncManager {
 
     const initialEnvelope = await encryptPayload(initialPayload, secretKey, deviceId);
 
-    // If using default relay, create the remote vault object
-    try {
-      const relay = new RestfulApiRelayLocker();
-      const remoteId = await relay.createVault(initialEnvelope);
-      if (remoteId) {
-        vaultId = remoteId;
-      }
-    } catch (err: any) {
-      console.warn('[Sync] Could not initialize remote relay object, using local vaultId:', err);
-    }
-
     const newConfig: SyncConfig = {
       enabled: true,
       vaultId,
       secretKey,
-      provider: 'relay',
+      provider: 'custom',
+      customEndpoint: DEFAULT_CLOUDFLARE_WORKER_URL,
       autoSync: true,
       deviceId,
       lastSyncedAt: new Date().toISOString()
     };
 
     this.saveConfig(newConfig);
+
+    // Immediately push initial vault state to Cloudflare KV
+    try {
+      const adapter = createLockerAdapter(newConfig);
+      await adapter.put(vaultId, initialEnvelope);
+    } catch (err: any) {
+      console.warn('[Sync] Initial vault push to Cloudflare KV failed:', err);
+    }
+
     this.setStatus('synced', new Date());
 
     return newConfig;
   }
 
-  joinVault(vaultId: string, secretKey: string, provider: 'relay' | 'custom' | 'supabase' = 'relay'): SyncConfig {
+  joinVault(
+    vaultId: string,
+    secretKey: string,
+    provider: 'relay' | 'custom' | 'supabase' = 'custom',
+    customEndpoint: string = DEFAULT_CLOUDFLARE_WORKER_URL
+  ): SyncConfig {
     const cleanVaultId = vaultId.trim();
     const cleanSecretKey = secretKey.trim();
 
@@ -218,6 +231,7 @@ class SyncManager {
       vaultId: cleanVaultId,
       secretKey: cleanSecretKey,
       provider,
+      customEndpoint: provider === 'custom' ? (customEndpoint || DEFAULT_CLOUDFLARE_WORKER_URL) : undefined,
       autoSync: true,
       deviceId: this.getDeviceId()
     };
@@ -234,9 +248,26 @@ class SyncManager {
 
   getPairingUrl(): string {
     if (!this.config) return '';
-    const base = window.location.origin + window.location.pathname;
-    // Embed credentials exclusively in URL hash fragment
-    const hash = `sync=v1:${this.config.vaultId}:${this.config.secretKey}:${this.config.provider}`;
+    // If running on local file: or localhost, mobile camera cannot load local computer paths.
+    // Use canonical live web app URL so scanning immediately opens the app on the phone!
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.protocol === 'file:' ||
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1');
+
+    const base = isLocal
+      ? 'https://smooth-harbor-jsy6.here.now/'
+      : window.location.origin + window.location.pathname;
+
+    const isDefaultWorker =
+      !this.config.customEndpoint || this.config.customEndpoint === DEFAULT_CLOUDFLARE_WORKER_URL;
+
+    // Compact hash: omit redundant endpoint when using the default Cloudflare Worker
+    const hash = isDefaultWorker
+      ? `sync=v1:${this.config.vaultId}:${this.config.secretKey}`
+      : `sync=v1:${this.config.vaultId}:${this.config.secretKey}:${this.config.provider}:${encodeURIComponent(this.config.customEndpoint || '')}`;
+
     return `${base}#${hash}`;
   }
 
@@ -249,17 +280,18 @@ class SyncManager {
       const hash = window.location.hash;
       if (!hash || !hash.includes('sync=v1:')) return false;
 
-      const match = hash.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?/);
+      const match = hash.match(/sync=v1:([^:]+):([^:]+)(?::([^:]+))?(?::([^:]+))?/);
       if (match) {
         const vaultId = match[1];
         const secretKey = match[2];
-        const provider = (match[3] as any) || 'relay';
+        const provider = (match[3] as any) || 'custom';
+        const customEndpoint = match[4] ? decodeURIComponent(match[4]) : DEFAULT_CLOUDFLARE_WORKER_URL;
 
         // Scrub hash from URL address bar immediately
         history.replaceState(null, '', window.location.pathname + window.location.search);
 
-        this.joinVault(vaultId, secretKey, provider);
-        showToast('Paired with sync vault! Synchronizing…');
+        this.joinVault(vaultId, secretKey, provider, customEndpoint);
+        showToast('Paired with Cloudflare Sync Vault! Synchronizing…');
 
         // Immediately trigger sync
         this.syncNow()

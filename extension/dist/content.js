@@ -184,6 +184,15 @@
     backdrop.addEventListener("click", (e) => {
       if (e.target === backdrop) closeModal();
     });
+    const stopKeyboardPropagation = (e) => {
+      e.stopPropagation();
+    };
+    backdrop.addEventListener("keydown", stopKeyboardPropagation);
+    backdrop.addEventListener("keyup", stopKeyboardPropagation);
+    backdrop.addEventListener("keypress", stopKeyboardPropagation);
+    host.addEventListener("keydown", stopKeyboardPropagation);
+    host.addEventListener("keyup", stopKeyboardPropagation);
+    host.addEventListener("keypress", stopKeyboardPropagation);
     const favToggle = shadow.getElementById("ad-fav-toggle");
     if (favToggle) {
       favToggle.addEventListener("click", () => {
