@@ -694,9 +694,11 @@ if (insightsCloseBtn) {
   insightsCloseBtn.addEventListener('click', () => handleToggleInsights(false));
 }
 
-// Theme
+// Theme & Settings
 if (themeToggle) themeToggle.addEventListener('click', () => toggleTheme(render));
 if (themeCustomizerBtn) themeCustomizerBtn.addEventListener('click', openThemeModal);
+const settingsBtn = document.getElementById('settingsBtn');
+if (settingsBtn) settingsBtn.addEventListener('click', () => openSettingsModal('ai'));
 if (themeModalClose) themeModalClose.addEventListener('click', closeThemeModal);
 if (saveThemeModalBtn) saveThemeModalBtn.addEventListener('click', closeThemeModal);
 if (themeModalBackdrop) {

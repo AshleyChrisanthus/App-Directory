@@ -5633,6 +5633,7 @@ body.app-is-locked > *:not(#appLockOverlay) {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .settings-tabs-nav {

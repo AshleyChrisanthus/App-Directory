@@ -136,8 +136,9 @@ export function openSettingsModal(defaultTab: string = 'ai'): void {
   populateSettingsForm();
   switchSettingsTab(defaultTab);
 
+  backdrop.classList.add('active');
   backdrop.style.display = 'flex';
-  backdrop.classList.add('visible');
+  document.body.style.overflow = 'hidden';
 
   // Clear any previous test status
   const testStatus = document.getElementById('settingsTestAiStatus');
@@ -150,8 +151,9 @@ export function openSettingsModal(defaultTab: string = 'ai'): void {
 export function closeSettingsModal(): void {
   const backdrop = document.getElementById('settingsModalBackdrop');
   if (!backdrop) return;
-  backdrop.style.display = 'none';
-  backdrop.classList.remove('visible');
+  backdrop.classList.remove('active');
+  backdrop.style.display = '';
+  document.body.style.overflow = '';
 }
 
 export function switchSettingsTab(tabName: string): void {
@@ -205,7 +207,12 @@ function readFormSettings(): AppGlobalSettings {
   };
 }
 
+let isSettingsModalInitialized = false;
+
 export function initSettingsModal(): void {
+  if (isSettingsModalInitialized) return;
+  isSettingsModalInitialized = true;
+
   const settingsBtn = document.getElementById('settingsBtn');
   const backdrop = document.getElementById('settingsModalBackdrop');
   const closeBtn = document.getElementById('settingsModalCloseBtn');

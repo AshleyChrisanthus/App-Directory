@@ -2567,8 +2567,9 @@
     if (!backdrop) return;
     populateSettingsForm();
     switchSettingsTab(defaultTab);
+    backdrop.classList.add("active");
     backdrop.style.display = "flex";
-    backdrop.classList.add("visible");
+    document.body.style.overflow = "hidden";
     const testStatus = document.getElementById("settingsTestAiStatus");
     if (testStatus) {
       testStatus.style.display = "none";
@@ -2578,8 +2579,9 @@
   function closeSettingsModal() {
     const backdrop = document.getElementById("settingsModalBackdrop");
     if (!backdrop) return;
-    backdrop.style.display = "none";
-    backdrop.classList.remove("visible");
+    backdrop.classList.remove("active");
+    backdrop.style.display = "";
+    document.body.style.overflow = "";
   }
   function switchSettingsTab(tabName) {
     const tabsNav = document.getElementById("settingsTabsNav");
@@ -2625,8 +2627,11 @@
       defaultSort: defaultSortSelect ? defaultSortSelect.value : currentSettings.defaultSort
     };
   }
+  var isSettingsModalInitialized = false;
   function initSettingsModal() {
-    const settingsBtn = document.getElementById("settingsBtn");
+    if (isSettingsModalInitialized) return;
+    isSettingsModalInitialized = true;
+    const settingsBtn2 = document.getElementById("settingsBtn");
     const backdrop = document.getElementById("settingsModalBackdrop");
     const closeBtn = document.getElementById("settingsModalCloseBtn");
     const cancelBtn2 = document.getElementById("settingsModalCancelBtn");
@@ -2638,8 +2643,8 @@
     const braveToggle = document.getElementById("settingsBraveKeyToggle");
     const geminiKeyInput = document.getElementById("settingsGeminiKey");
     const braveKeyInput = document.getElementById("settingsBraveKey");
-    if (settingsBtn) {
-      settingsBtn.addEventListener("click", () => openSettingsModal("ai"));
+    if (settingsBtn2) {
+      settingsBtn2.addEventListener("click", () => openSettingsModal("ai"));
     }
     if (closeBtn) closeBtn.addEventListener("click", closeSettingsModal);
     if (cancelBtn2) cancelBtn2.addEventListener("click", closeSettingsModal);
@@ -8811,6 +8816,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
   if (themeToggle) themeToggle.addEventListener("click", () => toggleTheme(render));
   if (themeCustomizerBtn) themeCustomizerBtn.addEventListener("click", openThemeModal);
+  var settingsBtn = document.getElementById("settingsBtn");
+  if (settingsBtn) settingsBtn.addEventListener("click", () => openSettingsModal("ai"));
   if (themeModalClose) themeModalClose.addEventListener("click", closeThemeModal);
   if (saveThemeModalBtn) saveThemeModalBtn.addEventListener("click", closeThemeModal);
   if (themeModalBackdrop) {
