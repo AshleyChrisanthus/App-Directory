@@ -2440,6 +2440,546 @@
     });
   }
 
+  // src/modules/settings/types.ts
+  var DEFAULT_GLOBAL_SETTINGS = {
+    geminiApiKey: "",
+    geminiModel: "gemini-2.5-flash",
+    braveApiKey: "",
+    autoClassify: true,
+    openInNewTab: true,
+    defaultSort: "dateAdded-desc"
+  };
+
+  // src/modules/settings/manager.ts
+  var SETTINGS_STORAGE_KEY = "appDirectory_global_settings";
+  var currentSettings = loadStoredSettings();
+  function loadStoredSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!raw) return { ...DEFAULT_GLOBAL_SETTINGS };
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_GLOBAL_SETTINGS,
+        ...parsed
+      };
+    } catch (err) {
+      console.warn("[Settings] Failed to parse stored settings:", err);
+      return { ...DEFAULT_GLOBAL_SETTINGS };
+    }
+  }
+  function getSettings() {
+    return { ...currentSettings };
+  }
+  function updateSettings(partial) {
+    currentSettings = {
+      ...currentSettings,
+      ...partial
+    };
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(currentSettings));
+    } catch (err) {
+      console.error("[Settings] Failed to save settings to localStorage:", err);
+    }
+    broadcastSettingsToExtension(currentSettings);
+    return { ...currentSettings };
+  }
+  function broadcastSettingsToExtension(settings) {
+    if (typeof window !== "undefined" && typeof window.postMessage === "function") {
+      window.postMessage({
+        type: "APP_DIRECTORY_SAVE_SETTINGS",
+        settings: {
+          geminiApiKey: settings.geminiApiKey,
+          geminiModel: settings.geminiModel,
+          braveApiKey: settings.braveApiKey,
+          autoClassify: settings.autoClassify
+        }
+      }, "*");
+    }
+  }
+  function requestExtensionSettings() {
+    if (typeof window !== "undefined" && typeof window.postMessage === "function") {
+      window.postMessage({
+        type: "APP_DIRECTORY_REQUEST_SETTINGS"
+      }, "*");
+    }
+  }
+  function syncSettingsFromExtension(extSettings) {
+    if (!extSettings || typeof extSettings !== "object") return;
+    let changed = false;
+    const next = {};
+    if (extSettings.geminiApiKey !== void 0 && extSettings.geminiApiKey !== currentSettings.geminiApiKey) {
+      next.geminiApiKey = extSettings.geminiApiKey;
+      changed = true;
+    }
+    if (extSettings.geminiModel && extSettings.geminiModel !== currentSettings.geminiModel) {
+      next.geminiModel = extSettings.geminiModel;
+      changed = true;
+    }
+    if (extSettings.braveApiKey !== void 0 && extSettings.braveApiKey !== currentSettings.braveApiKey) {
+      next.braveApiKey = extSettings.braveApiKey;
+      changed = true;
+    }
+    if (extSettings.autoClassify !== void 0 && extSettings.autoClassify !== currentSettings.autoClassify) {
+      next.autoClassify = extSettings.autoClassify;
+      changed = true;
+    }
+    if (changed) {
+      currentSettings = { ...currentSettings, ...next };
+      try {
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(currentSettings));
+      } catch (_) {
+      }
+      populateSettingsForm();
+    }
+  }
+  async function testGeminiConnection(apiKey, model) {
+    const key = apiKey.trim();
+    if (!key) {
+      return { success: false, message: "Please enter a Gemini API key first." };
+    }
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || "gemini-2.5-flash")}:generateContent?key=${encodeURIComponent(key)}`;
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Ping test. Reply with OK." }] }]
+        })
+      });
+      if (res.ok) {
+        return { success: true, message: `Connected to ${model} successfully!` };
+      }
+      if (res.status === 400 || res.status === 403) {
+        return { success: false, message: `Invalid API key (HTTP ${res.status}). Check your Google AI Studio key.` };
+      } else if (res.status === 429) {
+        return { success: false, message: "Rate limit reached (HTTP 429). Please wait a moment." };
+      } else if (res.status === 503) {
+        return { success: false, message: `${model} is temporarily overloaded (HTTP 503). You can switch to gemini-2.5-flash.` };
+      } else {
+        return { success: false, message: `API Error (HTTP ${res.status}).` };
+      }
+    } catch (err) {
+      return { success: false, message: err?.message || "Network error connecting to Gemini API." };
+    }
+  }
+  function openSettingsModal(defaultTab = "ai") {
+    const backdrop = document.getElementById("settingsModalBackdrop");
+    if (!backdrop) return;
+    populateSettingsForm();
+    switchSettingsTab(defaultTab);
+    backdrop.style.display = "flex";
+    backdrop.classList.add("visible");
+    const testStatus = document.getElementById("settingsTestAiStatus");
+    if (testStatus) {
+      testStatus.style.display = "none";
+      testStatus.textContent = "";
+    }
+  }
+  function closeSettingsModal() {
+    const backdrop = document.getElementById("settingsModalBackdrop");
+    if (!backdrop) return;
+    backdrop.style.display = "none";
+    backdrop.classList.remove("visible");
+  }
+  function switchSettingsTab(tabName) {
+    const tabsNav = document.getElementById("settingsTabsNav");
+    if (!tabsNav) return;
+    const buttons = tabsNav.querySelectorAll(".settings-tab-btn");
+    buttons.forEach((btn) => {
+      const target = btn.getAttribute("data-tab");
+      btn.classList.toggle("active", target === tabName);
+    });
+    const panes = document.querySelectorAll(".settings-tab-pane");
+    panes.forEach((pane) => {
+      const id = pane.id;
+      pane.classList.toggle("active", id === `settingsTabPane_${tabName}` || id === `${tabName}Tab`);
+    });
+  }
+  function populateSettingsForm() {
+    const geminiKeyInput = document.getElementById("settingsGeminiKey");
+    const geminiModelSelect = document.getElementById("settingsGeminiModel");
+    const braveKeyInput = document.getElementById("settingsBraveKey");
+    const autoClassifyCheckbox = document.getElementById("settingsAutoClassify");
+    const openInNewTabCheckbox = document.getElementById("settingsOpenInNewTab");
+    const defaultSortSelect = document.getElementById("settingsDefaultSort");
+    if (geminiKeyInput) geminiKeyInput.value = currentSettings.geminiApiKey || "";
+    if (geminiModelSelect) geminiModelSelect.value = currentSettings.geminiModel || "gemini-2.5-flash";
+    if (braveKeyInput) braveKeyInput.value = currentSettings.braveApiKey || "";
+    if (autoClassifyCheckbox) autoClassifyCheckbox.checked = currentSettings.autoClassify !== false;
+    if (openInNewTabCheckbox) openInNewTabCheckbox.checked = currentSettings.openInNewTab !== false;
+    if (defaultSortSelect) defaultSortSelect.value = currentSettings.defaultSort || "dateAdded-desc";
+  }
+  function readFormSettings() {
+    const geminiKeyInput = document.getElementById("settingsGeminiKey");
+    const geminiModelSelect = document.getElementById("settingsGeminiModel");
+    const braveKeyInput = document.getElementById("settingsBraveKey");
+    const autoClassifyCheckbox = document.getElementById("settingsAutoClassify");
+    const openInNewTabCheckbox = document.getElementById("settingsOpenInNewTab");
+    const defaultSortSelect = document.getElementById("settingsDefaultSort");
+    return {
+      geminiApiKey: geminiKeyInput ? geminiKeyInput.value.trim() : currentSettings.geminiApiKey,
+      geminiModel: geminiModelSelect ? geminiModelSelect.value : currentSettings.geminiModel,
+      braveApiKey: braveKeyInput ? braveKeyInput.value.trim() : currentSettings.braveApiKey,
+      autoClassify: autoClassifyCheckbox ? autoClassifyCheckbox.checked : currentSettings.autoClassify,
+      openInNewTab: openInNewTabCheckbox ? openInNewTabCheckbox.checked : currentSettings.openInNewTab,
+      defaultSort: defaultSortSelect ? defaultSortSelect.value : currentSettings.defaultSort
+    };
+  }
+  function initSettingsModal() {
+    const settingsBtn = document.getElementById("settingsBtn");
+    const backdrop = document.getElementById("settingsModalBackdrop");
+    const closeBtn = document.getElementById("settingsModalCloseBtn");
+    const cancelBtn2 = document.getElementById("settingsModalCancelBtn");
+    const saveBtn = document.getElementById("saveSettingsBtn");
+    const resetBtn = document.getElementById("resetSettingsBtn");
+    const testAiBtn = document.getElementById("settingsTestAiBtn");
+    const testStatus = document.getElementById("settingsTestAiStatus");
+    const geminiToggle = document.getElementById("settingsGeminiKeyToggle");
+    const braveToggle = document.getElementById("settingsBraveKeyToggle");
+    const geminiKeyInput = document.getElementById("settingsGeminiKey");
+    const braveKeyInput = document.getElementById("settingsBraveKey");
+    if (settingsBtn) {
+      settingsBtn.addEventListener("click", () => openSettingsModal("ai"));
+    }
+    if (closeBtn) closeBtn.addEventListener("click", closeSettingsModal);
+    if (cancelBtn2) cancelBtn2.addEventListener("click", closeSettingsModal);
+    if (backdrop) {
+      backdrop.addEventListener("click", (e) => {
+        if (e.target === backdrop) closeSettingsModal();
+      });
+    }
+    const tabsNav = document.getElementById("settingsTabsNav");
+    if (tabsNav) {
+      tabsNav.addEventListener("click", (e) => {
+        const btn = e.target.closest(".settings-tab-btn");
+        if (btn) {
+          const tab = btn.getAttribute("data-tab");
+          if (tab) switchSettingsTab(tab);
+        }
+      });
+    }
+    if (geminiToggle && geminiKeyInput) {
+      geminiToggle.addEventListener("click", () => {
+        const isPassword = geminiKeyInput.type === "password";
+        geminiKeyInput.type = isPassword ? "text" : "password";
+        geminiToggle.textContent = isPassword ? "\u{1F648}" : "\u{1F441}\uFE0F";
+      });
+    }
+    if (braveToggle && braveKeyInput) {
+      braveToggle.addEventListener("click", () => {
+        const isPassword = braveKeyInput.type === "password";
+        braveKeyInput.type = isPassword ? "text" : "password";
+        braveToggle.textContent = isPassword ? "\u{1F648}" : "\u{1F441}\uFE0F";
+      });
+    }
+    if (testAiBtn) {
+      testAiBtn.addEventListener("click", async () => {
+        const geminiKey = geminiKeyInput ? geminiKeyInput.value.trim() : "";
+        const geminiModelSelect = document.getElementById("settingsGeminiModel");
+        const model = geminiModelSelect ? geminiModelSelect.value : "gemini-2.5-flash";
+        if (!geminiKey) {
+          if (testStatus) {
+            testStatus.style.display = "inline-flex";
+            testStatus.className = "settings-status-badge error";
+            testStatus.textContent = "Please enter a Gemini API key.";
+          }
+          return;
+        }
+        if (testStatus) {
+          testStatus.style.display = "inline-flex";
+          testStatus.className = "settings-status-badge loading";
+          testStatus.textContent = "Testing connection\u2026";
+        }
+        testAiBtn.setAttribute("disabled", "true");
+        const result = await testGeminiConnection(geminiKey, model);
+        testAiBtn.removeAttribute("disabled");
+        if (testStatus) {
+          testStatus.style.display = "inline-flex";
+          testStatus.className = `settings-status-badge ${result.success ? "success" : "error"}`;
+          testStatus.textContent = result.message;
+        }
+      });
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener("click", () => {
+        const updated = readFormSettings();
+        updateSettings(updated);
+        closeSettingsModal();
+        showToast("Settings saved successfully");
+      });
+    }
+    if (resetBtn) {
+      resetBtn.addEventListener("click", () => {
+        if (confirm("Reset all settings to default values?")) {
+          updateSettings(DEFAULT_GLOBAL_SETTINGS);
+          populateSettingsForm();
+          showToast("Settings reset to defaults");
+        }
+      });
+    }
+    setTimeout(requestExtensionSettings, 300);
+  }
+
+  // src/extension/taxonomy.ts
+  var TAXONOMY_SYSTEM_PROMPT = `# AI Website Taxonomy Classifier
+
+You are an expert taxonomy classification engine for "App Directory", a directory of web applications, AI tools, developer tools, and digital platforms.
+
+## Core Purpose
+Classify websites and products into a consistent taxonomy. A site can and should have multiple tags when each tag adds distinct, meaningful value.
+
+## Fundamental Principles
+1. PREFER EXISTING DIRECTORY TAGS: Always prioritize the user's existing taxonomy categories provided in the prompt.
+2. SUBSTANTIAL CAPABILITY ONLY: A feature must be a core, first-class capability to warrant a tag. Do not tag broad business or creative platforms with every minor embedded AI feature.
+3. SPECIFICITY OVER GENERALITY: Prefer the most specific category (e.g. \`Coding Agents\`) over broad generic labels (e.g. generic \`Developer Tools\` or redundant \`AI Coding\`).
+4. NEW-TAG DISCIPLINE: Only propose a new tag if:
+   - No existing directory tag accurately captures the product's primary category.
+   - It represents a distinct, reusable category (not a one-off feature or trademark).
+   - It is not a synonym or minor rephrasing of an existing tag.
+   - If a new tag is proposed, limit to at most 1 high-confidence new tag.
+
+## Critical Category Distinctions
+- **Agents vs Multi-Agent Systems**:
+  - \`Agents\`: Autonomous systems that take actions or use tools rather than just conversational chat.
+  - \`Multi-Agent Systems\`: Systems where multiple agents actively collaborate or orchestrate as a core product feature (e.g., CrewAI, AutoGen). Do NOT tag just because an app has multiple different assistant bots.
+- **AI Models Aggregator vs Coding Agents Aggregator**:
+  - \`AI Models Aggregator\`: Discovery, routing, access, or benchmarking across multiple LLM models/providers (e.g., OpenRouter, Artificial Analysis, Poe).
+  - \`Coding Agents Aggregator\`: Platforms that specifically aggregate/provide multiple coding-agent experiences (e.g., T3 Code, Kilo, Cline).
+- **AI Agent Development vs Agents**:
+  - \`AI Agent Development\`: Frameworks/SDKs/platforms for building and deploying agents (e.g., LangChain, LiveKit).
+- **Voice AI vs AI Voice**:
+  - \`Voice AI\`: Conversational, real-time voice agents and voice-to-voice interaction (e.g., Retell AI, Vapi).
+  - \`AI Voice\`: Voice generation, voice cloning, or voiceover speech synthesis (e.g., ElevenLabs).
+- **Local AI**:
+  - Requires meaningful, first-class on-device or local model inference (e.g., Ollama, LM Studio, Jan, LocalAI), not merely an open-source codebase.
+- **AI Computer Use**:
+  - Agents that operate a computer GUI, browser, or desktop applications (click, type, navigate).
+- **AI Code Review**:
+  - AI specifically analyzing PRs/code for security, bugs, or standards (e.g., Greptile, CodeRabbit). Distinct from autonomous coding agents.
+- **AI App Builder vs AI Website Builder**:
+  - \`AI App Builder\`: Prompt-to-full-stack-application builders (e.g., Bolt.new, Lovable, v0).
+  - \`AI Website Builder\`: Website generation platforms (e.g., Framer AI, Relume).
+- **CI/CD**:
+  - First-class continuous integration and delivery pipelines (e.g., GitHub Actions, Blacksmith, CircleCI). Do not tag merely because a platform has a deploy button.
+- **Containerization**:
+  - Container runtimes, images, and tooling (e.g., Docker). Not primarily CI/CD.
+- **AI Model Evaluation**:
+  - Benchmarks, leaderboards, model comparison, human eval (e.g., LMSYS Chatbot Arena, Artificial Analysis, BenchmarkList).
+- **AI Tracking vs AI Timeline vs AI News**:
+  - \`AI Tracking\`: Ongoing industry/model release monitoring.
+  - \`AI Timeline\`: Chronological history/reference.
+  - \`AI News\`: News publication / articles.
+- **AI Tools Directory**:
+  - Directories specifically for finding AI tools and software (e.g., There's An AI For That).
+- **AI Workflow Automation**:
+  - Node/pipeline based automation (e.g., n8n, Make, Flowise, Dify).
+
+## Output Format
+You MUST output strictly a valid JSON object matching this schema with no markdown code blocks outside:
+{
+  "recommendedTags": ["Tag 1", "Tag 2"],
+  "newTags": ["Any tag from recommendedTags that is not in the Available Categories list"],
+  "reasoning": "Brief 1-2 sentence explanation of why these tags apply."
+}
+`;
+  function buildTaxonomyUserPrompt(context, availableCategories, searchSnippets) {
+    const existingList = availableCategories.length > 0 ? availableCategories.join(", ") : "None yet";
+    let prompt = `Classify this website based on the taxonomy guidelines.
+
+`;
+    prompt += `### Target Website Information:
+`;
+    prompt += `- URL: ${context.url}
+`;
+    prompt += `- Title: ${context.title}
+`;
+    if (context.description) {
+      prompt += `- Meta Description: ${context.description}
+`;
+    }
+    if (context.headings.length > 0) {
+      prompt += `- Main Headings: ${context.headings.slice(0, 6).join(" | ")}
+`;
+    }
+    if (context.schemaTypes.length > 0) {
+      prompt += `- Schema.org Types: ${context.schemaTypes.join(", ")}
+`;
+    }
+    if (context.heroText) {
+      prompt += `- Hero Tagline/Text: ${context.heroText}
+`;
+    }
+    if (context.bodySummary) {
+      prompt += `- Page Content Snippet: ${context.bodySummary.slice(0, 1800)}
+`;
+    }
+    if (searchSnippets && searchSnippets.length > 0) {
+      prompt += `
+### External Web Search Context (Brave Search Grounding):
+`;
+      searchSnippets.forEach((s, idx) => {
+        prompt += `[Result ${idx + 1}] ${s}
+`;
+      });
+    }
+    prompt += `
+### Available Categories in User's App Directory:
+`;
+    prompt += `[ ${existingList} ]
+
+`;
+    prompt += `### Instructions:
+1. Select 1 to 5 of the most fitting tags. Prioritize the Available Categories list above whenever they fit.
+2. If none of the available categories fit well, or if a crucial distinct category is missing, you MUST suggest 1-2 new appropriate tags (e.g., "Internet History", "Digital Archive", "AI History", etc.).
+3. Put ALL recommended tags (both existing and newly created) inside "recommendedTags" so they are applied to the bookmark.
+4. If any tags in "recommendedTags" are NOT in the Available Categories list, list them in "newTags".
+5. In "reasoning", provide a concise 1-2 sentence rationale explaining your choices.
+6. Respond ONLY with the requested JSON object.`;
+    return prompt;
+  }
+
+  // src/modules/settings/classifier.ts
+  async function classifyBookmarkWithAI(url, title, description = "", availableCategories, forceSearch = false) {
+    const settings = getSettings();
+    const geminiApiKey = settings.geminiApiKey?.trim();
+    const selectedModel = settings.geminiModel || "gemini-2.5-flash";
+    const braveApiKey = settings.braveApiKey?.trim();
+    if (!geminiApiKey) {
+      return {
+        success: false,
+        error: "NO_API_KEY",
+        recommendedTags: []
+      };
+    }
+    let hostname = "";
+    try {
+      hostname = new URL(url).hostname;
+    } catch {
+      hostname = url;
+    }
+    const isSparse = !description || description.trim().length < 30;
+    const pageContext = {
+      url,
+      hostname,
+      title: title || hostname,
+      description: description || "",
+      keywords: [],
+      headings: [],
+      bodySummary: description || "",
+      schemaTypes: [],
+      isSparse
+    };
+    let searchSnippets = [];
+    let method = "DOM_DIRECT";
+    if ((isSparse || forceSearch) && braveApiKey) {
+      try {
+        const query = `${title || hostname} ${hostname} what is it product summary`;
+        const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=4`;
+        const braveResp = await fetch(braveUrl, {
+          headers: {
+            "Accept": "application/json",
+            "X-Subscription-Token": braveApiKey
+          }
+        });
+        if (braveResp.ok) {
+          const braveData = await braveResp.json();
+          const results = braveData.web?.results || [];
+          for (const r of results) {
+            if (r.title && r.description) {
+              searchSnippets.push(`${r.title}: ${r.description}`);
+            }
+          }
+          if (searchSnippets.length > 0) {
+            method = "BRAVE_GROUNDED";
+          }
+        }
+      } catch (bErr) {
+        console.warn("[Classifier] Brave Search failed, continuing with direct prompt:", bErr);
+      }
+    }
+    const userPrompt = buildTaxonomyUserPrompt(pageContext, availableCategories, searchSnippets);
+    async function callGemini(modelToUse) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelToUse)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+      return fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userPrompt }]
+            }
+          ],
+          generationConfig: {
+            response_mime_type: "application/json",
+            temperature: 0.2
+          }
+        })
+      });
+    }
+    let effectiveModel = selectedModel;
+    let response = await callGemini(effectiveModel);
+    if (response.status === 503 && effectiveModel === "gemini-3.8-flash") {
+      console.warn("[Classifier] gemini-3.8-flash returned 503 (overloaded). Falling back to gemini-2.5-flash...");
+      effectiveModel = "gemini-2.5-flash";
+      response = await callGemini(effectiveModel);
+    }
+    if (!response.ok) {
+      if (response.status === 429) {
+        return { success: false, error: "RATE_LIMIT_EXCEEDED", recommendedTags: [] };
+      } else if (response.status === 400 || response.status === 403) {
+        return { success: false, error: "INVALID_API_KEY", recommendedTags: [] };
+      } else if (response.status === 503) {
+        return { success: false, error: "SERVICE_OVERLOADED_503", recommendedTags: [] };
+      } else {
+        return { success: false, error: `API_ERROR_${response.status}`, recommendedTags: [] };
+      }
+    }
+    try {
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        return { success: false, error: "NO_RESPONSE_TEXT", recommendedTags: [] };
+      }
+      const parsed = JSON.parse(rawText);
+      const recommendedTags = Array.isArray(parsed.recommendedTags) ? parsed.recommendedTags.map((t) => String(t).trim()).filter(Boolean) : [];
+      const newTags = [];
+      if (Array.isArray(parsed.newTags)) {
+        for (const nt of parsed.newTags) {
+          const trimmed = String(nt).trim();
+          if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+        }
+      }
+      if (parsed.suggestedNewTag) {
+        const snt = String(parsed.suggestedNewTag).trim();
+        if (snt && snt.toLowerCase() !== "null" && snt.toLowerCase() !== "none" && !newTags.includes(snt)) {
+          newTags.push(snt);
+        }
+      }
+      for (const nt of newTags) {
+        if (!recommendedTags.includes(nt)) {
+          recommendedTags.push(nt);
+        }
+      }
+      const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
+      return {
+        success: true,
+        method,
+        recommendedTags,
+        newTags,
+        reasoning,
+        suggestedNewTag: newTags[0] || null,
+        modelUsed: effectiveModel
+      };
+    } catch (err) {
+      console.error("[Classifier] Error parsing Gemini classification response:", err);
+      return { success: false, error: "PARSE_ERROR", recommendedTags: [] };
+    }
+  }
+
   // src/modules/bookmarks/crud.ts
   var lastAutoDetectedUrl = "";
   var isAutoDetecting = false;
@@ -2492,6 +3032,10 @@
             entryIconPreview2.innerHTML = `<img src="${escapeHtml(defaultSrc)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">`;
           }
         }
+        const settings = getSettings();
+        if (settings.autoClassify && settings.geminiApiKey) {
+          suggestCategoriesWithAI();
+        }
         if (urlAutofillStatus) {
           urlAutofillStatus.className = "url-autofill-status success";
           urlAutofillStatus.textContent = `\u2713 ${meta.title ? meta.title.slice(0, 24) + (meta.title.length > 24 ? "\u2026" : "") : "Detected"}`;
@@ -2509,6 +3053,99 @@
     } finally {
       isAutoDetecting = false;
       if (autoDetectBtn2) autoDetectBtn2.disabled = false;
+    }
+  }
+  async function suggestCategoriesWithAI(forceSearch = false) {
+    const entryUrl2 = document.getElementById("entryUrl");
+    const entryName2 = document.getElementById("entryName");
+    const entryDescription2 = document.getElementById("entryDescription");
+    const categoryAiStatus = document.getElementById("categoryAiStatus");
+    const aiSuggestCategoriesBtn2 = document.getElementById("aiSuggestCategoriesBtn");
+    const url = entryUrl2?.value.trim() || "";
+    if (!url || !url.includes(".") && !url.startsWith("localhost")) {
+      if (categoryAiStatus) {
+        categoryAiStatus.className = "url-autofill-status error";
+        categoryAiStatus.textContent = "Enter URL first";
+        categoryAiStatus.style.display = "inline-flex";
+        setTimeout(() => {
+          categoryAiStatus.style.display = "none";
+        }, 3e3);
+      }
+      return;
+    }
+    const settings = getSettings();
+    if (!settings.geminiApiKey) {
+      if (categoryAiStatus) {
+        categoryAiStatus.className = "url-autofill-status error";
+        categoryAiStatus.textContent = "Set Gemini key in \u2699\uFE0F Settings";
+        categoryAiStatus.style.display = "inline-flex";
+        setTimeout(() => {
+          categoryAiStatus.style.display = "none";
+        }, 4e3);
+      }
+      return;
+    }
+    if (categoryAiStatus) {
+      categoryAiStatus.className = "url-autofill-status loading";
+      categoryAiStatus.textContent = "\u2728 Classifying\u2026";
+      categoryAiStatus.style.display = "inline-flex";
+    }
+    if (aiSuggestCategoriesBtn2) aiSuggestCategoriesBtn2.disabled = true;
+    try {
+      const title = entryName2?.value.trim() || "";
+      const desc = entryDescription2?.value.trim() || "";
+      const availableCategories = getAllCategories();
+      const result = await classifyBookmarkWithAI(url, title, desc, availableCategories, forceSearch);
+      if (result.success && result.recommendedTags.length > 0) {
+        let addedAny = false;
+        for (const tag of result.recommendedTags) {
+          if (!state.selectedCategories.includes(tag)) {
+            state.selectedCategories.push(tag);
+            addedAny = true;
+          }
+        }
+        renderCategoryChips();
+        if (categoryAiStatus) {
+          categoryAiStatus.className = "url-autofill-status success";
+          const methodTag = result.method === "BRAVE_GROUNDED" ? " [Brave]" : "";
+          const newTagNotice = result.newTags && result.newTags.length > 0 ? ` (+${result.newTags.length} new)` : "";
+          categoryAiStatus.textContent = `\u2713 ${result.recommendedTags.length} tags${methodTag}${newTagNotice}`;
+          setTimeout(() => {
+            if (categoryAiStatus.className.includes("success")) {
+              categoryAiStatus.style.display = "none";
+            }
+          }, 4500);
+        }
+        if (result.newTags && result.newTags.length > 0) {
+          showToast(`\u2726 AI suggested new category: "${result.newTags.join(", ")}"`);
+        }
+      } else if (!result.success) {
+        if (categoryAiStatus) {
+          categoryAiStatus.className = "url-autofill-status error";
+          if (result.error === "SERVICE_OVERLOADED_503") {
+            categoryAiStatus.textContent = "Gemini 503 overloaded";
+          } else if (result.error === "RATE_LIMIT_EXCEEDED") {
+            categoryAiStatus.textContent = "Rate limit reached";
+          } else if (result.error === "INVALID_API_KEY") {
+            categoryAiStatus.textContent = "Invalid API key";
+          } else {
+            categoryAiStatus.textContent = "Classification failed";
+          }
+          setTimeout(() => {
+            categoryAiStatus.style.display = "none";
+          }, 3500);
+        }
+      }
+    } catch (err) {
+      if (categoryAiStatus) {
+        categoryAiStatus.className = "url-autofill-status error";
+        categoryAiStatus.textContent = "AI error";
+        setTimeout(() => {
+          categoryAiStatus.style.display = "none";
+        }, 3e3);
+      }
+    } finally {
+      if (aiSuggestCategoriesBtn2) aiSuggestCategoriesBtn2.disabled = false;
     }
   }
   function updateModalIconPreview() {
@@ -2540,7 +3177,9 @@
     const iconCandidatesWrapper = document.getElementById("iconCandidatesWrapper");
     const entryCategory2 = document.getElementById("entryCategory");
     const modalBackdrop2 = document.getElementById("modalBackdrop");
+    const categoryAiStatus = document.getElementById("categoryAiStatus");
     if (urlAutofillStatus) urlAutofillStatus.style.display = "none";
+    if (categoryAiStatus) categoryAiStatus.style.display = "none";
     if (id) {
       const entry = state.entries.find((e) => e.id === id);
       if (!entry) return;
@@ -5145,6 +5784,30 @@
         }
       },
       {
+        id: "action-open-settings",
+        type: "action",
+        title: "Settings",
+        subtitle: "Global preferences, Google Gemini AI & companion extension configuration",
+        icon: "\u2699\uFE0F",
+        badge: "Settings",
+        keywords: ["settings", "preferences", "global", "config", "options", "ai", "gemini"],
+        run: () => {
+          if (callbacks.openSettingsModal) callbacks.openSettingsModal("ai");
+        }
+      },
+      {
+        id: "action-ai-settings",
+        type: "action",
+        title: "AI & Companion Settings",
+        subtitle: "Configure Google Gemini API key, model selection, Brave search & auto-classification",
+        icon: "\u{1F916}",
+        badge: "AI",
+        keywords: ["ai", "gemini", "companion", "model", "brave", "api key", "classifier", "tags"],
+        run: () => {
+          if (callbacks.openSettingsModal) callbacks.openSettingsModal("ai");
+        }
+      },
+      {
         id: "action-view-cards",
         type: "action",
         title: "Switch to Bento Cards View",
@@ -5654,6 +6317,8 @@
         const { type, entry, entries } = event.data;
         if (type === "APP_DIRECTORY_PING" || type === "APP_DIRECTORY_GET_STATE") {
           broadcastState();
+        } else if (type === "APP_DIRECTORY_EXTENSION_SETTINGS" && event.data.settings) {
+          syncSettingsFromExtension(event.data.settings);
         } else if (type === "APP_DIRECTORY_NEW_BOOKMARK" && entry) {
           const migrated = migrateEntry(entry);
           if (!migrated) return;
@@ -7808,7 +8473,8 @@
       }
     },
     openSecurityModal: () => openSecurityModal(),
-    openSyncModal: () => openSyncModal()
+    openSyncModal: () => openSyncModal(),
+    openSettingsModal: (tab) => openSettingsModal(tab)
   };
   function handleSubmit(e) {
     e.preventDefault();
@@ -7861,6 +8527,7 @@
       closeThemeModal();
       closeFolderModal();
       closeCommandPalette();
+      closeSettingsModal();
       if (catFilterDropdown) catFilterDropdown.classList.remove("open");
       if (exportSplitGroup) exportSplitGroup.classList.remove("open");
     }
@@ -7904,6 +8571,12 @@
       if (entryCategory && entryCategory.value.trim()) {
         addTag(entryCategory.value);
       }
+    });
+  }
+  var aiSuggestCategoriesBtn = document.getElementById("aiSuggestCategoriesBtn");
+  if (aiSuggestCategoriesBtn) {
+    aiSuggestCategoriesBtn.addEventListener("click", () => {
+      suggestCategoriesWithAI(true);
     });
   }
   var catFilterHighlightedIndex = -1;
@@ -8582,6 +9255,7 @@
     await initStorage();
     initTopNavReveal();
     initCommandPalette(paletteCallbacks);
+    initSettingsModal();
     registerServiceWorker();
     await initPasscodeProtection({
       onUnlocked: () => {

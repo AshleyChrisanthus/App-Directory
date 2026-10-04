@@ -13,8 +13,10 @@ import { urlToDataUrl } from '../../utils/icon-converter';
 import { fetchWebsiteMetadata } from '../../utils/auto-fill';
 import { renderIconCandidates, getCandidateSources } from '../icons/picker';
 import { updatePendingIconsUI } from '../icons/refresh';
-import { renderCategoryChips, hideCategorySuggestions } from '../categories/manager';
+import { renderCategoryChips, hideCategorySuggestions, getAllCategories } from '../categories/manager';
 import { populateFolderSelect } from '../folders/sidebar';
+import { getSettings } from '../settings/manager';
+import { classifyBookmarkWithAI } from '../settings/classifier';
 
 let lastAutoDetectedUrl = '';
 let isAutoDetecting = false;
@@ -81,6 +83,12 @@ export async function autoFillUrlMetadata(force: boolean = false, overwriteTitle
         }
       }
 
+      // Auto-classify with AI if enabled and API key is present
+      const settings = getSettings();
+      if (settings.autoClassify && settings.geminiApiKey) {
+        suggestCategoriesWithAI();
+      }
+
       if (urlAutofillStatus) {
         urlAutofillStatus.className = 'url-autofill-status success';
         urlAutofillStatus.textContent = `✓ ${meta.title ? meta.title.slice(0, 24) + (meta.title.length > 24 ? '…' : '') : 'Detected'}`;
@@ -98,6 +106,100 @@ export async function autoFillUrlMetadata(force: boolean = false, overwriteTitle
   } finally {
     isAutoDetecting = false;
     if (autoDetectBtn) autoDetectBtn.disabled = false;
+  }
+}
+
+export async function suggestCategoriesWithAI(forceSearch: boolean = false): Promise<void> {
+  const entryUrl = document.getElementById('entryUrl') as HTMLInputElement | null;
+  const entryName = document.getElementById('entryName') as HTMLInputElement | null;
+  const entryDescription = document.getElementById('entryDescription') as HTMLTextAreaElement | null;
+  const categoryAiStatus = document.getElementById('categoryAiStatus');
+  const aiSuggestCategoriesBtn = document.getElementById('aiSuggestCategoriesBtn') as HTMLButtonElement | null;
+
+  const url = entryUrl?.value.trim() || '';
+  if (!url || (!url.includes('.') && !url.startsWith('localhost'))) {
+    if (categoryAiStatus) {
+      categoryAiStatus.className = 'url-autofill-status error';
+      categoryAiStatus.textContent = 'Enter URL first';
+      categoryAiStatus.style.display = 'inline-flex';
+      setTimeout(() => { categoryAiStatus.style.display = 'none'; }, 3000);
+    }
+    return;
+  }
+
+  const settings = getSettings();
+  if (!settings.geminiApiKey) {
+    if (categoryAiStatus) {
+      categoryAiStatus.className = 'url-autofill-status error';
+      categoryAiStatus.textContent = 'Set Gemini key in ⚙️ Settings';
+      categoryAiStatus.style.display = 'inline-flex';
+      setTimeout(() => { categoryAiStatus.style.display = 'none'; }, 4000);
+    }
+    return;
+  }
+
+  if (categoryAiStatus) {
+    categoryAiStatus.className = 'url-autofill-status loading';
+    categoryAiStatus.textContent = '✨ Classifying…';
+    categoryAiStatus.style.display = 'inline-flex';
+  }
+  if (aiSuggestCategoriesBtn) aiSuggestCategoriesBtn.disabled = true;
+
+  try {
+    const title = entryName?.value.trim() || '';
+    const desc = entryDescription?.value.trim() || '';
+    const availableCategories = getAllCategories();
+
+    const result = await classifyBookmarkWithAI(url, title, desc, availableCategories, forceSearch);
+
+    if (result.success && result.recommendedTags.length > 0) {
+      let addedAny = false;
+      for (const tag of result.recommendedTags) {
+        if (!state.selectedCategories.includes(tag)) {
+          state.selectedCategories.push(tag);
+          addedAny = true;
+        }
+      }
+      renderCategoryChips();
+
+      if (categoryAiStatus) {
+        categoryAiStatus.className = 'url-autofill-status success';
+        const methodTag = result.method === 'BRAVE_GROUNDED' ? ' [Brave]' : '';
+        const newTagNotice = result.newTags && result.newTags.length > 0 ? ` (+${result.newTags.length} new)` : '';
+        categoryAiStatus.textContent = `✓ ${result.recommendedTags.length} tags${methodTag}${newTagNotice}`;
+        setTimeout(() => {
+          if (categoryAiStatus.className.includes('success')) {
+            categoryAiStatus.style.display = 'none';
+          }
+        }, 4500);
+      }
+
+      if (result.newTags && result.newTags.length > 0) {
+        showToast(`✦ AI suggested new category: "${result.newTags.join(', ')}"`);
+      }
+    } else if (!result.success) {
+      if (categoryAiStatus) {
+        categoryAiStatus.className = 'url-autofill-status error';
+        if (result.error === 'SERVICE_OVERLOADED_503') {
+          categoryAiStatus.textContent = 'Gemini 503 overloaded';
+        } else if (result.error === 'RATE_LIMIT_EXCEEDED') {
+          categoryAiStatus.textContent = 'Rate limit reached';
+        } else if (result.error === 'INVALID_API_KEY') {
+          categoryAiStatus.textContent = 'Invalid API key';
+        } else {
+          categoryAiStatus.textContent = 'Classification failed';
+        }
+        setTimeout(() => { categoryAiStatus.style.display = 'none'; }, 3500);
+      }
+    }
+  } catch (err: any) {
+    if (categoryAiStatus) {
+      categoryAiStatus.className = 'url-autofill-status error';
+      categoryAiStatus.textContent = 'AI error';
+      setTimeout(() => { categoryAiStatus.style.display = 'none'; }, 3000);
+    }
+  } finally {
+    if (aiSuggestCategoriesBtn) aiSuggestCategoriesBtn.disabled = false;
   }
 }
 
@@ -142,7 +244,9 @@ export function openModal(id: string | null = null, initialData?: InitialModalDa
   const entryCategory = document.getElementById('entryCategory') as HTMLInputElement | null;
   const modalBackdrop = document.getElementById('modalBackdrop');
 
+  const categoryAiStatus = document.getElementById('categoryAiStatus');
   if (urlAutofillStatus) urlAutofillStatus.style.display = 'none';
+  if (categoryAiStatus) categoryAiStatus.style.display = 'none';
 
   if (id) {
     const entry = state.entries.find(e => e.id === id);

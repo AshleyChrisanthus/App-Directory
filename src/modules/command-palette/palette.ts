@@ -20,6 +20,7 @@ export interface CommandPaletteCallbacks {
   lockApp?: () => void;
   openSecurityModal?: () => void;
   openSyncModal?: () => void;
+  openSettingsModal?: (tab?: string) => void;
 }
 
 export interface PaletteItem {
@@ -204,6 +205,30 @@ export function getCommandPaletteActions(callbacks: CommandPaletteCallbacks): Pa
       keywords: ['security', 'passcode', 'password', 'pin', 'lock', 'settings'],
       run: () => {
         if (callbacks.openSecurityModal) callbacks.openSecurityModal();
+      }
+    },
+    {
+      id: 'action-open-settings',
+      type: 'action',
+      title: 'Settings',
+      subtitle: 'Global preferences, Google Gemini AI & companion extension configuration',
+      icon: '⚙️',
+      badge: 'Settings',
+      keywords: ['settings', 'preferences', 'global', 'config', 'options', 'ai', 'gemini'],
+      run: () => {
+        if (callbacks.openSettingsModal) callbacks.openSettingsModal('ai');
+      }
+    },
+    {
+      id: 'action-ai-settings',
+      type: 'action',
+      title: 'AI & Companion Settings',
+      subtitle: 'Configure Google Gemini API key, model selection, Brave search & auto-classification',
+      icon: '🤖',
+      badge: 'AI',
+      keywords: ['ai', 'gemini', 'companion', 'model', 'brave', 'api key', 'classifier', 'tags'],
+      run: () => {
+        if (callbacks.openSettingsModal) callbacks.openSettingsModal('ai');
       }
     },
     {

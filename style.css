@@ -5624,5 +5624,301 @@ body.app-is-locked > *:not(#appLockOverlay) {
   to { transform: rotate(360deg); }
 }
 
+/* ──────────────────────────────────────────────────────────
+   Global Settings Modal & AI Companion Configuration
+   ────────────────────────────────────────────────────────── */
+.settings-modal-dialog {
+  max-width: 600px;
+  width: 92%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-tabs-nav {
+  display: flex;
+  gap: 8px;
+  padding: 14px 24px 0;
+  border-bottom: 1px solid var(--border-light);
+  overflow-x: auto;
+  background: var(--bg-secondary);
+}
+
+.settings-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.settings-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.settings-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.settings-tab-pane {
+  display: none;
+  animation: fadeIn 0.15s ease;
+}
+
+.settings-tab-pane.active {
+  display: block;
+}
+
+.settings-section-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-icon-badge {
+  font-size: 1.35rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.settings-section-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.settings-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.settings-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.settings-form-group label {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.settings-password-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-password-row input {
+  flex: 1;
+}
+
+.settings-toggle-btn {
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+.settings-input-subtext {
+  font-size: 0.77rem;
+  color: var(--text-tertiary);
+  margin: 2px 0 0 0;
+  line-height: 1.4;
+}
+
+.settings-input-subtext a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.settings-input-subtext code {
+  font-size: 0.75rem;
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+
+.settings-toggle-row {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+
+.settings-toggle-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-toggle-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.settings-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-toggle-text strong {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-toggle-text small {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.settings-test-row {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-status-badge {
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-status-badge.loading {
+  background: rgba(10, 132, 255, 0.12);
+  color: var(--accent);
+  animation: pulseHealth 1.2s infinite;
+}
+
+.settings-status-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.settings-status-badge.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.settings-about-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 0.85rem;
+}
+
+.settings-about-details .about-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.settings-about-details .about-row:last-child {
+  border-bottom: none;
+}
+
+.settings-about-details .about-row span {
+  color: var(--text-secondary);
+}
+
+.settings-about-details .about-row strong {
+  color: var(--text-primary);
+}
+
+.settings-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+
+.footer-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Category AI button in entry modal */
+.category-ai-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-suggest-btn {
+  font-size: 0.75rem;
+  padding: 2px 9px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.12), rgba(168, 85, 247, 0.12));
+  color: var(--accent);
+  border: 1px solid rgba(10, 132, 255, 0.25);
+  transition: all var(--transition);
+}
+
+.ai-suggest-btn:hover {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.25), rgba(168, 85, 247, 0.25));
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+
 
 

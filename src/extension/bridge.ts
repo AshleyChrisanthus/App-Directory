@@ -61,12 +61,27 @@ function checkAndIngestPending(): void {
   }
 }
 
+function pushSettingsToWebapp(): void {
+  if (!isExtensionContextValid()) return;
+  try {
+    chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (response) => {
+      if (!isExtensionContextValid() || chrome.runtime.lastError) return;
+      if (response) {
+        window.postMessage({
+          type: 'APP_DIRECTORY_EXTENSION_SETTINGS',
+          settings: response
+        }, '*');
+      }
+    });
+  } catch (_) {}
+}
+
 // Listen for messages from the App Directory web page
 window.addEventListener('message', (event: MessageEvent) => {
   if (!isExtensionContextValid()) return;
   if (!event.data || typeof event.data !== 'object') return;
 
-  const { type, folders, categories, entryIds } = event.data;
+  const { type, folders, categories, entryIds, settings } = event.data;
 
   if (type === 'APP_DIRECTORY_SYNC_RESPONSE' || type === 'APP_DIRECTORY_READY') {
     // Cache latest folders and categories in extension storage
@@ -89,6 +104,15 @@ window.addEventListener('message', (event: MessageEvent) => {
         entryIds: Array.isArray(entryIds) ? entryIds : []
       });
     } catch (_) {}
+  } else if (type === 'APP_DIRECTORY_SAVE_SETTINGS') {
+    try {
+      chrome.runtime.sendMessage({
+        type: 'SAVE_SETTINGS',
+        settings: settings || {}
+      });
+    } catch (_) {}
+  } else if (type === 'APP_DIRECTORY_REQUEST_SETTINGS') {
+    pushSettingsToWebapp();
   }
 });
 
@@ -120,10 +144,20 @@ try {
     chrome.storage.onChanged.addListener((changes, areaName) => {
       try {
         if (!isExtensionContextValid()) return;
-        if (areaName === 'local' && changes.ad_pending_bookmarks) {
-          const newPending = changes.ad_pending_bookmarks.newValue;
-          if (Array.isArray(newPending) && newPending.length > 0) {
-            checkAndIngestPending();
+        if (areaName === 'local') {
+          if (changes.ad_pending_bookmarks) {
+            const newPending = changes.ad_pending_bookmarks.newValue;
+            if (Array.isArray(newPending) && newPending.length > 0) {
+              checkAndIngestPending();
+            }
+          }
+          if (
+            changes.ad_gemini_api_key ||
+            changes.ad_gemini_model ||
+            changes.ad_brave_api_key ||
+            changes.ad_auto_classify
+          ) {
+            pushSettingsToWebapp();
           }
         }
       } catch (_) {}
@@ -131,9 +165,10 @@ try {
   }
 } catch (_) {}
 
-// Initial ping to request App Directory state if already loaded
+// Initial ping to request App Directory state and push extension settings if already loaded
 setTimeout(() => {
   if (isExtensionContextValid()) {
     window.postMessage({ type: 'APP_DIRECTORY_PING' }, '*');
+    pushSettingsToWebapp();
   }
 }, 300);

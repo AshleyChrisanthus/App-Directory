@@ -32,7 +32,8 @@ import {
   visitEntry,
   updatePinFavoritesButtonState,
   updateModalIconPreview,
-  autoFillUrlMetadata
+  autoFillUrlMetadata,
+  suggestCategoriesWithAI
 } from './modules/bookmarks';
 
 // Categories
@@ -133,6 +134,13 @@ import {
 
 // Cloud Sync (E2EE)
 import { syncManager, openSyncModal } from './modules/sync';
+
+// Global Settings & AI
+import {
+  initSettingsModal,
+  openSettingsModal,
+  closeSettingsModal
+} from './modules/settings/manager';
 
 // ── DOM References ───────────────────────────────────────
 const addBtn = document.getElementById('addBtn');
@@ -295,7 +303,8 @@ const paletteCallbacks: CommandPaletteCallbacks = {
     }
   },
   openSecurityModal: () => openSecurityModal(),
-  openSyncModal: () => openSyncModal()
+  openSyncModal: () => openSyncModal(),
+  openSettingsModal: (tab?: string) => openSettingsModal(tab)
 };
 
 // ── Form Submission ──────────────────────────────────────
@@ -363,6 +372,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     closeThemeModal();
     closeFolderModal();
     closeCommandPalette();
+    closeSettingsModal();
     if (catFilterDropdown) catFilterDropdown.classList.remove('open');
     if (exportSplitGroup) exportSplitGroup.classList.remove('open');
   }
@@ -410,6 +420,13 @@ if (addCategoryBtn) {
     if (entryCategory && entryCategory.value.trim()) {
       addTag(entryCategory.value);
     }
+  });
+}
+
+const aiSuggestCategoriesBtn = document.getElementById('aiSuggestCategoriesBtn');
+if (aiSuggestCategoriesBtn) {
+  aiSuggestCategoriesBtn.addEventListener('click', () => {
+    suggestCategoriesWithAI(true);
   });
 }
 
@@ -1192,6 +1209,7 @@ async function init(): Promise<void> {
   await initStorage();
   initTopNavReveal();
   initCommandPalette(paletteCallbacks);
+  initSettingsModal();
 
   registerServiceWorker();
 

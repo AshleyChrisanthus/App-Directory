@@ -3,6 +3,7 @@ import { state } from '../../core/state';
 import { saveEntries, migrateEntry } from '../../core/storage';
 import { getAllCategories } from '../categories/manager';
 import { showToast } from '../../utils/dom';
+import { syncSettingsFromExtension } from '../settings/manager';
 
 export function initExtensionSync(onDataChanged: () => void): void {
   const broadcastState = (): void => {
@@ -29,6 +30,8 @@ export function initExtensionSync(onDataChanged: () => void): void {
 
     if (type === 'APP_DIRECTORY_PING' || type === 'APP_DIRECTORY_GET_STATE') {
       broadcastState();
+    } else if (type === 'APP_DIRECTORY_EXTENSION_SETTINGS' && event.data.settings) {
+      syncSettingsFromExtension(event.data.settings);
     } else if (type === 'APP_DIRECTORY_NEW_BOOKMARK' && entry) {
       const migrated = migrateEntry(entry);
       if (!migrated) return;
