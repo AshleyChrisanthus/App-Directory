@@ -57,8 +57,8 @@ Classify websites and products into a consistent taxonomy. A site can and should
 You MUST output strictly a valid JSON object matching this schema with no markdown code blocks outside:
 {
   "recommendedTags": ["Tag 1", "Tag 2"],
-  "reasoning": "Brief 1-2 sentence explanation of why these tags apply.",
-  "suggestedNewTag": "New Tag Name" or null
+  "newTags": ["Any tag from recommendedTags that is not in the Available Categories list"],
+  "reasoning": "Brief 1-2 sentence explanation of why these tags apply."
 }
 `;
 
@@ -103,9 +103,12 @@ export function buildTaxonomyUserPrompt(
   prompt += `[ ${existingList} ]\n\n`;
 
   prompt += `### Instructions:
-1. Select 1 to 5 of the most fitting tags from the Available Categories list above.
-2. Only suggest a new tag in "suggestedNewTag" if none of the existing categories fit and the product represents a distinct, reusable category according to the new-tag discipline.
-3. Respond ONLY with the requested JSON object.`;
+1. Select 1 to 5 of the most fitting tags. Prioritize the Available Categories list above whenever they fit.
+2. If none of the available categories fit well, or if a crucial distinct category is missing, you MUST suggest 1-2 new appropriate tags (e.g., "Internet History", "Digital Archive", "AI History", etc.).
+3. Put ALL recommended tags (both existing and newly created) inside "recommendedTags" so they are applied to the bookmark.
+4. If any tags in "recommendedTags" are NOT in the Available Categories list, list them in "newTags".
+5. In "reasoning", provide a concise 1-2 sentence rationale explaining your choices.
+6. Respond ONLY with the requested JSON object.`;
 
   return prompt;
 }

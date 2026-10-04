@@ -58,8 +58,8 @@ Classify websites and products into a consistent taxonomy. A site can and should
 You MUST output strictly a valid JSON object matching this schema with no markdown code blocks outside:
 {
   "recommendedTags": ["Tag 1", "Tag 2"],
-  "reasoning": "Brief 1-2 sentence explanation of why these tags apply.",
-  "suggestedNewTag": "New Tag Name" or null
+  "newTags": ["Any tag from recommendedTags that is not in the Available Categories list"],
+  "reasoning": "Brief 1-2 sentence explanation of why these tags apply."
 }
 `;
   function buildTaxonomyUserPrompt(context, availableCategories, searchSnippets) {
@@ -109,9 +109,12 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
 
 `;
     prompt += `### Instructions:
-1. Select 1 to 5 of the most fitting tags from the Available Categories list above.
-2. Only suggest a new tag in "suggestedNewTag" if none of the existing categories fit and the product represents a distinct, reusable category according to the new-tag discipline.
-3. Respond ONLY with the requested JSON object.`;
+1. Select 1 to 5 of the most fitting tags. Prioritize the Available Categories list above whenever they fit.
+2. If none of the available categories fit well, or if a crucial distinct category is missing, you MUST suggest 1-2 new appropriate tags (e.g., "Internet History", "Digital Archive", "AI History", etc.).
+3. Put ALL recommended tags (both existing and newly created) inside "recommendedTags" so they are applied to the bookmark.
+4. If any tags in "recommendedTags" are NOT in the Available Categories list, list them in "newTags".
+5. In "reasoning", provide a concise 1-2 sentence rationale explaining your choices.
+6. Respond ONLY with the requested JSON object.`;
     return prompt;
   }
 
@@ -313,11 +316,29 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
                 temperature: 0.15
               }
             };
-            const response = await fetch(geminiEndpoint, {
+            let response = await fetch(geminiEndpoint, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload)
             });
+            let effectiveModel = geminiModel;
+            if (!response.ok && (response.status === 503 || response.status === 500) && geminiModel !== "gemini-2.5-flash") {
+              console.warn(`[AppDirectory] ${geminiModel} returned HTTP ${response.status}. Automatically retrying with gemini-2.5-flash...`);
+              const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+              try {
+                const fallbackResp = await fetch(fallbackEndpoint, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload)
+                });
+                if (fallbackResp.ok) {
+                  response = fallbackResp;
+                  effectiveModel = "gemini-2.5-flash";
+                }
+              } catch (fErr) {
+                console.warn("[AppDirectory] Fallback to gemini-2.5-flash failed:", fErr);
+              }
+            }
             if (!response.ok) {
               const errBody = await response.text();
               console.error("[AppDirectory] Gemini API error:", response.status, errBody);
@@ -325,6 +346,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
                 sendResponse({ success: false, error: "RATE_LIMIT_EXCEEDED" });
               } else if (response.status === 400 || response.status === 403) {
                 sendResponse({ success: false, error: "INVALID_API_KEY" });
+              } else if (response.status === 503) {
+                sendResponse({ success: false, error: "SERVICE_OVERLOADED_503" });
               } else {
                 sendResponse({ success: false, error: `API_ERROR_${response.status}` });
               }
@@ -345,14 +368,33 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
               return;
             }
             const recommendedTags = Array.isArray(parsed.recommendedTags) ? parsed.recommendedTags.map((t) => String(t).trim()).filter(Boolean) : [];
+            const newTags = [];
+            if (Array.isArray(parsed.newTags)) {
+              for (const nt of parsed.newTags) {
+                const trimmed = String(nt).trim();
+                if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+              }
+            }
+            if (parsed.suggestedNewTag) {
+              const snt = String(parsed.suggestedNewTag).trim();
+              if (snt && snt.toLowerCase() !== "null" && snt.toLowerCase() !== "none" && !newTags.includes(snt)) {
+                newTags.push(snt);
+              }
+            }
+            for (const nt of newTags) {
+              if (!recommendedTags.includes(nt)) {
+                recommendedTags.push(nt);
+              }
+            }
             const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
-            const suggestedNewTag = parsed.suggestedNewTag ? String(parsed.suggestedNewTag).trim() : null;
             sendResponse({
               success: true,
               method,
               recommendedTags,
+              newTags,
               reasoning,
-              suggestedNewTag
+              suggestedNewTag: newTags[0] || null,
+              modelUsed: effectiveModel
             });
           } catch (err) {
             console.error("[AppDirectory] Classification exception:", err);

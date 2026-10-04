@@ -22,9 +22,11 @@ export interface ClassificationResult {
   success: boolean;
   method?: ClassificationMethod;
   recommendedTags: string[];
+  newTags?: string[];
   reasoning?: string;
   suggestedNewTag?: string | null;
   error?: string;
+  modelUsed?: string;
 }
 
 export interface ExtensionSettings {

@@ -50,10 +50,12 @@ export function extractPageContext(): ExtractedPageContext {
 
   // Headings
   const headings: string[] = [];
-  const headingElements = Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3'));
+  const headingElements = Array.from(
+    document.querySelectorAll<HTMLElement>('h1, h2, h3, h4, [role="heading"]')
+  );
   for (const h of headingElements) {
     const text = (h.textContent || '').replace(/\s+/g, ' ').trim();
-    if (text && text.length > 3 && text.length < 120 && !headings.includes(text)) {
+    if (text && text.length > 2 && text.length < 120 && !headings.includes(text)) {
       headings.push(text);
       if (headings.length >= 8) break;
     }
@@ -73,15 +75,17 @@ export function extractPageContext(): ExtractedPageContext {
   }
 
   // Meaningful Body Text Extraction
-  // Clone element or extract text from main/body excluding noisy tags
-  const clone = (document.querySelector('main') || document.body).cloneNode(true) as HTMLElement;
+  // Prefer main if it has substantive content, otherwise use body
+  const mainEl = document.querySelector('main');
+  const targetEl = (mainEl && (mainEl.textContent || '').trim().length > 150) ? mainEl : document.body;
+  const clone = targetEl.cloneNode(true) as HTMLElement;
   const noisy = clone.querySelectorAll(
-    'script, style, noscript, svg, nav, footer, iframe, header'
+    'script, style, noscript, svg, nav, footer, iframe'
   );
   noisy.forEach((el) => el.remove());
 
   const rawText = (clone.textContent || '').replace(/\s+/g, ' ').trim();
-  const bodySummary = rawText.slice(0, 2500);
+  const bodySummary = rawText.slice(0, 3000);
 
   // Check if page appears sparse or is an auth wall
   const wordCount = bodySummary.split(/\s+/).filter(Boolean).length;

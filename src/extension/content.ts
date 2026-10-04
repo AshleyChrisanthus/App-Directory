@@ -573,10 +573,41 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
             reasoningCard.textContent = `💡 ${res.reasoning}`;
           }
 
-          // Populate recommended tags
+          // Populate all recommended and new tags
+          const tagsToAdd: string[] = [];
           if (Array.isArray(res.recommendedTags)) {
-            for (const tag of res.recommendedTags) {
-              const isNew = !availableCategories.includes(tag) || tag === res.suggestedNewTag;
+            for (const t of res.recommendedTags) {
+              const trimmed = String(t).trim();
+              if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+            }
+          }
+          if (Array.isArray(res.newTags)) {
+            for (const t of res.newTags) {
+              const trimmed = String(t).trim();
+              if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+            }
+          }
+          if (res.suggestedNewTag) {
+            const trimmed = String(res.suggestedNewTag).trim();
+            if (trimmed && trimmed.toLowerCase() !== 'null' && trimmed.toLowerCase() !== 'none' && !tagsToAdd.includes(trimmed)) {
+              tagsToAdd.push(trimmed);
+            }
+          }
+
+          if (tagsToAdd.length === 0) {
+            classifyBadge.className = 'ad-classify-badge ad-badge-dom';
+            classifyBadge.innerHTML = '✨ AI: No Tags Matched';
+            classifyBadge.title = res.reasoning || 'No existing or new categories matched this website.';
+            if (reasoningCard && res.reasoning) {
+              reasoningCard.textContent = `💡 ${res.reasoning}`;
+              reasoningCard.classList.add('ad-show');
+            }
+          } else {
+            for (const tag of tagsToAdd) {
+              const isNew =
+                !availableCategories.includes(tag) ||
+                (res.newTags && res.newTags.includes(tag)) ||
+                tag === res.suggestedNewTag;
               addCategoryChip(tag, isNew);
             }
           }

@@ -249,11 +249,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             }
           };
 
-          const response = await fetch(geminiEndpoint, {
+          let response = await fetch(geminiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+
+          let effectiveModel = geminiModel;
+
+          // Auto-fallback from gemini-3.8-flash to gemini-2.5-flash on 503 Service Unavailable or 500
+          if (!response.ok && (response.status === 503 || response.status === 500) && geminiModel !== 'gemini-2.5-flash') {
+            console.warn(`[AppDirectory] ${geminiModel} returned HTTP ${response.status}. Automatically retrying with gemini-2.5-flash...`);
+            const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+            try {
+              const fallbackResp = await fetch(fallbackEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              if (fallbackResp.ok) {
+                response = fallbackResp;
+                effectiveModel = 'gemini-2.5-flash';
+              }
+            } catch (fErr) {
+              console.warn('[AppDirectory] Fallback to gemini-2.5-flash failed:', fErr);
+            }
+          }
 
           if (!response.ok) {
             const errBody = await response.text();
@@ -262,6 +283,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
               sendResponse({ success: false, error: 'RATE_LIMIT_EXCEEDED' });
             } else if (response.status === 400 || response.status === 403) {
               sendResponse({ success: false, error: 'INVALID_API_KEY' });
+            } else if (response.status === 503) {
+              sendResponse({ success: false, error: 'SERVICE_OVERLOADED_503' });
             } else {
               sendResponse({ success: false, error: `API_ERROR_${response.status}` });
             }
@@ -287,15 +310,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const recommendedTags: string[] = Array.isArray(parsed.recommendedTags)
             ? parsed.recommendedTags.map((t: any) => String(t).trim()).filter(Boolean)
             : [];
+
+          const newTags: string[] = [];
+          if (Array.isArray(parsed.newTags)) {
+            for (const nt of parsed.newTags) {
+              const trimmed = String(nt).trim();
+              if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+            }
+          }
+          if (parsed.suggestedNewTag) {
+            const snt = String(parsed.suggestedNewTag).trim();
+            if (snt && snt.toLowerCase() !== 'null' && snt.toLowerCase() !== 'none' && !newTags.includes(snt)) {
+              newTags.push(snt);
+            }
+          }
+
+          // Ensure any suggested new tag is ALSO inside recommendedTags so it is never dropped
+          for (const nt of newTags) {
+            if (!recommendedTags.includes(nt)) {
+              recommendedTags.push(nt);
+            }
+          }
+
           const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning.trim() : '';
-          const suggestedNewTag = parsed.suggestedNewTag ? String(parsed.suggestedNewTag).trim() : null;
 
           sendResponse({
             success: true,
             method,
             recommendedTags,
+            newTags,
             reasoning,
-            suggestedNewTag
+            suggestedNewTag: newTags[0] || null,
+            modelUsed: effectiveModel
           });
         } catch (err: any) {
           console.error('[AppDirectory] Classification exception:', err);

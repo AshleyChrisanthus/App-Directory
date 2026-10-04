@@ -42,10 +42,12 @@
     } catch (_) {
     }
     const headings = [];
-    const headingElements = Array.from(document.querySelectorAll("h1, h2, h3"));
+    const headingElements = Array.from(
+      document.querySelectorAll('h1, h2, h3, h4, [role="heading"]')
+    );
     for (const h of headingElements) {
       const text = (h.textContent || "").replace(/\s+/g, " ").trim();
-      if (text && text.length > 3 && text.length < 120 && !headings.includes(text)) {
+      if (text && text.length > 2 && text.length < 120 && !headings.includes(text)) {
         headings.push(text);
         if (headings.length >= 8) break;
       }
@@ -61,13 +63,15 @@
         break;
       }
     }
-    const clone = (document.querySelector("main") || document.body).cloneNode(true);
+    const mainEl = document.querySelector("main");
+    const targetEl = mainEl && (mainEl.textContent || "").trim().length > 150 ? mainEl : document.body;
+    const clone = targetEl.cloneNode(true);
     const noisy = clone.querySelectorAll(
-      "script, style, noscript, svg, nav, footer, iframe, header"
+      "script, style, noscript, svg, nav, footer, iframe"
     );
     noisy.forEach((el) => el.remove());
     const rawText = (clone.textContent || "").replace(/\s+/g, " ").trim();
-    const bodySummary = rawText.slice(0, 2500);
+    const bodySummary = rawText.slice(0, 3e3);
     const wordCount = bodySummary.split(/\s+/).filter(Boolean).length;
     const isAuthTitle = /sign in|log in|login|welcome back|authentication/i.test(title);
     const isSparse = wordCount < 40 || isAuthTitle && wordCount < 80;
@@ -568,9 +572,36 @@
             if (reasoningCard && res.reasoning) {
               reasoningCard.textContent = `\u{1F4A1} ${res.reasoning}`;
             }
+            const tagsToAdd = [];
             if (Array.isArray(res.recommendedTags)) {
-              for (const tag of res.recommendedTags) {
-                const isNew = !availableCategories.includes(tag) || tag === res.suggestedNewTag;
+              for (const t of res.recommendedTags) {
+                const trimmed = String(t).trim();
+                if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+              }
+            }
+            if (Array.isArray(res.newTags)) {
+              for (const t of res.newTags) {
+                const trimmed = String(t).trim();
+                if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+              }
+            }
+            if (res.suggestedNewTag) {
+              const trimmed = String(res.suggestedNewTag).trim();
+              if (trimmed && trimmed.toLowerCase() !== "null" && trimmed.toLowerCase() !== "none" && !tagsToAdd.includes(trimmed)) {
+                tagsToAdd.push(trimmed);
+              }
+            }
+            if (tagsToAdd.length === 0) {
+              classifyBadge.className = "ad-classify-badge ad-badge-dom";
+              classifyBadge.innerHTML = "\u2728 AI: No Tags Matched";
+              classifyBadge.title = res.reasoning || "No existing or new categories matched this website.";
+              if (reasoningCard && res.reasoning) {
+                reasoningCard.textContent = `\u{1F4A1} ${res.reasoning}`;
+                reasoningCard.classList.add("ad-show");
+              }
+            } else {
+              for (const tag of tagsToAdd) {
+                const isNew = !availableCategories.includes(tag) || res.newTags && res.newTags.includes(tag) || tag === res.suggestedNewTag;
                 addCategoryChip(tag, isNew);
               }
             }
