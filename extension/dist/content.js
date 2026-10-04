@@ -1,7 +1,92 @@
 "use strict";
 (() => {
   // src/extension/modal.css
-  var modal_default = ":host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n  color: #f1f5f9;\n  font-size: 14px;\n  line-height: 1.5;\n  box-sizing: border-box;\n}\n\n*, *::before, *::after {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\n.ad-modal-backdrop {\n  position: fixed;\n  inset: 0;\n  background: rgba(10, 14, 23, 0.68);\n  backdrop-filter: blur(8px);\n  -webkit-backdrop-filter: blur(8px);\n  z-index: 2147483647;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  opacity: 0;\n  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  padding: 16px;\n}\n\n.ad-modal-backdrop.ad-visible {\n  opacity: 1;\n}\n\n.ad-modal-card {\n  width: 100%;\n  max-width: 480px;\n  background: rgba(22, 28, 42, 0.94);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  border-radius: 16px;\n  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);\n  overflow: hidden;\n  transform: scale(0.94) translateY(8px);\n  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;\n  display: flex;\n  flex-direction: column;\n}\n\n.ad-modal-backdrop.ad-visible .ad-modal-card {\n  transform: scale(1) translateY(0);\n}\n\n/* Header */\n.ad-modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-modal-title-group {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n\n.ad-app-icon {\n  width: 28px;\n  height: 28px;\n  border-radius: 7px;\n  background: linear-gradient(135deg, #0a84ff, #5e5ce6);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 15px;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-modal-title {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n  letter-spacing: -0.2px;\n}\n\n.ad-badge-local {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(52, 199, 89, 0.18);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.3);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-close-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 18px;\n  cursor: pointer;\n  width: 28px;\n  height: 28px;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-close-btn:hover {\n  background: rgba(255, 255, 255, 0.08);\n  color: #ffffff;\n}\n\n/* Body Form */\n.ad-modal-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  max-height: 70vh;\n  overflow-y: auto;\n}\n\n.ad-field-row {\n  display: flex;\n  gap: 12px;\n  align-items: flex-start;\n}\n\n.ad-icon-preview-box {\n  width: 44px;\n  height: 44px;\n  border-radius: 10px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  overflow: hidden;\n  margin-top: 22px;\n}\n\n.ad-icon-preview-box img {\n  width: 26px;\n  height: 26px;\n  object-fit: contain;\n}\n\n.ad-form-group {\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n  flex: 1;\n}\n\n.ad-form-label {\n  font-size: 12px;\n  font-weight: 600;\n  color: #94a3b8;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.ad-input, .ad-select, .ad-textarea {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 8px 12px;\n  font-size: 13.5px;\n  color: #f8fafc;\n  outline: none;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease;\n  width: 100%;\n  font-family: inherit;\n}\n\n.ad-input:focus, .ad-select:focus, .ad-textarea:focus {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n  background: rgba(15, 23, 42, 0.85);\n}\n\n.ad-textarea {\n  resize: vertical;\n  min-height: 52px;\n}\n\n.ad-two-col {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 12px;\n}\n\n/* Category Tags */\n.ad-categories-field {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n\n.ad-tags-wrapper {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 6px 8px;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-height: 40px;\n}\n\n.ad-tags-wrapper:focus-within {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n}\n\n.ad-tag-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: rgba(10, 132, 255, 0.18);\n  border: 1px solid rgba(10, 132, 255, 0.35);\n  color: #60a5fa;\n  padding: 2px 7px;\n  border-radius: 5px;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.ad-tag-chip .ad-remove-tag {\n  cursor: pointer;\n  font-size: 13px;\n  opacity: 0.75;\n  transition: opacity 0.1s ease;\n  line-height: 1;\n}\n\n.ad-tag-chip .ad-remove-tag:hover {\n  opacity: 1;\n  color: #f87171;\n}\n\n.ad-tag-input {\n  border: none;\n  background: transparent;\n  color: #f8fafc;\n  font-size: 13px;\n  outline: none;\n  flex: 1;\n  min-width: 90px;\n  font-family: inherit;\n  padding: 2px 4px;\n}\n\n/* Category Suggestions Autocomplete Popup */\n.ad-suggestions-popup {\n  position: absolute;\n  top: 100%;\n  left: 0;\n  right: 0;\n  margin-top: 4px;\n  background: rgba(15, 23, 42, 0.96);\n  backdrop-filter: blur(20px);\n  -webkit-backdrop-filter: blur(20px);\n  border: 1px solid rgba(255, 255, 255, 0.16);\n  border-radius: 8px;\n  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);\n  max-height: 180px;\n  overflow-y: auto;\n  z-index: 50;\n  display: none;\n  flex-direction: column;\n  padding: 4px;\n}\n\n.ad-suggestions-popup.ad-show {\n  display: flex;\n}\n\n.ad-suggestion-item {\n  padding: 6px 10px;\n  font-size: 13px;\n  color: #cbd5e1;\n  cursor: pointer;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  transition: background 0.12s ease, color 0.12s ease;\n}\n\n.ad-suggestion-item:hover,\n.ad-suggestion-item.is-focused {\n  background: rgba(10, 132, 255, 0.25);\n  color: #ffffff;\n}\n\n.ad-suggestion-item .ad-suggest-tag-name {\n  font-weight: 500;\n}\n\n.ad-suggestion-item .ad-suggest-tag-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-suggestion-item:hover .ad-suggest-tag-hint,\n.ad-suggestion-item.is-focused .ad-suggest-tag-hint {\n  color: #93c5fd;\n}\n\n/* Favorite toggle */\n.ad-fav-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n}\n\n.ad-fav-star {\n  font-size: 16px;\n  color: #64748b;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n.ad-fav-toggle.active .ad-fav-star {\n  color: #ffb800;\n  transform: scale(1.15);\n}\n\n/* Footer */\n.ad-modal-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-shortcut-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-shortcut-hint kbd {\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.15);\n  border-radius: 4px;\n  padding: 1px 4px;\n  font-size: 10px;\n  color: #94a3b8;\n}\n\n.ad-btn-group {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-btn {\n  padding: 7px 14px;\n  border-radius: 8px;\n  font-size: 13px;\n  font-weight: 600;\n  cursor: pointer;\n  border: none;\n  transition: all 0.15s ease;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  font-family: inherit;\n}\n\n.ad-btn-secondary {\n  background: rgba(255, 255, 255, 0.07);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.1);\n}\n\n.ad-btn-secondary:hover {\n  background: rgba(255, 255, 255, 0.12);\n  color: #ffffff;\n}\n\n.ad-btn-primary {\n  background: #0a84ff;\n  color: #ffffff;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-btn-primary:hover {\n  background: #0070e0;\n  box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);\n  transform: translateY(-1px);\n}\n\n.ad-btn-primary:active {\n  transform: translateY(0);\n}\n\n/* Success Banner */\n.ad-success-overlay {\n  position: absolute;\n  inset: 0;\n  background: rgba(15, 23, 42, 0.95);\n  backdrop-filter: blur(12px);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  border-radius: 16px;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.2s ease;\n  z-index: 10;\n}\n\n.ad-success-overlay.ad-show {\n  opacity: 1;\n  pointer-events: auto;\n}\n\n.ad-success-icon {\n  width: 48px;\n  height: 48px;\n  border-radius: 50%;\n  background: rgba(52, 199, 89, 0.18);\n  border: 2px solid #34c759;\n  color: #34c759;\n  font-size: 24px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  animation: adPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);\n}\n\n.ad-success-text {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n}\n\n.ad-success-sub {\n  font-size: 12px;\n  color: #94a3b8;\n}\n\n@keyframes adPop {\n  0% { transform: scale(0.5); opacity: 0; }\n  70% { transform: scale(1.1); }\n  100% { transform: scale(1); opacity: 1; }\n}\n";
+  var modal_default = ":host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n  color: #f1f5f9;\n  font-size: 14px;\n  line-height: 1.5;\n  box-sizing: border-box;\n}\n\n*, *::before, *::after {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\n.ad-modal-backdrop {\n  position: fixed;\n  inset: 0;\n  background: rgba(10, 14, 23, 0.68);\n  backdrop-filter: blur(8px);\n  -webkit-backdrop-filter: blur(8px);\n  z-index: 2147483647;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  opacity: 0;\n  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  padding: 16px;\n}\n\n.ad-modal-backdrop.ad-visible {\n  opacity: 1;\n}\n\n.ad-modal-card {\n  width: 100%;\n  max-width: 480px;\n  background: rgba(22, 28, 42, 0.94);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  border-radius: 16px;\n  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);\n  overflow: hidden;\n  transform: scale(0.94) translateY(8px);\n  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;\n  display: flex;\n  flex-direction: column;\n}\n\n.ad-modal-backdrop.ad-visible .ad-modal-card {\n  transform: scale(1) translateY(0);\n}\n\n/* Header */\n.ad-modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-modal-title-group {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n\n.ad-app-icon {\n  width: 28px;\n  height: 28px;\n  border-radius: 7px;\n  background: linear-gradient(135deg, #0a84ff, #5e5ce6);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 15px;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-modal-title {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n  letter-spacing: -0.2px;\n}\n\n.ad-badge-local {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(52, 199, 89, 0.18);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.3);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-header-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-icon-btn, .ad-close-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 16px;\n  cursor: pointer;\n  width: 28px;\n  height: 28px;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-icon-btn:hover, .ad-close-btn:hover {\n  background: rgba(255, 255, 255, 0.08);\n  color: #ffffff;\n}\n\n/* Body Form */\n.ad-modal-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  max-height: 70vh;\n  overflow-y: auto;\n}\n\n.ad-field-row {\n  display: flex;\n  gap: 12px;\n  align-items: flex-start;\n}\n\n.ad-icon-preview-box {\n  width: 44px;\n  height: 44px;\n  border-radius: 10px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  overflow: hidden;\n  margin-top: 22px;\n}\n\n.ad-icon-preview-box img {\n  width: 26px;\n  height: 26px;\n  object-fit: contain;\n}\n\n.ad-form-group {\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n  flex: 1;\n}\n\n.ad-form-label {\n  font-size: 12px;\n  font-weight: 600;\n  color: #94a3b8;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.ad-input, .ad-select, .ad-textarea {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 8px 12px;\n  font-size: 13.5px;\n  color: #f8fafc;\n  outline: none;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease;\n  width: 100%;\n  font-family: inherit;\n}\n\n.ad-input:focus, .ad-select:focus, .ad-textarea:focus {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n  background: rgba(15, 23, 42, 0.85);\n}\n\n.ad-textarea {\n  resize: vertical;\n  min-height: 52px;\n}\n\n.ad-two-col {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 12px;\n}\n\n/* Category Tags */\n.ad-categories-field {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n\n.ad-tags-wrapper {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 6px 8px;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-height: 40px;\n}\n\n.ad-tags-wrapper:focus-within {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n}\n\n.ad-tag-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: rgba(10, 132, 255, 0.18);\n  border: 1px solid rgba(10, 132, 255, 0.35);\n  color: #60a5fa;\n  padding: 2px 7px;\n  border-radius: 5px;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.ad-tag-chip .ad-remove-tag {\n  cursor: pointer;\n  font-size: 13px;\n  opacity: 0.75;\n  transition: opacity 0.1s ease;\n  line-height: 1;\n}\n\n.ad-tag-chip .ad-remove-tag:hover {\n  opacity: 1;\n  color: #f87171;\n}\n\n.ad-tag-input {\n  border: none;\n  background: transparent;\n  color: #f8fafc;\n  font-size: 13px;\n  outline: none;\n  flex: 1;\n  min-width: 90px;\n  font-family: inherit;\n  padding: 2px 4px;\n}\n\n/* Category Suggestions Autocomplete Popup */\n.ad-suggestions-popup {\n  position: absolute;\n  top: 100%;\n  left: 0;\n  right: 0;\n  margin-top: 4px;\n  background: rgba(15, 23, 42, 0.96);\n  backdrop-filter: blur(20px);\n  -webkit-backdrop-filter: blur(20px);\n  border: 1px solid rgba(255, 255, 255, 0.16);\n  border-radius: 8px;\n  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);\n  max-height: 180px;\n  overflow-y: auto;\n  z-index: 50;\n  display: none;\n  flex-direction: column;\n  padding: 4px;\n}\n\n.ad-suggestions-popup.ad-show {\n  display: flex;\n}\n\n.ad-suggestion-item {\n  padding: 6px 10px;\n  font-size: 13px;\n  color: #cbd5e1;\n  cursor: pointer;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  transition: background 0.12s ease, color 0.12s ease;\n}\n\n.ad-suggestion-item:hover,\n.ad-suggestion-item.is-focused {\n  background: rgba(10, 132, 255, 0.25);\n  color: #ffffff;\n}\n\n.ad-suggestion-item .ad-suggest-tag-name {\n  font-weight: 500;\n}\n\n.ad-suggestion-item .ad-suggest-tag-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-suggestion-item:hover .ad-suggest-tag-hint,\n.ad-suggestion-item.is-focused .ad-suggest-tag-hint {\n  color: #93c5fd;\n}\n\n/* Favorite toggle */\n.ad-fav-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n}\n\n.ad-fav-star {\n  font-size: 16px;\n  color: #64748b;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n.ad-fav-toggle.active .ad-fav-star {\n  color: #ffb800;\n  transform: scale(1.15);\n}\n\n/* Footer */\n.ad-modal-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-shortcut-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-shortcut-hint kbd {\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.15);\n  border-radius: 4px;\n  padding: 1px 4px;\n  font-size: 10px;\n  color: #94a3b8;\n}\n\n.ad-btn-group {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-btn {\n  padding: 7px 14px;\n  border-radius: 8px;\n  font-size: 13px;\n  font-weight: 600;\n  cursor: pointer;\n  border: none;\n  transition: all 0.15s ease;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  font-family: inherit;\n}\n\n.ad-btn-secondary {\n  background: rgba(255, 255, 255, 0.07);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.1);\n}\n\n.ad-btn-secondary:hover {\n  background: rgba(255, 255, 255, 0.12);\n  color: #ffffff;\n}\n\n.ad-btn-primary {\n  background: #0a84ff;\n  color: #ffffff;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-btn-primary:hover {\n  background: #0070e0;\n  box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);\n  transform: translateY(-1px);\n}\n\n.ad-btn-primary:active {\n  transform: translateY(0);\n}\n\n/* Success Banner */\n.ad-success-overlay {\n  position: absolute;\n  inset: 0;\n  background: rgba(15, 23, 42, 0.95);\n  backdrop-filter: blur(12px);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  border-radius: 16px;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.2s ease;\n  z-index: 10;\n}\n\n.ad-success-overlay.ad-show {\n  opacity: 1;\n  pointer-events: auto;\n}\n\n.ad-success-icon {\n  width: 48px;\n  height: 48px;\n  border-radius: 50%;\n  background: rgba(52, 199, 89, 0.18);\n  border: 2px solid #34c759;\n  color: #34c759;\n  font-size: 24px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  animation: adPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);\n}\n\n.ad-success-text {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n}\n\n.ad-success-sub {\n  font-size: 12px;\n  color: #94a3b8;\n}\n\n@keyframes adPop {\n  0% { transform: scale(0.5); opacity: 0; }\n  70% { transform: scale(1.1); }\n  100% { transform: scale(1); opacity: 1; }\n}\n\n/* \u2500\u2500 Category Header & AI Classification Badges \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\n.ad-category-header-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 3px;\n}\n\n.ad-ai-status-group {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-classify-badge {\n  font-size: 11px;\n  font-weight: 600;\n  border-radius: 12px;\n  padding: 2px 8px;\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  letter-spacing: 0.2px;\n  user-select: none;\n  transition: all 0.2s ease;\n}\n\n.ad-classify-badge.ad-badge-dom {\n  background: rgba(52, 199, 89, 0.16);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-dom:hover {\n  background: rgba(52, 199, 89, 0.26);\n}\n\n.ad-classify-badge.ad-badge-brave {\n  background: rgba(255, 159, 10, 0.16);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-brave:hover {\n  background: rgba(255, 159, 10, 0.26);\n}\n\n.ad-classify-badge.ad-badge-loading {\n  background: rgba(10, 132, 255, 0.15);\n  color: #60a5fa;\n  border: 1px solid rgba(10, 132, 255, 0.3);\n}\n\n.ad-classify-badge.ad-badge-setup {\n  background: rgba(255, 255, 255, 0.08);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-setup:hover {\n  background: rgba(255, 255, 255, 0.16);\n  color: #ffffff;\n}\n\n.ad-classify-badge.ad-badge-error {\n  background: rgba(255, 59, 48, 0.16);\n  color: #ff453a;\n  border: 1px solid rgba(255, 59, 48, 0.35);\n  cursor: pointer;\n}\n\n.ad-reclassify-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 13px;\n  cursor: pointer;\n  width: 22px;\n  height: 22px;\n  border-radius: 4px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-reclassify-btn:hover {\n  background: rgba(255, 255, 255, 0.1);\n  color: #ffffff;\n}\n\n.ad-reclassify-btn.is-spinning {\n  animation: adSpin 0.75s linear infinite;\n}\n\n@keyframes adSpin {\n  100% { transform: rotate(360deg); }\n}\n\n.ad-spinner-dot {\n  display: inline-block;\n  width: 8px;\n  height: 8px;\n  border: 1.5px solid rgba(96, 165, 250, 0.3);\n  border-top-color: #60a5fa;\n  border-radius: 50%;\n  animation: adSpin 0.7s linear infinite;\n}\n\n/* AI Reasoning Card / Popover */\n.ad-reasoning-card {\n  margin-top: 4px;\n  padding: 6px 10px;\n  background: rgba(15, 23, 42, 0.85);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  border-left: 3px solid #0a84ff;\n  border-radius: 6px;\n  font-size: 11px;\n  color: #94a3b8;\n  line-height: 1.45;\n  display: none;\n}\n\n.ad-reasoning-card.ad-show {\n  display: block;\n}\n\n/* New Category Tag Chip highlight */\n.ad-tag-chip.ad-tag-chip-new {\n  background: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(255, 159, 10, 0.14));\n  border: 1px solid rgba(255, 214, 10, 0.55);\n  color: #ffd60a;\n  box-shadow: 0 0 10px rgba(255, 214, 10, 0.15);\n}\n\n.ad-tag-chip.ad-tag-chip-new .ad-remove-tag:hover {\n  color: #ff453a;\n}\n\n.ad-new-tags-notice {\n  font-size: 11px;\n  color: #ffd60a;\n  margin-top: 4px;\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-weight: 500;\n}\n\n/* Settings Drawer / View inside modal */\n.ad-settings-drawer {\n  position: absolute;\n  inset: 0;\n  background: rgba(18, 24, 38, 0.98);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border-radius: 16px;\n  z-index: 20;\n  display: flex;\n  flex-direction: column;\n  transform: translateX(100%);\n  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n}\n\n.ad-settings-drawer.ad-show {\n  transform: translateX(0);\n}\n\n.ad-settings-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n}\n\n.ad-settings-title {\n  font-size: 15px;\n  font-weight: 700;\n  color: #ffffff;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-settings-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  overflow-y: auto;\n  flex: 1;\n}\n\n.ad-settings-hint {\n  font-size: 12px;\n  color: #94a3b8;\n  line-height: 1.45;\n}\n\n.ad-settings-hint a {\n  color: #0a84ff;\n  text-decoration: none;\n}\n\n.ad-settings-hint a:hover {\n  text-decoration: underline;\n}\n\n.ad-checkbox-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n  margin-top: 4px;\n}\n\n.ad-checkbox-row input {\n  accent-color: #0a84ff;\n  width: 16px;\n  height: 16px;\n  cursor: pointer;\n}\n\n.ad-settings-footer {\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 10px;\n  background: rgba(255, 255, 255, 0.02);\n}\n";
+
+  // src/extension/domExtractor.ts
+  function extractPageContext() {
+    const url = window.location.href;
+    const hostname = window.location.hostname;
+    const title = (document.title || hostname).trim();
+    const metaDesc = document.querySelector('meta[name="description" i]')?.content || document.querySelector('meta[property="og:description" i]')?.content || document.querySelector('meta[name="twitter:description" i]')?.content || "";
+    const ogTitle = document.querySelector('meta[property="og:title" i]')?.content;
+    const ogDescription = document.querySelector('meta[property="og:description" i]')?.content;
+    const keywordsMeta = document.querySelector('meta[name="keywords" i]')?.content || "";
+    const keywords = keywordsMeta ? keywordsMeta.split(",").map((k) => k.trim()).filter(Boolean).slice(0, 10) : [];
+    const schemaTypes = [];
+    const schemaSummaries = [];
+    try {
+      const jsonLdScripts = Array.from(
+        document.querySelectorAll('script[type="application/ld+json"]')
+      );
+      for (const s of jsonLdScripts.slice(0, 4)) {
+        if (!s.textContent) continue;
+        try {
+          const parsed = JSON.parse(s.textContent);
+          const items = Array.isArray(parsed) ? parsed : [parsed];
+          for (const item of items) {
+            if (!item) continue;
+            if (item["@type"]) {
+              const types = Array.isArray(item["@type"]) ? item["@type"] : [item["@type"]];
+              schemaTypes.push(...types);
+            }
+            if (item.name || item.description || item.applicationCategory) {
+              schemaSummaries.push(
+                `[${item["@type"] || "Item"}] ${item.name || ""} - ${item.applicationCategory || ""} - ${item.description || ""}`
+              );
+            }
+          }
+        } catch (_) {
+        }
+      }
+    } catch (_) {
+    }
+    const headings = [];
+    const headingElements = Array.from(document.querySelectorAll("h1, h2, h3"));
+    for (const h of headingElements) {
+      const text = (h.textContent || "").replace(/\s+/g, " ").trim();
+      if (text && text.length > 3 && text.length < 120 && !headings.includes(text)) {
+        headings.push(text);
+        if (headings.length >= 8) break;
+      }
+    }
+    let heroText = "";
+    const heroCandidates = document.querySelectorAll(
+      '[class*="hero" i] p, [id*="hero" i] p, main p, header p'
+    );
+    for (const p of Array.from(heroCandidates)) {
+      const text = (p.textContent || "").replace(/\s+/g, " ").trim();
+      if (text.length > 25 && text.length < 300) {
+        heroText = text;
+        break;
+      }
+    }
+    const clone = (document.querySelector("main") || document.body).cloneNode(true);
+    const noisy = clone.querySelectorAll(
+      "script, style, noscript, svg, nav, footer, iframe, header"
+    );
+    noisy.forEach((el) => el.remove());
+    const rawText = (clone.textContent || "").replace(/\s+/g, " ").trim();
+    const bodySummary = rawText.slice(0, 2500);
+    const wordCount = bodySummary.split(/\s+/).filter(Boolean).length;
+    const isAuthTitle = /sign in|log in|login|welcome back|authentication/i.test(title);
+    const isSparse = wordCount < 40 || isAuthTitle && wordCount < 80;
+    return {
+      url,
+      hostname,
+      title,
+      description: metaDesc.trim(),
+      keywords,
+      ogTitle,
+      ogDescription,
+      headings,
+      heroText,
+      bodySummary,
+      schemaTypes: Array.from(new Set(schemaTypes)),
+      schemaSummary: schemaSummaries.slice(0, 2).join(" | "),
+      isSparse
+    };
+  }
 
   // src/extension/content.ts
   if (typeof window.__APP_DIRECTORY_CLEANUP__ === "function") {
@@ -88,7 +173,10 @@
           <span class="ad-modal-title">Add to App Directory</span>
           <span class="ad-badge-local">Local DB</span>
         </div>
-        <button type="button" class="ad-close-btn" title="Close (Esc)">\u2715</button>
+        <div class="ad-header-actions">
+          <button type="button" class="ad-icon-btn" id="ad-settings-toggle-btn" title="Companion AI Settings">\u2699\uFE0F</button>
+          <button type="button" class="ad-close-btn" id="ad-close-btn" title="Close (Esc)">\u2715</button>
+        </div>
       </div>
 
       <div class="ad-modal-body">
@@ -126,10 +214,18 @@
         </div>
 
         <div class="ad-form-group ad-categories-field">
-          <label class="ad-form-label">Categories</label>
+          <div class="ad-category-header-row">
+            <label class="ad-form-label" style="margin-bottom:0;">Categories</label>
+            <div class="ad-ai-status-group">
+              <span class="ad-classify-badge ad-badge-setup" id="ad-classify-badge" title="AI Tagging status">\u2699\uFE0F Setup AI</span>
+              <button type="button" class="ad-reclassify-btn" id="ad-reclassify-btn" title="Re-classify with AI (Alt+Click to force Brave Search)" style="display:none;">\u21BB</button>
+            </div>
+          </div>
           <div class="ad-tags-wrapper" id="ad-tags-wrapper">
             <input type="text" class="ad-tag-input" id="ad-tag-input" placeholder="Type category and press Enter..." autocomplete="off">
           </div>
+          <div class="ad-reasoning-card" id="ad-reasoning-card"></div>
+          <div class="ad-new-tags-notice" id="ad-new-tags-notice" style="display:none;"></div>
           <div class="ad-suggestions-popup" id="ad-suggestions-popup"></div>
         </div>
 
@@ -144,6 +240,48 @@
         <div class="ad-btn-group">
           <button type="button" class="ad-btn ad-btn-secondary" id="ad-cancel-btn">Cancel</button>
           <button type="button" class="ad-btn ad-btn-primary" id="ad-save-btn">\u2713 Save to App</button>
+        </div>
+      </div>
+
+      <!-- Settings Drawer -->
+      <div class="ad-settings-drawer" id="ad-settings-drawer">
+        <div class="ad-settings-header">
+          <div class="ad-settings-title">\u2699\uFE0F Companion AI Settings</div>
+          <button type="button" class="ad-icon-btn" id="ad-settings-close-btn" title="Back">\u2715</button>
+        </div>
+        <div class="ad-settings-body">
+          <div class="ad-form-group">
+            <label class="ad-form-label" for="ad-gemini-key-input">Google Gemini API Key (Free)</label>
+            <input type="password" id="ad-gemini-key-input" class="ad-input" placeholder="AIzaSy..." spellcheck="false">
+            <div class="ad-settings-hint">
+              Get a free API key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>. No credit card required.
+            </div>
+          </div>
+
+          <div class="ad-form-group">
+            <label class="ad-form-label" for="ad-gemini-model-select">Gemini Model</label>
+            <select id="ad-gemini-model-select" class="ad-select">
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Default - Fast & Free)</option>
+              <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest Flash)</option>
+            </select>
+          </div>
+
+          <div class="ad-form-group">
+            <label class="ad-form-label" for="ad-brave-key-input">Brave Search API Key (Optional Fallback)</label>
+            <input type="password" id="ad-brave-key-input" class="ad-input" placeholder="BSA..." spellcheck="false">
+            <div class="ad-settings-hint">
+              Used only when page text is sparse/auth-walled. Free tier (2,000 queries/mo) at <a href="https://brave.com/search/api/" target="_blank" rel="noopener">Brave Search API</a>.
+            </div>
+          </div>
+
+          <label class="ad-checkbox-row">
+            <input type="checkbox" id="ad-autoclassify-check" checked>
+            <span>Auto-classify categories on opening modal</span>
+          </label>
+        </div>
+        <div class="ad-settings-footer">
+          <button type="button" class="ad-btn ad-btn-secondary" id="ad-settings-cancel-btn">Cancel</button>
+          <button type="button" class="ad-btn ad-btn-primary" id="ad-settings-save-btn">Save Settings</button>
         </div>
       </div>
 
@@ -177,7 +315,7 @@
       backdrop.classList.remove("ad-visible");
       setTimeout(() => host.remove(), 200);
     };
-    const closeBtn = shadow.querySelector(".ad-close-btn");
+    const closeBtn = shadow.getElementById("ad-close-btn");
     const cancelBtn = shadow.getElementById("ad-cancel-btn");
     if (closeBtn) closeBtn.addEventListener("click", closeModal);
     if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
@@ -205,25 +343,44 @@
     const tagsWrapper = shadow.getElementById("ad-tags-wrapper");
     const tagInput = shadow.getElementById("ad-tag-input");
     const suggestionsPopup = shadow.getElementById("ad-suggestions-popup");
-    const addCategoryChip = (catName) => {
+    const newTagsNotice = shadow.getElementById("ad-new-tags-notice");
+    const updateNewTagsNotice = () => {
+      if (!newTagsNotice) return;
+      const newTags = selectedCategories.filter((c) => !availableCategories.includes(c));
+      if (newTags.length > 0) {
+        newTagsNotice.style.display = "flex";
+        newTagsNotice.textContent = `\u2726 ${newTags.length} new ${newTags.length === 1 ? "category" : "categories"} (${newTags.join(", ")}) will be added to your directory`;
+      } else {
+        newTagsNotice.style.display = "none";
+        newTagsNotice.textContent = "";
+      }
+    };
+    const addCategoryChip = (catName, isNewTag = false) => {
       const trimmed = catName.trim();
       if (!trimmed || selectedCategories.includes(trimmed)) return;
       selectedCategories.push(trimmed);
       const chip = document.createElement("span");
-      chip.className = "ad-tag-chip";
+      chip.className = isNewTag ? "ad-tag-chip ad-tag-chip-new" : "ad-tag-chip";
       chip.setAttribute("data-tag", trimmed);
-      chip.innerHTML = `${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">\u2715</span>`;
+      if (isNewTag) {
+        chip.setAttribute("title", "New category (does not exist in App Directory yet)");
+        chip.innerHTML = `<span style="font-weight:700;font-size:11px;opacity:0.9;">\u2726 NEW:</span> ${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">\u2715</span>`;
+      } else {
+        chip.innerHTML = `${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">\u2715</span>`;
+      }
       chip.querySelector(".ad-remove-tag")?.addEventListener("click", (e) => {
         e.stopPropagation();
         const idx = selectedCategories.indexOf(trimmed);
         if (idx !== -1) selectedCategories.splice(idx, 1);
         chip.remove();
+        updateNewTagsNotice();
         renderSuggestions();
       });
       if (tagInput && tagsWrapper) {
         tagsWrapper.insertBefore(chip, tagInput);
         tagInput.value = "";
       }
+      updateNewTagsNotice();
     };
     const renderSuggestions = () => {
       if (!suggestionsPopup || !tagInput) return;
@@ -245,7 +402,7 @@
       `;
         item.addEventListener("mousedown", (e) => {
           e.preventDefault();
-          addCategoryChip(cat);
+          addCategoryChip(cat, false);
           tagInput.value = "";
           renderSuggestions();
           tagInput.focus();
@@ -266,52 +423,35 @@
       tagInput.addEventListener("keydown", (e) => {
         const items = suggestionsPopup ? Array.from(suggestionsPopup.querySelectorAll(".ad-suggestion-item")) : [];
         if (e.key === "ArrowDown") {
-          e.preventDefault();
           if (items.length > 0) {
+            e.preventDefault();
             suggestionHighlightedIndex = (suggestionHighlightedIndex + 1) % items.length;
             updateSuggestionHighlight(items);
           }
-          return;
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
+        } else if (e.key === "ArrowUp") {
           if (items.length > 0) {
+            e.preventDefault();
             suggestionHighlightedIndex = (suggestionHighlightedIndex - 1 + items.length) % items.length;
             updateSuggestionHighlight(items);
           }
-          return;
-        }
-        if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.code === "Enter" || e.code === "NumpadEnter")) {
-          e.preventDefault();
-          e.stopPropagation();
-          doSave();
-          return;
-        }
-        if (e.key === "Enter" || e.key === ",") {
+        } else if (e.key === "Enter") {
           e.preventDefault();
           if (suggestionHighlightedIndex >= 0 && items[suggestionHighlightedIndex]) {
-            const selectedName = items[suggestionHighlightedIndex].querySelector(".ad-suggest-tag-name")?.textContent;
-            if (selectedName) {
-              addCategoryChip(selectedName);
-            }
+            items[suggestionHighlightedIndex].dispatchEvent(new MouseEvent("mousedown"));
           } else if (tagInput.value.trim()) {
-            addCategoryChip(tagInput.value.trim());
+            const val = tagInput.value.trim();
+            const isNew = !availableCategories.includes(val);
+            addCategoryChip(val, isNew);
+            tagInput.value = "";
+            renderSuggestions();
           }
-          tagInput.value = "";
-          renderSuggestions();
-          return;
-        }
-        if (e.key === "Escape" && suggestionsPopup?.classList.contains("ad-show")) {
-          e.stopPropagation();
-          suggestionsPopup.classList.remove("ad-show");
-          return;
-        }
-        if (e.key === "Backspace" && tagInput.value === "" && selectedCategories.length > 0) {
-          selectedCategories.pop();
-          const chips = tagsWrapper?.querySelectorAll(".ad-tag-chip");
-          if (chips && chips.length > 0) {
-            chips[chips.length - 1].remove();
+        } else if (e.key === "Backspace" && !tagInput.value && selectedCategories.length > 0) {
+          const removed = selectedCategories.pop();
+          if (removed && tagsWrapper) {
+            const chips = tagsWrapper.querySelectorAll(".ad-tag-chip");
+            if (chips.length > 0) chips[chips.length - 1].remove();
           }
+          updateNewTagsNotice();
           renderSuggestions();
         }
       });
@@ -326,6 +466,159 @@
           if (suggestionsPopup) suggestionsPopup.classList.remove("ad-show");
         }, 150);
       });
+    }
+    const settingsDrawer = shadow.getElementById("ad-settings-drawer");
+    const settingsToggleBtn = shadow.getElementById("ad-settings-toggle-btn");
+    const settingsCloseBtn = shadow.getElementById("ad-settings-close-btn");
+    const settingsCancelBtn = shadow.getElementById("ad-settings-cancel-btn");
+    const settingsSaveBtn = shadow.getElementById("ad-settings-save-btn");
+    const geminiKeyInput = shadow.getElementById("ad-gemini-key-input");
+    const geminiModelSelect = shadow.getElementById("ad-gemini-model-select");
+    const braveKeyInput = shadow.getElementById("ad-brave-key-input");
+    const autoclassifyCheck = shadow.getElementById("ad-autoclassify-check");
+    const openSettings = () => {
+      if (!settingsDrawer) return;
+      chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (s) => {
+        if (geminiKeyInput && s) geminiKeyInput.value = s.geminiApiKey || "";
+        if (geminiModelSelect && s) geminiModelSelect.value = s.geminiModel || "gemini-2.5-flash";
+        if (braveKeyInput && s) braveKeyInput.value = s.braveApiKey || "";
+        if (autoclassifyCheck && s) autoclassifyCheck.checked = s.autoClassify !== false;
+        settingsDrawer.classList.add("ad-show");
+      });
+    };
+    const closeSettings = () => {
+      if (settingsDrawer) settingsDrawer.classList.remove("ad-show");
+    };
+    if (settingsToggleBtn) settingsToggleBtn.addEventListener("click", openSettings);
+    if (settingsCloseBtn) settingsCloseBtn.addEventListener("click", closeSettings);
+    if (settingsCancelBtn) settingsCancelBtn.addEventListener("click", closeSettings);
+    if (settingsSaveBtn) {
+      settingsSaveBtn.addEventListener("click", () => {
+        const newSettings = {
+          geminiApiKey: geminiKeyInput?.value.trim() || "",
+          geminiModel: geminiModelSelect?.value || "gemini-2.5-flash",
+          braveApiKey: braveKeyInput?.value.trim() || "",
+          autoClassify: autoclassifyCheck?.checked ?? true
+        };
+        chrome.runtime.sendMessage({ type: "SAVE_SETTINGS", settings: newSettings }, () => {
+          closeSettings();
+          if (newSettings.geminiApiKey) {
+            if (selectedCategories.length === 0) {
+              runClassification(false);
+            }
+          }
+        });
+      });
+    }
+    const classifyBadge = shadow.getElementById("ad-classify-badge");
+    const reclassifyBtn = shadow.getElementById("ad-reclassify-btn");
+    const reasoningCard = shadow.getElementById("ad-reasoning-card");
+    const runClassification = (forceSearch = false) => {
+      if (!classifyBadge) return;
+      classifyBadge.className = "ad-classify-badge ad-badge-loading";
+      classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> AI classifying...`;
+      classifyBadge.title = "Analyzing page content and matching taxonomy...";
+      if (reclassifyBtn) {
+        reclassifyBtn.classList.add("is-spinning");
+        reclassifyBtn.style.display = "inline-flex";
+      }
+      const pageContext = extractPageContext();
+      try {
+        chrome.runtime.sendMessage(
+          {
+            type: "CLASSIFY_WEBSITE",
+            pageContext,
+            availableCategories,
+            forceSearch
+          },
+          (res) => {
+            if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
+            if (!isExtensionContextValid()) return;
+            if (!res || !res.success) {
+              if (res?.error === "NO_API_KEY") {
+                classifyBadge.className = "ad-classify-badge ad-badge-setup";
+                classifyBadge.innerHTML = "\u2699\uFE0F Setup AI";
+                classifyBadge.title = "Click to set up your free Gemini API key";
+                if (reclassifyBtn) reclassifyBtn.style.display = "none";
+              } else if (res?.error === "RATE_LIMIT_EXCEEDED") {
+                classifyBadge.className = "ad-classify-badge ad-badge-error";
+                classifyBadge.innerHTML = "\u26A0\uFE0F Rate Limit";
+                classifyBadge.title = "Exceeded free tier requests per minute. Wait a moment and retry.";
+              } else if (res?.error === "INVALID_API_KEY") {
+                classifyBadge.className = "ad-classify-badge ad-badge-error";
+                classifyBadge.innerHTML = "\u26A0\uFE0F Invalid Key";
+                classifyBadge.title = "The Gemini API key provided is invalid or inactive.";
+              } else {
+                classifyBadge.className = "ad-classify-badge ad-badge-error";
+                classifyBadge.innerHTML = "\u26A0\uFE0F AI Failed";
+                classifyBadge.title = res?.error || "Classification failed";
+              }
+              return;
+            }
+            if (reclassifyBtn) reclassifyBtn.style.display = "inline-flex";
+            if (res.method === "BRAVE_GROUNDED") {
+              classifyBadge.className = "ad-classify-badge ad-badge-brave";
+              classifyBadge.innerHTML = "\u{1F50D} AI: Brave Search";
+              classifyBadge.title = res.reasoning ? `Brave Search Grounded: ${res.reasoning} (Click to toggle reasoning)` : "Classified using Brave Search results (Click to toggle reasoning)";
+            } else {
+              classifyBadge.className = "ad-classify-badge ad-badge-dom";
+              classifyBadge.innerHTML = "\u2728 AI: Direct DOM";
+              classifyBadge.title = res.reasoning ? `Direct DOM: ${res.reasoning} (Click to toggle reasoning)` : "Classified directly from page text & metadata (Click to toggle reasoning)";
+            }
+            if (reasoningCard && res.reasoning) {
+              reasoningCard.textContent = `\u{1F4A1} ${res.reasoning}`;
+            }
+            if (Array.isArray(res.recommendedTags)) {
+              for (const tag of res.recommendedTags) {
+                const isNew = !availableCategories.includes(tag) || tag === res.suggestedNewTag;
+                addCategoryChip(tag, isNew);
+              }
+            }
+          }
+        );
+      } catch (_) {
+        if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
+        if (classifyBadge) {
+          classifyBadge.className = "ad-classify-badge ad-badge-error";
+          classifyBadge.innerHTML = "\u26A0\uFE0F Error";
+        }
+      }
+    };
+    if (classifyBadge) {
+      classifyBadge.addEventListener("click", () => {
+        if (classifyBadge.classList.contains("ad-badge-setup") || classifyBadge.classList.contains("ad-badge-error")) {
+          openSettings();
+        } else if (reasoningCard && reasoningCard.textContent) {
+          reasoningCard.classList.toggle("ad-show");
+        }
+      });
+    }
+    if (reclassifyBtn) {
+      reclassifyBtn.addEventListener("click", (e) => {
+        const forceSearch = e.altKey || e.shiftKey;
+        runClassification(forceSearch);
+      });
+    }
+    try {
+      chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (s) => {
+        if (!isExtensionContextValid()) return;
+        if (s && s.geminiApiKey) {
+          if (reclassifyBtn) reclassifyBtn.style.display = "inline-flex";
+          if (s.autoClassify !== false) {
+            runClassification(false);
+          } else if (classifyBadge) {
+            classifyBadge.className = "ad-classify-badge ad-badge-dom";
+            classifyBadge.innerHTML = "\u2728 Run AI Tagging";
+            classifyBadge.title = "Click to classify categories using AI";
+            classifyBadge.addEventListener("click", () => runClassification(false), { once: true });
+          }
+        } else if (classifyBadge) {
+          classifyBadge.className = "ad-classify-badge ad-badge-setup";
+          classifyBadge.innerHTML = "\u2699\uFE0F Setup AI";
+          classifyBadge.title = "Click to enter your free Gemini API key";
+        }
+      });
+    } catch (_) {
     }
     const saveBtn = shadow.getElementById("ad-save-btn");
     let isSaving = false;
@@ -344,7 +637,8 @@
       const folderSelect = shadow.getElementById("ad-folder-select");
       const descInput = shadow.getElementById("ad-desc-input");
       if (tagInput && tagInput.value.trim()) {
-        addCategoryChip(tagInput.value.trim());
+        const val = tagInput.value.trim();
+        addCategoryChip(val, !availableCategories.includes(val));
       }
       const name = nameInput?.value.trim() || initialTitle;
       const url = urlInput?.value.trim() || initialUrl;
@@ -421,6 +715,12 @@
           e.preventDefault();
           e.stopPropagation();
           popup.classList.remove("ad-show");
+          return;
+        }
+        if (settingsDrawer && settingsDrawer.classList.contains("ad-show")) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeSettings();
           return;
         }
         e.preventDefault();

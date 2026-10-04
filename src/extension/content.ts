@@ -1,4 +1,11 @@
 import modalCss from './modal.css';
+import { extractPageContext } from './domExtractor';
+import {
+  ClassificationResult,
+  ExtensionSettings,
+  CachedFolder,
+  AppDirectoryState
+} from './types';
 
 // Clean up any stale modal or listeners from previous injections
 if (typeof (window as any).__APP_DIRECTORY_CLEANUP__ === 'function') {
@@ -7,21 +14,9 @@ if (typeof (window as any).__APP_DIRECTORY_CLEANUP__ === 'function') {
   } catch (_) {}
 }
 
-interface CachedFolder {
-  id: string;
-  name: string;
-  icon?: string;
-  color?: string;
-}
-
-interface AppDirectoryState {
-  folders: CachedFolder[];
-  categories: string[];
-}
-
 function detectFavicon(): string {
   const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel*="icon"]'));
-  const appleIcon = links.find(l => l.rel.includes('apple-touch-icon'));
+  const appleIcon = links.find((l) => l.rel.includes('apple-touch-icon'));
   if (appleIcon && appleIcon.href) return appleIcon.href;
 
   for (const link of links) {
@@ -45,9 +40,11 @@ function detectDescription(): string {
 
 function isExtensionContextValid(): boolean {
   try {
-    return typeof chrome !== 'undefined' &&
+    return (
+      typeof chrome !== 'undefined' &&
       typeof chrome.runtime !== 'undefined' &&
-      !!chrome.runtime.id;
+      !!chrome.runtime.id
+    );
   } catch {
     return false;
   }
@@ -115,7 +112,10 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
           <span class="ad-modal-title">Add to App Directory</span>
           <span class="ad-badge-local">Local DB</span>
         </div>
-        <button type="button" class="ad-close-btn" title="Close (Esc)">✕</button>
+        <div class="ad-header-actions">
+          <button type="button" class="ad-icon-btn" id="ad-settings-toggle-btn" title="Companion AI Settings">⚙️</button>
+          <button type="button" class="ad-close-btn" id="ad-close-btn" title="Close (Esc)">✕</button>
+        </div>
       </div>
 
       <div class="ad-modal-body">
@@ -139,7 +139,7 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
             <label class="ad-form-label" for="ad-folder-select">Folder</label>
             <select id="ad-folder-select" class="ad-select">
               <option value="">(None / Root)</option>
-              ${availableFolders.map(f => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.icon || '📁')} ${escapeHtml(f.name)}</option>`).join('')}
+              ${availableFolders.map((f) => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.icon || '📁')} ${escapeHtml(f.name)}</option>`).join('')}
             </select>
           </div>
 
@@ -153,10 +153,18 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
         </div>
 
         <div class="ad-form-group ad-categories-field">
-          <label class="ad-form-label">Categories</label>
+          <div class="ad-category-header-row">
+            <label class="ad-form-label" style="margin-bottom:0;">Categories</label>
+            <div class="ad-ai-status-group">
+              <span class="ad-classify-badge ad-badge-setup" id="ad-classify-badge" title="AI Tagging status">⚙️ Setup AI</span>
+              <button type="button" class="ad-reclassify-btn" id="ad-reclassify-btn" title="Re-classify with AI (Alt+Click to force Brave Search)" style="display:none;">↻</button>
+            </div>
+          </div>
           <div class="ad-tags-wrapper" id="ad-tags-wrapper">
             <input type="text" class="ad-tag-input" id="ad-tag-input" placeholder="Type category and press Enter..." autocomplete="off">
           </div>
+          <div class="ad-reasoning-card" id="ad-reasoning-card"></div>
+          <div class="ad-new-tags-notice" id="ad-new-tags-notice" style="display:none;"></div>
           <div class="ad-suggestions-popup" id="ad-suggestions-popup"></div>
         </div>
 
@@ -171,6 +179,48 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
         <div class="ad-btn-group">
           <button type="button" class="ad-btn ad-btn-secondary" id="ad-cancel-btn">Cancel</button>
           <button type="button" class="ad-btn ad-btn-primary" id="ad-save-btn">✓ Save to App</button>
+        </div>
+      </div>
+
+      <!-- Settings Drawer -->
+      <div class="ad-settings-drawer" id="ad-settings-drawer">
+        <div class="ad-settings-header">
+          <div class="ad-settings-title">⚙️ Companion AI Settings</div>
+          <button type="button" class="ad-icon-btn" id="ad-settings-close-btn" title="Back">✕</button>
+        </div>
+        <div class="ad-settings-body">
+          <div class="ad-form-group">
+            <label class="ad-form-label" for="ad-gemini-key-input">Google Gemini API Key (Free)</label>
+            <input type="password" id="ad-gemini-key-input" class="ad-input" placeholder="AIzaSy..." spellcheck="false">
+            <div class="ad-settings-hint">
+              Get a free API key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>. No credit card required.
+            </div>
+          </div>
+
+          <div class="ad-form-group">
+            <label class="ad-form-label" for="ad-gemini-model-select">Gemini Model</label>
+            <select id="ad-gemini-model-select" class="ad-select">
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash (Default - Fast & Free)</option>
+              <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest Flash)</option>
+            </select>
+          </div>
+
+          <div class="ad-form-group">
+            <label class="ad-form-label" for="ad-brave-key-input">Brave Search API Key (Optional Fallback)</label>
+            <input type="password" id="ad-brave-key-input" class="ad-input" placeholder="BSA..." spellcheck="false">
+            <div class="ad-settings-hint">
+              Used only when page text is sparse/auth-walled. Free tier (2,000 queries/mo) at <a href="https://brave.com/search/api/" target="_blank" rel="noopener">Brave Search API</a>.
+            </div>
+          </div>
+
+          <label class="ad-checkbox-row">
+            <input type="checkbox" id="ad-autoclassify-check" checked>
+            <span>Auto-classify categories on opening modal</span>
+          </label>
+        </div>
+        <div class="ad-settings-footer">
+          <button type="button" class="ad-btn ad-btn-secondary" id="ad-settings-cancel-btn">Cancel</button>
+          <button type="button" class="ad-btn ad-btn-primary" id="ad-settings-save-btn">Save Settings</button>
         </div>
       </div>
 
@@ -211,7 +261,7 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     setTimeout(() => host.remove(), 200);
   };
 
-  const closeBtn = shadow.querySelector('.ad-close-btn');
+  const closeBtn = shadow.getElementById('ad-close-btn');
   const cancelBtn = shadow.getElementById('ad-cancel-btn');
   if (closeBtn) closeBtn.addEventListener('click', closeModal);
   if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
@@ -220,7 +270,7 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     if (e.target === backdrop) closeModal();
   });
 
-  // Prevent all keyboard events inside the extension modal from leaking to the host webpage
+  // Prevent keyboard events inside modal from leaking to host webpage
   const stopKeyboardPropagation = (e: KeyboardEvent): void => {
     e.stopPropagation();
   };
@@ -232,7 +282,6 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   host.addEventListener('keydown', stopKeyboardPropagation);
   host.addEventListener('keyup', stopKeyboardPropagation);
   host.addEventListener('keypress', stopKeyboardPropagation);
-
 
   // Favorite toggle
   const favToggle = shadow.getElementById('ad-fav-toggle');
@@ -249,22 +298,42 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   const tagsWrapper = shadow.getElementById('ad-tags-wrapper');
   const tagInput = shadow.getElementById('ad-tag-input') as HTMLInputElement | null;
   const suggestionsPopup = shadow.getElementById('ad-suggestions-popup');
+  const newTagsNotice = shadow.getElementById('ad-new-tags-notice');
 
-  const addCategoryChip = (catName: string): void => {
+  const updateNewTagsNotice = (): void => {
+    if (!newTagsNotice) return;
+    const newTags = selectedCategories.filter((c) => !availableCategories.includes(c));
+    if (newTags.length > 0) {
+      newTagsNotice.style.display = 'flex';
+      newTagsNotice.textContent = `✦ ${newTags.length} new ${newTags.length === 1 ? 'category' : 'categories'} (${newTags.join(', ')}) will be added to your directory`;
+    } else {
+      newTagsNotice.style.display = 'none';
+      newTagsNotice.textContent = '';
+    }
+  };
+
+  const addCategoryChip = (catName: string, isNewTag = false): void => {
     const trimmed = catName.trim();
     if (!trimmed || selectedCategories.includes(trimmed)) return;
     selectedCategories.push(trimmed);
 
     const chip = document.createElement('span');
-    chip.className = 'ad-tag-chip';
+    chip.className = isNewTag ? 'ad-tag-chip ad-tag-chip-new' : 'ad-tag-chip';
     chip.setAttribute('data-tag', trimmed);
-    chip.innerHTML = `${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">✕</span>`;
+
+    if (isNewTag) {
+      chip.setAttribute('title', 'New category (does not exist in App Directory yet)');
+      chip.innerHTML = `<span style="font-weight:700;font-size:11px;opacity:0.9;">✦ NEW:</span> ${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">✕</span>`;
+    } else {
+      chip.innerHTML = `${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">✕</span>`;
+    }
 
     chip.querySelector('.ad-remove-tag')?.addEventListener('click', (e) => {
       e.stopPropagation();
       const idx = selectedCategories.indexOf(trimmed);
       if (idx !== -1) selectedCategories.splice(idx, 1);
       chip.remove();
+      updateNewTagsNotice();
       renderSuggestions();
     });
 
@@ -272,14 +341,16 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
       tagsWrapper.insertBefore(chip, tagInput);
       tagInput.value = '';
     }
+
+    updateNewTagsNotice();
   };
 
   const renderSuggestions = (): void => {
     if (!suggestionsPopup || !tagInput) return;
 
     const query = tagInput.value.trim().toLowerCase();
-    const unselected = availableCategories.filter(cat => !selectedCategories.includes(cat));
-    const matches = query ? unselected.filter(cat => cat.toLowerCase().includes(query)) : unselected;
+    const unselected = availableCategories.filter((cat) => !selectedCategories.includes(cat));
+    const matches = query ? unselected.filter((cat) => cat.toLowerCase().includes(query)) : unselected;
 
     suggestionsPopup.innerHTML = '';
     suggestionHighlightedIndex = -1;
@@ -299,7 +370,7 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
 
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        addCategoryChip(cat);
+        addCategoryChip(cat, false);
         tagInput.value = '';
         renderSuggestions();
         tagInput.focus();
@@ -323,62 +394,40 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   if (tagInput) {
     tagInput.addEventListener('keydown', (e: KeyboardEvent) => {
       const items = suggestionsPopup
-        ? Array.from(suggestionsPopup.querySelectorAll<HTMLElement>('.ad-suggestion-item'))
+        ? (Array.from(suggestionsPopup.querySelectorAll('.ad-suggestion-item')) as HTMLElement[])
         : [];
 
       if (e.key === 'ArrowDown') {
-        e.preventDefault();
         if (items.length > 0) {
+          e.preventDefault();
           suggestionHighlightedIndex = (suggestionHighlightedIndex + 1) % items.length;
           updateSuggestionHighlight(items);
         }
-        return;
-      }
-
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
         if (items.length > 0) {
-          suggestionHighlightedIndex = (suggestionHighlightedIndex - 1 + items.length) % items.length;
+          e.preventDefault();
+          suggestionHighlightedIndex =
+            (suggestionHighlightedIndex - 1 + items.length) % items.length;
           updateSuggestionHighlight(items);
         }
-        return;
-      }
-
-      // Allow Ctrl+Enter to save immediately even from within tag input
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
-        e.preventDefault();
-        e.stopPropagation();
-        doSave();
-        return;
-      }
-
-      if (e.key === 'Enter' || e.key === ',') {
+      } else if (e.key === 'Enter') {
         e.preventDefault();
         if (suggestionHighlightedIndex >= 0 && items[suggestionHighlightedIndex]) {
-          const selectedName = items[suggestionHighlightedIndex].querySelector('.ad-suggest-tag-name')?.textContent;
-          if (selectedName) {
-            addCategoryChip(selectedName);
-          }
+          items[suggestionHighlightedIndex].dispatchEvent(new MouseEvent('mousedown'));
         } else if (tagInput.value.trim()) {
-          addCategoryChip(tagInput.value.trim());
+          const val = tagInput.value.trim();
+          const isNew = !availableCategories.includes(val);
+          addCategoryChip(val, isNew);
+          tagInput.value = '';
+          renderSuggestions();
         }
-        tagInput.value = '';
-        renderSuggestions();
-        return;
-      }
-
-      if (e.key === 'Escape' && suggestionsPopup?.classList.contains('ad-show')) {
-        e.stopPropagation();
-        suggestionsPopup.classList.remove('ad-show');
-        return;
-      }
-
-      if (e.key === 'Backspace' && tagInput.value === '' && selectedCategories.length > 0) {
-        selectedCategories.pop();
-        const chips = tagsWrapper?.querySelectorAll('.ad-tag-chip');
-        if (chips && chips.length > 0) {
-          chips[chips.length - 1].remove();
+      } else if (e.key === 'Backspace' && !tagInput.value && selectedCategories.length > 0) {
+        const removed = selectedCategories.pop();
+        if (removed && tagsWrapper) {
+          const chips = tagsWrapper.querySelectorAll('.ad-tag-chip');
+          if (chips.length > 0) chips[chips.length - 1].remove();
         }
+        updateNewTagsNotice();
         renderSuggestions();
       }
     });
@@ -398,7 +447,191 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     });
   }
 
-  // Save handler
+  // ── Settings Drawer Logic ─────────────────────────────────
+  const settingsDrawer = shadow.getElementById('ad-settings-drawer');
+  const settingsToggleBtn = shadow.getElementById('ad-settings-toggle-btn');
+  const settingsCloseBtn = shadow.getElementById('ad-settings-close-btn');
+  const settingsCancelBtn = shadow.getElementById('ad-settings-cancel-btn');
+  const settingsSaveBtn = shadow.getElementById('ad-settings-save-btn');
+
+  const geminiKeyInput = shadow.getElementById('ad-gemini-key-input') as HTMLInputElement | null;
+  const geminiModelSelect = shadow.getElementById('ad-gemini-model-select') as HTMLSelectElement | null;
+  const braveKeyInput = shadow.getElementById('ad-brave-key-input') as HTMLInputElement | null;
+  const autoclassifyCheck = shadow.getElementById('ad-autoclassify-check') as HTMLInputElement | null;
+
+  const openSettings = (): void => {
+    if (!settingsDrawer) return;
+    chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (s: ExtensionSettings) => {
+      if (geminiKeyInput && s) geminiKeyInput.value = s.geminiApiKey || '';
+      if (geminiModelSelect && s) geminiModelSelect.value = s.geminiModel || 'gemini-2.5-flash';
+      if (braveKeyInput && s) braveKeyInput.value = s.braveApiKey || '';
+      if (autoclassifyCheck && s) autoclassifyCheck.checked = s.autoClassify !== false;
+      settingsDrawer.classList.add('ad-show');
+    });
+  };
+
+  const closeSettings = (): void => {
+    if (settingsDrawer) settingsDrawer.classList.remove('ad-show');
+  };
+
+  if (settingsToggleBtn) settingsToggleBtn.addEventListener('click', openSettings);
+  if (settingsCloseBtn) settingsCloseBtn.addEventListener('click', closeSettings);
+  if (settingsCancelBtn) settingsCancelBtn.addEventListener('click', closeSettings);
+
+  if (settingsSaveBtn) {
+    settingsSaveBtn.addEventListener('click', () => {
+      const newSettings: ExtensionSettings = {
+        geminiApiKey: geminiKeyInput?.value.trim() || '',
+        geminiModel: geminiModelSelect?.value || 'gemini-2.5-flash',
+        braveApiKey: braveKeyInput?.value.trim() || '',
+        autoClassify: autoclassifyCheck?.checked ?? true
+      };
+
+      chrome.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: newSettings }, () => {
+        closeSettings();
+        if (newSettings.geminiApiKey) {
+          // If tags were empty, auto-run classification now
+          if (selectedCategories.length === 0) {
+            runClassification(false);
+          }
+        }
+      });
+    });
+  }
+
+  // ── AI Classification Logic ───────────────────────────────
+  const classifyBadge = shadow.getElementById('ad-classify-badge');
+  const reclassifyBtn = shadow.getElementById('ad-reclassify-btn');
+  const reasoningCard = shadow.getElementById('ad-reasoning-card');
+
+  const runClassification = (forceSearch = false): void => {
+    if (!classifyBadge) return;
+
+    classifyBadge.className = 'ad-classify-badge ad-badge-loading';
+    classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> AI classifying...`;
+    classifyBadge.title = 'Analyzing page content and matching taxonomy...';
+
+    if (reclassifyBtn) {
+      reclassifyBtn.classList.add('is-spinning');
+      reclassifyBtn.style.display = 'inline-flex';
+    }
+
+    const pageContext = extractPageContext();
+
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: 'CLASSIFY_WEBSITE',
+          pageContext,
+          availableCategories,
+          forceSearch
+        },
+        (res: ClassificationResult) => {
+          if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
+          if (!isExtensionContextValid()) return;
+
+          if (!res || !res.success) {
+            if (res?.error === 'NO_API_KEY') {
+              classifyBadge.className = 'ad-classify-badge ad-badge-setup';
+              classifyBadge.innerHTML = '⚙️ Setup AI';
+              classifyBadge.title = 'Click to set up your free Gemini API key';
+              if (reclassifyBtn) reclassifyBtn.style.display = 'none';
+            } else if (res?.error === 'RATE_LIMIT_EXCEEDED') {
+              classifyBadge.className = 'ad-classify-badge ad-badge-error';
+              classifyBadge.innerHTML = '⚠️ Rate Limit';
+              classifyBadge.title = 'Exceeded free tier requests per minute. Wait a moment and retry.';
+            } else if (res?.error === 'INVALID_API_KEY') {
+              classifyBadge.className = 'ad-classify-badge ad-badge-error';
+              classifyBadge.innerHTML = '⚠️ Invalid Key';
+              classifyBadge.title = 'The Gemini API key provided is invalid or inactive.';
+            } else {
+              classifyBadge.className = 'ad-classify-badge ad-badge-error';
+              classifyBadge.innerHTML = '⚠️ AI Failed';
+              classifyBadge.title = res?.error || 'Classification failed';
+            }
+            return;
+          }
+
+          // Successful classification!
+          if (reclassifyBtn) reclassifyBtn.style.display = 'inline-flex';
+
+          if (res.method === 'BRAVE_GROUNDED') {
+            classifyBadge.className = 'ad-classify-badge ad-badge-brave';
+            classifyBadge.innerHTML = '🔍 AI: Brave Search';
+            classifyBadge.title = res.reasoning
+              ? `Brave Search Grounded: ${res.reasoning} (Click to toggle reasoning)`
+              : 'Classified using Brave Search results (Click to toggle reasoning)';
+          } else {
+            classifyBadge.className = 'ad-classify-badge ad-badge-dom';
+            classifyBadge.innerHTML = '✨ AI: Direct DOM';
+            classifyBadge.title = res.reasoning
+              ? `Direct DOM: ${res.reasoning} (Click to toggle reasoning)`
+              : 'Classified directly from page text & metadata (Click to toggle reasoning)';
+          }
+
+          if (reasoningCard && res.reasoning) {
+            reasoningCard.textContent = `💡 ${res.reasoning}`;
+          }
+
+          // Populate recommended tags
+          if (Array.isArray(res.recommendedTags)) {
+            for (const tag of res.recommendedTags) {
+              const isNew = !availableCategories.includes(tag) || tag === res.suggestedNewTag;
+              addCategoryChip(tag, isNew);
+            }
+          }
+        }
+      );
+    } catch (_) {
+      if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
+      if (classifyBadge) {
+        classifyBadge.className = 'ad-classify-badge ad-badge-error';
+        classifyBadge.innerHTML = '⚠️ Error';
+      }
+    }
+  };
+
+  if (classifyBadge) {
+    classifyBadge.addEventListener('click', () => {
+      if (classifyBadge.classList.contains('ad-badge-setup') || classifyBadge.classList.contains('ad-badge-error')) {
+        openSettings();
+      } else if (reasoningCard && reasoningCard.textContent) {
+        reasoningCard.classList.toggle('ad-show');
+      }
+    });
+  }
+
+  if (reclassifyBtn) {
+    reclassifyBtn.addEventListener('click', (e: MouseEvent) => {
+      // If user holds Alt or Shift, force Brave search fallback
+      const forceSearch = e.altKey || e.shiftKey;
+      runClassification(forceSearch);
+    });
+  }
+
+  // Check settings on open to determine whether to auto-run AI classification
+  try {
+    chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (s: ExtensionSettings) => {
+      if (!isExtensionContextValid()) return;
+      if (s && s.geminiApiKey) {
+        if (reclassifyBtn) reclassifyBtn.style.display = 'inline-flex';
+        if (s.autoClassify !== false) {
+          runClassification(false);
+        } else if (classifyBadge) {
+          classifyBadge.className = 'ad-classify-badge ad-badge-dom';
+          classifyBadge.innerHTML = '✨ Run AI Tagging';
+          classifyBadge.title = 'Click to classify categories using AI';
+          classifyBadge.addEventListener('click', () => runClassification(false), { once: true });
+        }
+      } else if (classifyBadge) {
+        classifyBadge.className = 'ad-classify-badge ad-badge-setup';
+        classifyBadge.innerHTML = '⚙️ Setup AI';
+        classifyBadge.title = 'Click to enter your free Gemini API key';
+      }
+    });
+  } catch (_) {}
+
+  // ── Save Handler ──────────────────────────────────────────
   const saveBtn = shadow.getElementById('ad-save-btn');
   let isSaving = false;
 
@@ -420,7 +653,8 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     const descInput = shadow.getElementById('ad-desc-input') as HTMLTextAreaElement | null;
 
     if (tagInput && tagInput.value.trim()) {
-      addCategoryChip(tagInput.value.trim());
+      const val = tagInput.value.trim();
+      addCategoryChip(val, !availableCategories.includes(val));
     }
 
     const name = nameInput?.value.trim() || initialTitle;
@@ -461,7 +695,7 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
         try {
           if (!isExtensionContextValid()) return;
 
-          // In case of unexpected failure, cancel the close timer and display error
+          // In case of unexpected failure, cancel close timer and display error
           if (chrome.runtime.lastError || (res && res.success === false)) {
             if (closeTimer) {
               clearTimeout(closeTimer);
@@ -516,6 +750,12 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
         e.preventDefault();
         e.stopPropagation();
         popup.classList.remove('ad-show');
+        return;
+      }
+      if (settingsDrawer && settingsDrawer.classList.contains('ad-show')) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeSettings();
         return;
       }
       e.preventDefault();

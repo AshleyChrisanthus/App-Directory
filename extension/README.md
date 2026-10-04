@@ -52,9 +52,36 @@ Because Chrome restricts extensions from interacting with local `file://` URLs b
 
 ---
 
+## ✨ Automated AI Category Classification
+
+The Companion extension includes an automated **AI Website Taxonomy Classifier** powered by Google Gemini (Free Tier) and an optional Brave Search API fallback:
+
+### ⚙️ Quick Setup (Inside the Modal)
+1. Press `Alt + A` on any website to bring up the modal.
+2. Click the **⚙️** icon in the modal header (or the `⚙️ Setup AI` button next to Categories).
+3. Paste your free Google AI Studio key:
+   - Get one free at [Google AI Studio](https://aistudio.google.com/app/apikey) (no credit card required).
+4. *(Optional)* Paste a Brave Search API key from [Brave Search API](https://brave.com/search/api/) (2,000 free queries/month) for grounding on sparse/auth-walled pages.
+5. Click **Save Settings**.
+
+### 🏷️ How Automated Tagging Works
+* **Zero-Click Auto-Classification:** Whenever you open the modal on any webpage, the extension extracts the page's headings, meta tags, schema.org data, and visible text, feeding it to Gemini Flash in ~500ms.
+* **Method Attribution Badge:**
+  - `✨ AI: Direct DOM`: Inferred directly from the live page text and metadata.
+  - `🔍 AI: Brave Search`: Grounded via Brave Search (for sparse landing pages or when forced).
+  - Hover or click the badge to view the AI's 1-line taxonomy rationale!
+* **New Category Distinction:**
+  - If a recommended tag already exists in your directory, it renders as a regular tag chip.
+  - If a recommended tag is brand new, it is highlighted as `[ ✦ NEW: TagName ✕ ]` with a clear notice.
+* **Instant Continuity:** Saving any website with a new category immediately syncs it to the extension's cached categories, so it is automatically included in the prompt for all subsequent websites!
+* **Manual Re-Run / Force Search:** Click the `↻` button to re-run AI tagging, or `Alt+Click` `↻` to force Brave Search grounding.
+
+---
+
 ## 🔄 How Synchronization Works
 
 - **If your local App Directory (`index.html`) is currently open in a tab:**
   The extension sends the new bookmark directly to that tab. It saves immediately into IndexedDB and refreshes the view in real-time.
 - **If your local App Directory is closed:**
   The extension securely queues the bookmark in `chrome.storage.local`. As soon as you open your local `index.html`, it automatically ingests the queued bookmarks and notifies you with a toast!
+

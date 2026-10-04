@@ -1,9 +1,16 @@
 // Manifest V3 Background Service Worker for App Directory Companion Extension
 
+import { TAXONOMY_SYSTEM_PROMPT, buildTaxonomyUserPrompt } from './taxonomy';
+import { ExtractedPageContext, ExtensionSettings } from './types';
+
 const STORAGE_KEYS = {
   CACHED_FOLDERS: 'ad_cached_folders',
   CACHED_CATEGORIES: 'ad_cached_categories',
-  PENDING_BOOKMARKS: 'ad_pending_bookmarks'
+  PENDING_BOOKMARKS: 'ad_pending_bookmarks',
+  SETTINGS_GEMINI_KEY: 'ad_gemini_api_key',
+  SETTINGS_GEMINI_MODEL: 'ad_gemini_model',
+  SETTINGS_BRAVE_KEY: 'ad_brave_api_key',
+  SETTINGS_AUTO_CLASSIFY: 'ad_auto_classify'
 };
 
 // ── Tab Identification Helpers ────────────────────────────
@@ -100,7 +107,7 @@ chrome.action.onClicked.addListener((tab) => {
   triggerModalOnActiveTab(tab);
 });
 
-// Keyboard shortcut (Alt+D)
+// Keyboard shortcut (Alt+A / Alt+D)
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'add-to-app-directory') {
     triggerModalOnActiveTab();
@@ -129,6 +136,173 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       });
       sendResponse({ success: true });
       return false;
+    }
+
+    case 'GET_SETTINGS': {
+      chrome.storage.local.get([
+        STORAGE_KEYS.SETTINGS_GEMINI_KEY,
+        STORAGE_KEYS.SETTINGS_GEMINI_MODEL,
+        STORAGE_KEYS.SETTINGS_BRAVE_KEY,
+        STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY
+      ], (res) => {
+        sendResponse({
+          geminiApiKey: res[STORAGE_KEYS.SETTINGS_GEMINI_KEY] || '',
+          geminiModel: res[STORAGE_KEYS.SETTINGS_GEMINI_MODEL] || 'gemini-2.5-flash',
+          braveApiKey: res[STORAGE_KEYS.SETTINGS_BRAVE_KEY] || '',
+          autoClassify: res[STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY] !== false
+        });
+      });
+      return true;
+    }
+
+    case 'SAVE_SETTINGS': {
+      const s = message.settings || {};
+      chrome.storage.local.set({
+        [STORAGE_KEYS.SETTINGS_GEMINI_KEY]: s.geminiApiKey || '',
+        [STORAGE_KEYS.SETTINGS_GEMINI_MODEL]: s.geminiModel || 'gemini-2.5-flash',
+        [STORAGE_KEYS.SETTINGS_BRAVE_KEY]: s.braveApiKey || '',
+        [STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY]: s.autoClassify !== false
+      }, () => {
+        sendResponse({ success: true });
+      });
+      return true;
+    }
+
+    case 'CLASSIFY_WEBSITE': {
+      (async () => {
+        try {
+          const pageContext: ExtractedPageContext = message.pageContext;
+          const availableCategories: string[] = Array.isArray(message.availableCategories)
+            ? message.availableCategories
+            : [];
+          const forceSearch: boolean = !!message.forceSearch;
+
+          const res = await chrome.storage.local.get([
+            STORAGE_KEYS.SETTINGS_GEMINI_KEY,
+            STORAGE_KEYS.SETTINGS_GEMINI_MODEL,
+            STORAGE_KEYS.SETTINGS_BRAVE_KEY
+          ]);
+
+          const geminiApiKey = String(res[STORAGE_KEYS.SETTINGS_GEMINI_KEY] || '').trim();
+          const geminiModel = String(res[STORAGE_KEYS.SETTINGS_GEMINI_MODEL] || 'gemini-2.5-flash').trim();
+          const braveApiKey = String(res[STORAGE_KEYS.SETTINGS_BRAVE_KEY] || '').trim();
+
+          if (!geminiApiKey) {
+            sendResponse({ success: false, error: 'NO_API_KEY' });
+            return;
+          }
+
+          let searchSnippets: string[] = [];
+          let method: 'DOM_DIRECT' | 'BRAVE_GROUNDED' = 'DOM_DIRECT';
+
+          // Determine if Brave Search should be queried
+          const shouldSearch = (pageContext?.isSparse || forceSearch) && !!braveApiKey;
+          if (shouldSearch) {
+            try {
+              const query = `${pageContext.title} ${pageContext.hostname} what is it product summary`;
+              const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=4`;
+              const braveResp = await fetch(braveUrl, {
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Subscription-Token': braveApiKey
+                }
+              });
+              if (braveResp.ok) {
+                const braveData = await braveResp.json();
+                const results = braveData.web?.results || [];
+                for (const r of results) {
+                  if (r.title && r.description) {
+                    searchSnippets.push(`${r.title}: ${r.description}`);
+                  }
+                }
+                if (searchSnippets.length > 0) {
+                  method = 'BRAVE_GROUNDED';
+                }
+              }
+            } catch (bErr) {
+              console.warn('[AppDirectory] Brave Search failed, falling back to DOM text:', bErr);
+            }
+          }
+
+          // Build prompt
+          const userPrompt = buildTaxonomyUserPrompt(
+            pageContext,
+            availableCategories,
+            searchSnippets
+          );
+
+          // Query Gemini API
+          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
+          const payload = {
+            system_instruction: {
+              parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
+            },
+            contents: [
+              {
+                role: 'user',
+                parts: [{ text: userPrompt }]
+              }
+            ],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              temperature: 0.15
+            }
+          };
+
+          const response = await fetch(geminiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            const errBody = await response.text();
+            console.error('[AppDirectory] Gemini API error:', response.status, errBody);
+            if (response.status === 429) {
+              sendResponse({ success: false, error: 'RATE_LIMIT_EXCEEDED' });
+            } else if (response.status === 400 || response.status === 403) {
+              sendResponse({ success: false, error: 'INVALID_API_KEY' });
+            } else {
+              sendResponse({ success: false, error: `API_ERROR_${response.status}` });
+            }
+            return;
+          }
+
+          const data = await response.json();
+          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!rawText) {
+            sendResponse({ success: false, error: 'NO_RESPONSE_TEXT' });
+            return;
+          }
+
+          let parsed: any;
+          try {
+            parsed = JSON.parse(rawText);
+          } catch (pErr) {
+            console.error('[AppDirectory] Failed to parse JSON from Gemini:', rawText);
+            sendResponse({ success: false, error: 'PARSE_ERROR' });
+            return;
+          }
+
+          const recommendedTags: string[] = Array.isArray(parsed.recommendedTags)
+            ? parsed.recommendedTags.map((t: any) => String(t).trim()).filter(Boolean)
+            : [];
+          const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning.trim() : '';
+          const suggestedNewTag = parsed.suggestedNewTag ? String(parsed.suggestedNewTag).trim() : null;
+
+          sendResponse({
+            success: true,
+            method,
+            recommendedTags,
+            reasoning,
+            suggestedNewTag
+          });
+        } catch (err: any) {
+          console.error('[AppDirectory] Classification exception:', err);
+          sendResponse({ success: false, error: err?.message || 'UNKNOWN_ERROR' });
+        }
+      })();
+      return true; // Async response
     }
 
     case 'GET_PENDING_BOOKMARKS': {
@@ -217,6 +391,28 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         if (!entry) {
           sendResponse({ success: false, error: 'No entry provided' });
           return;
+        }
+
+        // Synchronize newly added categories to CACHED_CATEGORIES immediately
+        if (Array.isArray(entry.categories) && entry.categories.length > 0) {
+          chrome.storage.local.get([STORAGE_KEYS.CACHED_CATEGORIES], (catRes) => {
+            const rawCats = catRes[STORAGE_KEYS.CACHED_CATEGORIES];
+            const existingCats: string[] = Array.isArray(rawCats)
+              ? [...(rawCats as string[])]
+              : [];
+            let updated = false;
+            for (const cat of entry.categories) {
+              const trimmed = (cat || '').trim();
+              if (trimmed && !existingCats.includes(trimmed)) {
+                existingCats.push(trimmed);
+                updated = true;
+              }
+            }
+            if (updated) {
+              existingCats.sort((a, b) => a.localeCompare(b));
+              chrome.storage.local.set({ [STORAGE_KEYS.CACHED_CATEGORIES]: existingCats });
+            }
+          });
         }
 
         // Broadcast to all currently open App Directory tabs (local, localhost, hosted)

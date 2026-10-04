@@ -99,11 +99,17 @@
   border-radius: 4px;
 }
 
-.ad-close-btn {
+.ad-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ad-icon-btn, .ad-close-btn {
   background: transparent;
   border: none;
   color: #94a3b8;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   width: 28px;
   height: 28px;
@@ -114,7 +120,7 @@
   transition: all 0.15s ease;
 }
 
-.ad-close-btn:hover {
+.ad-icon-btn:hover, .ad-close-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #ffffff;
 }
@@ -468,4 +474,244 @@
   0% { transform: scale(0.5); opacity: 0; }
   70% { transform: scale(1.1); }
   100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Category Header & AI Classification Badges ────────────── */
+.ad-category-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.ad-ai-status-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ad-classify-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.2px;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.ad-classify-badge.ad-badge-dom {
+  background: rgba(52, 199, 89, 0.16);
+  color: #34c759;
+  border: 1px solid rgba(52, 199, 89, 0.35);
+  cursor: pointer;
+}
+
+.ad-classify-badge.ad-badge-dom:hover {
+  background: rgba(52, 199, 89, 0.26);
+}
+
+.ad-classify-badge.ad-badge-brave {
+  background: rgba(255, 159, 10, 0.16);
+  color: #ff9f0a;
+  border: 1px solid rgba(255, 159, 10, 0.35);
+  cursor: pointer;
+}
+
+.ad-classify-badge.ad-badge-brave:hover {
+  background: rgba(255, 159, 10, 0.26);
+}
+
+.ad-classify-badge.ad-badge-loading {
+  background: rgba(10, 132, 255, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(10, 132, 255, 0.3);
+}
+
+.ad-classify-badge.ad-badge-setup {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+
+.ad-classify-badge.ad-badge-setup:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.ad-classify-badge.ad-badge-error {
+  background: rgba(255, 59, 48, 0.16);
+  color: #ff453a;
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  cursor: pointer;
+}
+
+.ad-reclassify-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.ad-reclassify-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.ad-reclassify-btn.is-spinning {
+  animation: adSpin 0.75s linear infinite;
+}
+
+@keyframes adSpin {
+  100% { transform: rotate(360deg); }
+}
+
+.ad-spinner-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid rgba(96, 165, 250, 0.3);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: adSpin 0.7s linear infinite;
+}
+
+/* AI Reasoning Card / Popover */
+.ad-reasoning-card {
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 3px solid #0a84ff;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.45;
+  display: none;
+}
+
+.ad-reasoning-card.ad-show {
+  display: block;
+}
+
+/* New Category Tag Chip highlight */
+.ad-tag-chip.ad-tag-chip-new {
+  background: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(255, 159, 10, 0.14));
+  border: 1px solid rgba(255, 214, 10, 0.55);
+  color: #ffd60a;
+  box-shadow: 0 0 10px rgba(255, 214, 10, 0.15);
+}
+
+.ad-tag-chip.ad-tag-chip-new .ad-remove-tag:hover {
+  color: #ff453a;
+}
+
+.ad-new-tags-notice {
+  font-size: 11px;
+  color: #ffd60a;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+/* Settings Drawer / View inside modal */
+.ad-settings-drawer {
+  position: absolute;
+  inset: 0;
+  background: rgba(18, 24, 38, 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ad-settings-drawer.ad-show {
+  transform: translateX(0);
+}
+
+.ad-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ad-settings-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ad-settings-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ad-settings-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.ad-settings-hint a {
+  color: #0a84ff;
+  text-decoration: none;
+}
+
+.ad-settings-hint a:hover {
+  text-decoration: underline;
+}
+
+.ad-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: #cbd5e1;
+  margin-top: 4px;
+}
+
+.ad-checkbox-row input {
+  accent-color: #0a84ff;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.ad-settings-footer {
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
 }
