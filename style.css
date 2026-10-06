@@ -5853,6 +5853,90 @@ body.app-is-locked > *:not(#appLockOverlay) {
   color: #ef4444;
 }
 
+.settings-action-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-fallback-section {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
+.settings-fallback-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.settings-fallback-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-fallback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-fallback-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  animation: fadeIn 0.2s ease-out;
+}
+
+.fallback-badge-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.settings-fallback-item-select {
+  flex: 1;
+  font-size: 0.82rem;
+  padding: 4px 8px;
+  min-width: 0;
+}
+
+.remove-fallback-btn {
+  padding: 2px 6px;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.remove-fallback-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.fallback-empty-hint {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-tertiary);
+  padding: 6px 0;
+}
+
 .settings-about-details {
   display: flex;
   flex-direction: column;

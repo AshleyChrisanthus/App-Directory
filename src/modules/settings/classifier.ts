@@ -1,17 +1,22 @@
 import { getSettings } from './manager';
 import { TAXONOMY_SYSTEM_PROMPT, buildTaxonomyUserPrompt } from '../../extension/taxonomy';
-import { ExtractedPageContext, ClassificationResult } from '../../extension/types';
+import {
+  ExtractedPageContext,
+  ClassificationResult,
+  ClassificationProgressEvent,
+  ModelAuditEntry
+} from '../../extension/types';
 
 export async function classifyBookmarkWithAI(
   url: string,
   title: string,
   description: string = '',
   availableCategories: string[],
-  forceSearch: boolean = false
+  forceSearch: boolean = false,
+  onProgress?: (event: ClassificationProgressEvent) => void
 ): Promise<ClassificationResult> {
   const settings = getSettings();
   const geminiApiKey = settings.geminiApiKey?.trim();
-  const selectedModel = settings.geminiModel || 'gemini-2.5-flash';
   const braveApiKey = settings.braveApiKey?.trim();
 
   if (!geminiApiKey) {
@@ -48,6 +53,11 @@ export async function classifyBookmarkWithAI(
 
   // If description is sparse and Brave Search is available, ground classification with search results
   if ((isSparse || forceSearch) && braveApiKey) {
+    onProgress?.({
+      stage: 'BRAVE_SEARCH',
+      message: 'Grounding with Brave Search results...'
+    });
+
     try {
       const query = `${title || hostname} ${hostname} what is it product summary`;
       const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=4`;
@@ -76,99 +86,232 @@ export async function classifyBookmarkWithAI(
 
   const userPrompt = buildTaxonomyUserPrompt(pageContext, availableCategories, searchSnippets);
 
-  // Helper to query Gemini API
-  async function callGemini(modelToUse: string): Promise<Response> {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelToUse)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
-    return fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: userPrompt }]
-          }
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          temperature: 0.2
-        }
-      })
+  // Construct ordered list of models to try
+  const modelsToTry: string[] = [];
+  if (settings.geminiModel && settings.geminiModel.trim()) {
+    modelsToTry.push(settings.geminiModel.trim());
+  }
+  if (Array.isArray(settings.geminiFallbackModels)) {
+    for (const fm of settings.geminiFallbackModels) {
+      const trimmed = (fm || '').trim();
+      if (trimmed && !modelsToTry.includes(trimmed)) {
+        modelsToTry.push(trimmed);
+      }
+    }
+  }
+  if (modelsToTry.length === 0) {
+    modelsToTry.push('gemini-2.5-flash');
+  }
+
+  const auditChain: ModelAuditEntry[] = [];
+  let lastError = 'UNKNOWN_ERROR';
+
+  for (let idx = 0; idx < modelsToTry.length; idx++) {
+    const currentModel = modelsToTry[idx];
+    const isPrimary = idx === 0;
+
+    onProgress?.({
+      stage: 'ATTEMPTING',
+      model: currentModel,
+      attemptIndex: idx + 1,
+      totalModels: modelsToTry.length,
+      message: isPrimary
+        ? `Querying primary model (${currentModel})...`
+        : `Querying fallback model (${currentModel})...`
     });
-  }
 
-  let effectiveModel = selectedModel;
-  let response = await callGemini(effectiveModel);
+    const startTime = Date.now();
+    let response: Response | null = null;
+    let fetchError: any = null;
 
-  // Automatic 503 fallback: If gemini-3.8-flash returns 503 (service overloaded), fallback to gemini-2.5-flash
-  if (response.status === 503 && effectiveModel === 'gemini-3.8-flash') {
-    console.warn('[Classifier] gemini-3.8-flash returned 503 (overloaded). Falling back to gemini-2.5-flash...');
-    effectiveModel = 'gemini-2.5-flash';
-    response = await callGemini(effectiveModel);
-  }
-
-  if (!response.ok) {
-    if (response.status === 429) {
-      return { success: false, error: 'RATE_LIMIT_EXCEEDED', recommendedTags: [] };
-    } else if (response.status === 400 || response.status === 403) {
-      return { success: false, error: 'INVALID_API_KEY', recommendedTags: [] };
-    } else if (response.status === 503) {
-      return { success: false, error: 'SERVICE_OVERLOADED_503', recommendedTags: [] };
-    } else {
-      return { success: false, error: `API_ERROR_${response.status}`, recommendedTags: [] };
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: userPrompt }]
+            }
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+            temperature: 0.15
+          }
+        })
+      });
+    } catch (err) {
+      fetchError = err;
     }
-  }
 
-  try {
-    const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      return { success: false, error: 'NO_RESPONSE_TEXT', recommendedTags: [] };
-    }
+    const latencyMs = Date.now() - startTime;
 
-    const parsed = JSON.parse(rawText);
+    // Check if network failed or server threw an error
+    if (fetchError || !response || !response.ok) {
+      const status = response ? response.status : 0;
+      let errorReason = 'NETWORK_ERROR';
 
-    const recommendedTags: string[] = Array.isArray(parsed.recommendedTags)
-      ? parsed.recommendedTags.map((t: any) => String(t).trim()).filter(Boolean)
-      : [];
+      if (status === 429) {
+        errorReason = 'RATE_LIMIT_EXCEEDED';
+      } else if (status === 503) {
+        errorReason = 'SERVICE_OVERLOADED_503';
+      } else if (status === 400 || status === 403) {
+        errorReason = 'INVALID_API_KEY';
+      } else if (status > 0) {
+        errorReason = `HTTP_${status}`;
+      }
 
-    const newTags: string[] = [];
-    if (Array.isArray(parsed.newTags)) {
-      for (const nt of parsed.newTags) {
-        const trimmed = String(nt).trim();
-        if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+      auditChain.push({
+        model: currentModel,
+        status: 'FAILED',
+        error: errorReason,
+        latencyMs
+      });
+
+      lastError = errorReason;
+
+      // If invalid key, no point in trying other models
+      if (errorReason === 'INVALID_API_KEY') {
+        onProgress?.({
+          stage: 'ERROR',
+          model: currentModel,
+          errorReason,
+          message: 'Invalid Gemini API Key.'
+        });
+        return {
+          success: false,
+          error: 'INVALID_API_KEY',
+          recommendedTags: [],
+          auditChain
+        };
+      }
+
+      // Check if we can cascade to another model in the fallback chain
+      const hasNext = idx + 1 < modelsToTry.length;
+      if (hasNext) {
+        const nextModel = modelsToTry[idx + 1];
+        const friendlyReason = status === 429
+          ? 'Rate limited (429)'
+          : status === 503
+          ? 'Server overloaded (503)'
+          : `Unavailable (${errorReason})`;
+
+        onProgress?.({
+          stage: 'FALLBACK_SWITCH',
+          model: currentModel,
+          targetModel: nextModel,
+          errorReason,
+          attemptIndex: idx + 1,
+          totalModels: modelsToTry.length,
+          message: `⚠️ ${currentModel} ${friendlyReason} → Trying ${nextModel}...`
+        });
+
+        // Continue loop to try next model in fallback chain
+        continue;
+      } else {
+        // Last model failed
+        onProgress?.({
+          stage: 'ERROR',
+          model: currentModel,
+          errorReason,
+          message: `All configured models failed. Last error: ${errorReason}`
+        });
+        return {
+          success: false,
+          error: lastError,
+          recommendedTags: [],
+          auditChain
+        };
       }
     }
-    if (parsed.suggestedNewTag) {
-      const snt = String(parsed.suggestedNewTag).trim();
-      if (snt && snt.toLowerCase() !== 'null' && snt.toLowerCase() !== 'none' && !newTags.includes(snt)) {
-        newTags.push(snt);
+
+    // Success response parsing
+    try {
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        auditChain.push({
+          model: currentModel,
+          status: 'FAILED',
+          error: 'NO_RESPONSE_TEXT',
+          latencyMs
+        });
+        continue;
       }
-    }
 
-    // Ensure any proposed new tag is present in recommendedTags
-    for (const nt of newTags) {
-      if (!recommendedTags.includes(nt)) {
-        recommendedTags.push(nt);
+      const parsed = JSON.parse(rawText);
+
+      const recommendedTags: string[] = Array.isArray(parsed.recommendedTags)
+        ? parsed.recommendedTags.map((t: any) => String(t).trim()).filter(Boolean)
+        : [];
+
+      const newTags: string[] = [];
+      if (Array.isArray(parsed.newTags)) {
+        for (const nt of parsed.newTags) {
+          const trimmed = String(nt).trim();
+          if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+        }
       }
+      if (parsed.suggestedNewTag) {
+        const snt = String(parsed.suggestedNewTag).trim();
+        if (snt && snt.toLowerCase() !== 'null' && snt.toLowerCase() !== 'none' && !newTags.includes(snt)) {
+          newTags.push(snt);
+        }
+      }
+
+      // Ensure any suggested new tag is in recommendedTags
+      for (const nt of newTags) {
+        if (!recommendedTags.includes(nt)) {
+          recommendedTags.push(nt);
+        }
+      }
+
+      const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning.trim() : '';
+
+      auditChain.push({
+        model: currentModel,
+        status: 'SUCCESS',
+        latencyMs
+      });
+
+      onProgress?.({
+        stage: 'SUCCESS',
+        model: currentModel,
+        message: `Classified via ${currentModel} (${latencyMs}ms)`
+      });
+
+      return {
+        success: true,
+        method,
+        recommendedTags,
+        newTags,
+        reasoning,
+        suggestedNewTag: newTags[0] || null,
+        modelUsed: currentModel,
+        auditChain
+      };
+    } catch (parseErr: any) {
+      console.warn(`[Classifier] Parse error from ${currentModel}:`, parseErr);
+      auditChain.push({
+        model: currentModel,
+        status: 'FAILED',
+        error: 'PARSE_ERROR',
+        latencyMs
+      });
+      // Try next model if available
+      continue;
     }
-
-    const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning.trim() : '';
-
-    return {
-      success: true,
-      method,
-      recommendedTags,
-      newTags,
-      reasoning,
-      suggestedNewTag: newTags[0] || null,
-      modelUsed: effectiveModel
-    };
-  } catch (err: any) {
-    console.error('[Classifier] Error parsing Gemini classification response:', err);
-    return { success: false, error: 'PARSE_ERROR', recommendedTags: [] };
   }
+
+  return {
+    success: false,
+    error: lastError,
+    recommendedTags: [],
+    auditChain
+  };
 }

@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // src/extension/modal.css
-  var modal_default = ":host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n  color: #f1f5f9;\n  font-size: 14px;\n  line-height: 1.5;\n  box-sizing: border-box;\n}\n\n*, *::before, *::after {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\n.ad-modal-backdrop {\n  position: fixed;\n  inset: 0;\n  background: rgba(10, 14, 23, 0.68);\n  backdrop-filter: blur(8px);\n  -webkit-backdrop-filter: blur(8px);\n  z-index: 2147483647;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  opacity: 0;\n  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  padding: 16px;\n}\n\n.ad-modal-backdrop.ad-visible {\n  opacity: 1;\n}\n\n.ad-modal-card {\n  width: 100%;\n  max-width: 480px;\n  background: rgba(22, 28, 42, 0.94);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  border-radius: 16px;\n  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);\n  overflow: hidden;\n  transform: scale(0.94) translateY(8px);\n  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;\n  display: flex;\n  flex-direction: column;\n}\n\n.ad-modal-backdrop.ad-visible .ad-modal-card {\n  transform: scale(1) translateY(0);\n}\n\n/* Header */\n.ad-modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-modal-title-group {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n\n.ad-app-icon {\n  width: 28px;\n  height: 28px;\n  border-radius: 7px;\n  background: linear-gradient(135deg, #0a84ff, #5e5ce6);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 15px;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-modal-title {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n  letter-spacing: -0.2px;\n}\n\n.ad-badge-local {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(52, 199, 89, 0.18);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.3);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-header-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-icon-btn, .ad-close-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 16px;\n  cursor: pointer;\n  width: 28px;\n  height: 28px;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-icon-btn:hover, .ad-close-btn:hover {\n  background: rgba(255, 255, 255, 0.08);\n  color: #ffffff;\n}\n\n/* Body Form */\n.ad-modal-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  max-height: 70vh;\n  overflow-y: auto;\n}\n\n.ad-field-row {\n  display: flex;\n  gap: 12px;\n  align-items: flex-start;\n}\n\n.ad-icon-preview-box {\n  width: 44px;\n  height: 44px;\n  border-radius: 10px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  overflow: hidden;\n  margin-top: 22px;\n}\n\n.ad-icon-preview-box img {\n  width: 26px;\n  height: 26px;\n  object-fit: contain;\n}\n\n.ad-form-group {\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n  flex: 1;\n}\n\n.ad-form-label {\n  font-size: 12px;\n  font-weight: 600;\n  color: #94a3b8;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.ad-input, .ad-select, .ad-textarea {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 8px 12px;\n  font-size: 13.5px;\n  color: #f8fafc;\n  outline: none;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease;\n  width: 100%;\n  font-family: inherit;\n}\n\n.ad-input:focus, .ad-select:focus, .ad-textarea:focus {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n  background: rgba(15, 23, 42, 0.85);\n}\n\n.ad-textarea {\n  resize: vertical;\n  min-height: 52px;\n}\n\n.ad-two-col {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 12px;\n}\n\n/* Category Tags */\n.ad-categories-field {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n\n.ad-tags-wrapper {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 6px 8px;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-height: 40px;\n}\n\n.ad-tags-wrapper:focus-within {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n}\n\n.ad-tag-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: rgba(10, 132, 255, 0.18);\n  border: 1px solid rgba(10, 132, 255, 0.35);\n  color: #60a5fa;\n  padding: 2px 7px;\n  border-radius: 5px;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.ad-tag-chip .ad-remove-tag {\n  cursor: pointer;\n  font-size: 13px;\n  opacity: 0.75;\n  transition: opacity 0.1s ease;\n  line-height: 1;\n}\n\n.ad-tag-chip .ad-remove-tag:hover {\n  opacity: 1;\n  color: #f87171;\n}\n\n.ad-tag-input {\n  border: none;\n  background: transparent;\n  color: #f8fafc;\n  font-size: 13px;\n  outline: none;\n  flex: 1;\n  min-width: 90px;\n  font-family: inherit;\n  padding: 2px 4px;\n}\n\n/* Category Suggestions Autocomplete Popup */\n.ad-suggestions-popup {\n  position: absolute;\n  top: 100%;\n  left: 0;\n  right: 0;\n  margin-top: 4px;\n  background: rgba(15, 23, 42, 0.96);\n  backdrop-filter: blur(20px);\n  -webkit-backdrop-filter: blur(20px);\n  border: 1px solid rgba(255, 255, 255, 0.16);\n  border-radius: 8px;\n  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);\n  max-height: 180px;\n  overflow-y: auto;\n  z-index: 50;\n  display: none;\n  flex-direction: column;\n  padding: 4px;\n}\n\n.ad-suggestions-popup.ad-show {\n  display: flex;\n}\n\n.ad-suggestion-item {\n  padding: 6px 10px;\n  font-size: 13px;\n  color: #cbd5e1;\n  cursor: pointer;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  transition: background 0.12s ease, color 0.12s ease;\n}\n\n.ad-suggestion-item:hover,\n.ad-suggestion-item.is-focused {\n  background: rgba(10, 132, 255, 0.25);\n  color: #ffffff;\n}\n\n.ad-suggestion-item .ad-suggest-tag-name {\n  font-weight: 500;\n}\n\n.ad-suggestion-item .ad-suggest-tag-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-suggestion-item:hover .ad-suggest-tag-hint,\n.ad-suggestion-item.is-focused .ad-suggest-tag-hint {\n  color: #93c5fd;\n}\n\n/* Favorite toggle */\n.ad-fav-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n}\n\n.ad-fav-star {\n  font-size: 16px;\n  color: #64748b;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n.ad-fav-toggle.active .ad-fav-star {\n  color: #ffb800;\n  transform: scale(1.15);\n}\n\n/* Footer */\n.ad-modal-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-shortcut-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-shortcut-hint kbd {\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.15);\n  border-radius: 4px;\n  padding: 1px 4px;\n  font-size: 10px;\n  color: #94a3b8;\n}\n\n.ad-btn-group {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-btn {\n  padding: 7px 14px;\n  border-radius: 8px;\n  font-size: 13px;\n  font-weight: 600;\n  cursor: pointer;\n  border: none;\n  transition: all 0.15s ease;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  font-family: inherit;\n}\n\n.ad-btn-secondary {\n  background: rgba(255, 255, 255, 0.07);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.1);\n}\n\n.ad-btn-secondary:hover {\n  background: rgba(255, 255, 255, 0.12);\n  color: #ffffff;\n}\n\n.ad-btn-primary {\n  background: #0a84ff;\n  color: #ffffff;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-btn-primary:hover {\n  background: #0070e0;\n  box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);\n  transform: translateY(-1px);\n}\n\n.ad-btn-primary:active {\n  transform: translateY(0);\n}\n\n/* Success Banner */\n.ad-success-overlay {\n  position: absolute;\n  inset: 0;\n  background: rgba(15, 23, 42, 0.95);\n  backdrop-filter: blur(12px);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  border-radius: 16px;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.2s ease;\n  z-index: 10;\n}\n\n.ad-success-overlay.ad-show {\n  opacity: 1;\n  pointer-events: auto;\n}\n\n.ad-success-icon {\n  width: 48px;\n  height: 48px;\n  border-radius: 50%;\n  background: rgba(52, 199, 89, 0.18);\n  border: 2px solid #34c759;\n  color: #34c759;\n  font-size: 24px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  animation: adPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);\n}\n\n.ad-success-text {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n}\n\n.ad-success-sub {\n  font-size: 12px;\n  color: #94a3b8;\n}\n\n@keyframes adPop {\n  0% { transform: scale(0.5); opacity: 0; }\n  70% { transform: scale(1.1); }\n  100% { transform: scale(1); opacity: 1; }\n}\n\n/* \u2500\u2500 Category Header & AI Classification Badges \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\n.ad-category-header-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 3px;\n}\n\n.ad-ai-status-group {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-classify-badge {\n  font-size: 11px;\n  font-weight: 600;\n  border-radius: 12px;\n  padding: 2px 8px;\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  letter-spacing: 0.2px;\n  user-select: none;\n  transition: all 0.2s ease;\n}\n\n.ad-classify-badge.ad-badge-dom {\n  background: rgba(52, 199, 89, 0.16);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-dom:hover {\n  background: rgba(52, 199, 89, 0.26);\n}\n\n.ad-classify-badge.ad-badge-brave {\n  background: rgba(255, 159, 10, 0.16);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-brave:hover {\n  background: rgba(255, 159, 10, 0.26);\n}\n\n.ad-classify-badge.ad-badge-loading {\n  background: rgba(10, 132, 255, 0.15);\n  color: #60a5fa;\n  border: 1px solid rgba(10, 132, 255, 0.3);\n}\n\n.ad-classify-badge.ad-badge-setup {\n  background: rgba(255, 255, 255, 0.08);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-setup:hover {\n  background: rgba(255, 255, 255, 0.16);\n  color: #ffffff;\n}\n\n.ad-classify-badge.ad-badge-error {\n  background: rgba(255, 59, 48, 0.16);\n  color: #ff453a;\n  border: 1px solid rgba(255, 59, 48, 0.35);\n  cursor: pointer;\n}\n\n.ad-reclassify-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 13px;\n  cursor: pointer;\n  width: 22px;\n  height: 22px;\n  border-radius: 4px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-reclassify-btn:hover {\n  background: rgba(255, 255, 255, 0.1);\n  color: #ffffff;\n}\n\n.ad-reclassify-btn.is-spinning {\n  animation: adSpin 0.75s linear infinite;\n}\n\n@keyframes adSpin {\n  100% { transform: rotate(360deg); }\n}\n\n.ad-spinner-dot {\n  display: inline-block;\n  width: 8px;\n  height: 8px;\n  border: 1.5px solid rgba(96, 165, 250, 0.3);\n  border-top-color: #60a5fa;\n  border-radius: 50%;\n  animation: adSpin 0.7s linear infinite;\n}\n\n/* AI Reasoning Card / Popover */\n.ad-reasoning-card {\n  margin-top: 4px;\n  padding: 6px 10px;\n  background: rgba(15, 23, 42, 0.85);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  border-left: 3px solid #0a84ff;\n  border-radius: 6px;\n  font-size: 11px;\n  color: #94a3b8;\n  line-height: 1.45;\n  display: none;\n}\n\n.ad-reasoning-card.ad-show {\n  display: block;\n}\n\n/* New Category Tag Chip highlight */\n.ad-tag-chip.ad-tag-chip-new {\n  background: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(255, 159, 10, 0.14));\n  border: 1px solid rgba(255, 214, 10, 0.55);\n  color: #ffd60a;\n  box-shadow: 0 0 10px rgba(255, 214, 10, 0.15);\n}\n\n.ad-tag-chip.ad-tag-chip-new .ad-remove-tag:hover {\n  color: #ff453a;\n}\n\n.ad-new-tags-notice {\n  font-size: 11px;\n  color: #ffd60a;\n  margin-top: 4px;\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-weight: 500;\n}\n\n/* Settings Drawer / View inside modal */\n.ad-settings-drawer {\n  position: absolute;\n  inset: 0;\n  background: rgba(18, 24, 38, 0.98);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border-radius: 16px;\n  z-index: 20;\n  display: flex;\n  flex-direction: column;\n  transform: translateX(100%);\n  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n}\n\n.ad-settings-drawer.ad-show {\n  transform: translateX(0);\n}\n\n.ad-settings-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n}\n\n.ad-settings-title {\n  font-size: 15px;\n  font-weight: 700;\n  color: #ffffff;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-settings-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  overflow-y: auto;\n  flex: 1;\n}\n\n.ad-settings-hint {\n  font-size: 12px;\n  color: #94a3b8;\n  line-height: 1.45;\n}\n\n.ad-settings-hint a {\n  color: #0a84ff;\n  text-decoration: none;\n}\n\n.ad-settings-hint a:hover {\n  text-decoration: underline;\n}\n\n.ad-checkbox-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n  margin-top: 4px;\n}\n\n.ad-checkbox-row input {\n  accent-color: #0a84ff;\n  width: 16px;\n  height: 16px;\n  cursor: pointer;\n}\n\n.ad-settings-footer {\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 10px;\n  background: rgba(255, 255, 255, 0.02);\n}\n";
+  var modal_default = ":host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n  color: #f1f5f9;\n  font-size: 14px;\n  line-height: 1.5;\n  box-sizing: border-box;\n}\n\n*, *::before, *::after {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\n.ad-modal-backdrop {\n  position: fixed;\n  inset: 0;\n  background: rgba(10, 14, 23, 0.68);\n  backdrop-filter: blur(8px);\n  -webkit-backdrop-filter: blur(8px);\n  z-index: 2147483647;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  opacity: 0;\n  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  padding: 16px;\n}\n\n.ad-modal-backdrop.ad-visible {\n  opacity: 1;\n}\n\n.ad-modal-card {\n  width: 100%;\n  max-width: 480px;\n  background: rgba(22, 28, 42, 0.94);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  border-radius: 16px;\n  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);\n  overflow: hidden;\n  transform: scale(0.94) translateY(8px);\n  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;\n  display: flex;\n  flex-direction: column;\n}\n\n.ad-modal-backdrop.ad-visible .ad-modal-card {\n  transform: scale(1) translateY(0);\n}\n\n/* Header */\n.ad-modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-modal-title-group {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n\n.ad-app-icon {\n  width: 28px;\n  height: 28px;\n  border-radius: 7px;\n  background: linear-gradient(135deg, #0a84ff, #5e5ce6);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 15px;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-modal-title {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n  letter-spacing: -0.2px;\n}\n\n.ad-badge-local {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(52, 199, 89, 0.18);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.3);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-header-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-icon-btn, .ad-close-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 16px;\n  cursor: pointer;\n  width: 28px;\n  height: 28px;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-icon-btn:hover, .ad-close-btn:hover {\n  background: rgba(255, 255, 255, 0.08);\n  color: #ffffff;\n}\n\n/* Body Form */\n.ad-modal-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  max-height: 70vh;\n  overflow-y: auto;\n}\n\n.ad-field-row {\n  display: flex;\n  gap: 12px;\n  align-items: flex-start;\n}\n\n.ad-icon-preview-box {\n  width: 44px;\n  height: 44px;\n  border-radius: 10px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  overflow: hidden;\n  margin-top: 22px;\n}\n\n.ad-icon-preview-box img {\n  width: 26px;\n  height: 26px;\n  object-fit: contain;\n}\n\n.ad-form-group {\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n  flex: 1;\n}\n\n.ad-form-label {\n  font-size: 12px;\n  font-weight: 600;\n  color: #94a3b8;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.ad-input, .ad-select, .ad-textarea {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 8px 12px;\n  font-size: 13.5px;\n  color: #f8fafc;\n  outline: none;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease;\n  width: 100%;\n  font-family: inherit;\n}\n\n.ad-input:focus, .ad-select:focus, .ad-textarea:focus {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n  background: rgba(15, 23, 42, 0.85);\n}\n\n.ad-textarea {\n  resize: vertical;\n  min-height: 52px;\n}\n\n.ad-two-col {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 12px;\n}\n\n/* Category Tags */\n.ad-categories-field {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n\n.ad-tags-wrapper {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 6px 8px;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-height: 40px;\n}\n\n.ad-tags-wrapper:focus-within {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n}\n\n.ad-tag-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: rgba(10, 132, 255, 0.18);\n  border: 1px solid rgba(10, 132, 255, 0.35);\n  color: #60a5fa;\n  padding: 2px 7px;\n  border-radius: 5px;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.ad-tag-chip .ad-remove-tag {\n  cursor: pointer;\n  font-size: 13px;\n  opacity: 0.75;\n  transition: opacity 0.1s ease;\n  line-height: 1;\n}\n\n.ad-tag-chip .ad-remove-tag:hover {\n  opacity: 1;\n  color: #f87171;\n}\n\n.ad-tag-input {\n  border: none;\n  background: transparent;\n  color: #f8fafc;\n  font-size: 13px;\n  outline: none;\n  flex: 1;\n  min-width: 90px;\n  font-family: inherit;\n  padding: 2px 4px;\n}\n\n/* Category Suggestions Autocomplete Popup */\n.ad-suggestions-popup {\n  position: absolute;\n  top: 100%;\n  left: 0;\n  right: 0;\n  margin-top: 4px;\n  background: rgba(15, 23, 42, 0.96);\n  backdrop-filter: blur(20px);\n  -webkit-backdrop-filter: blur(20px);\n  border: 1px solid rgba(255, 255, 255, 0.16);\n  border-radius: 8px;\n  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);\n  max-height: 180px;\n  overflow-y: auto;\n  z-index: 50;\n  display: none;\n  flex-direction: column;\n  padding: 4px;\n}\n\n.ad-suggestions-popup.ad-show {\n  display: flex;\n}\n\n.ad-suggestion-item {\n  padding: 6px 10px;\n  font-size: 13px;\n  color: #cbd5e1;\n  cursor: pointer;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  transition: background 0.12s ease, color 0.12s ease;\n}\n\n.ad-suggestion-item:hover,\n.ad-suggestion-item.is-focused {\n  background: rgba(10, 132, 255, 0.25);\n  color: #ffffff;\n}\n\n.ad-suggestion-item .ad-suggest-tag-name {\n  font-weight: 500;\n}\n\n.ad-suggestion-item .ad-suggest-tag-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-suggestion-item:hover .ad-suggest-tag-hint,\n.ad-suggestion-item.is-focused .ad-suggest-tag-hint {\n  color: #93c5fd;\n}\n\n/* Favorite toggle */\n.ad-fav-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n}\n\n.ad-fav-star {\n  font-size: 16px;\n  color: #64748b;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n.ad-fav-toggle.active .ad-fav-star {\n  color: #ffb800;\n  transform: scale(1.15);\n}\n\n/* Footer */\n.ad-modal-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-shortcut-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-shortcut-hint kbd {\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.15);\n  border-radius: 4px;\n  padding: 1px 4px;\n  font-size: 10px;\n  color: #94a3b8;\n}\n\n.ad-btn-group {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-btn {\n  padding: 7px 14px;\n  border-radius: 8px;\n  font-size: 13px;\n  font-weight: 600;\n  cursor: pointer;\n  border: none;\n  transition: all 0.15s ease;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  font-family: inherit;\n}\n\n.ad-btn-secondary {\n  background: rgba(255, 255, 255, 0.07);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.1);\n}\n\n.ad-btn-secondary:hover {\n  background: rgba(255, 255, 255, 0.12);\n  color: #ffffff;\n}\n\n.ad-btn-primary {\n  background: #0a84ff;\n  color: #ffffff;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-btn-primary:hover {\n  background: #0070e0;\n  box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);\n  transform: translateY(-1px);\n}\n\n.ad-btn-primary:active {\n  transform: translateY(0);\n}\n\n/* Success Banner */\n.ad-success-overlay {\n  position: absolute;\n  inset: 0;\n  background: rgba(15, 23, 42, 0.95);\n  backdrop-filter: blur(12px);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  border-radius: 16px;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.2s ease;\n  z-index: 10;\n}\n\n.ad-success-overlay.ad-show {\n  opacity: 1;\n  pointer-events: auto;\n}\n\n.ad-success-icon {\n  width: 48px;\n  height: 48px;\n  border-radius: 50%;\n  background: rgba(52, 199, 89, 0.18);\n  border: 2px solid #34c759;\n  color: #34c759;\n  font-size: 24px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  animation: adPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);\n}\n\n.ad-success-text {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n}\n\n.ad-success-sub {\n  font-size: 12px;\n  color: #94a3b8;\n}\n\n@keyframes adPop {\n  0% { transform: scale(0.5); opacity: 0; }\n  70% { transform: scale(1.1); }\n  100% { transform: scale(1); opacity: 1; }\n}\n\n/* \u2500\u2500 Category Header & AI Classification Badges \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\n.ad-category-header-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 3px;\n}\n\n.ad-ai-status-group {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-classify-badge {\n  font-size: 11px;\n  font-weight: 600;\n  border-radius: 12px;\n  padding: 2px 8px;\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  letter-spacing: 0.2px;\n  user-select: none;\n  transition: all 0.2s ease;\n  max-width: 260px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.ad-classify-badge.ad-badge-dom {\n  background: rgba(52, 199, 89, 0.16);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-dom:hover {\n  background: rgba(52, 199, 89, 0.26);\n}\n\n.ad-classify-badge.ad-badge-fallback {\n  background: rgba(168, 85, 247, 0.16);\n  color: #c084fc;\n  border: 1px solid rgba(168, 85, 247, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-fallback:hover {\n  background: rgba(168, 85, 247, 0.26);\n}\n\n.ad-classify-badge.ad-badge-brave {\n  background: rgba(255, 159, 10, 0.16);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-brave:hover {\n  background: rgba(255, 159, 10, 0.26);\n}\n\n.ad-classify-badge.ad-badge-loading {\n  background: rgba(10, 132, 255, 0.15);\n  color: #60a5fa;\n  border: 1px solid rgba(10, 132, 255, 0.3);\n}\n\n.ad-classify-badge.ad-badge-setup {\n  background: rgba(255, 255, 255, 0.08);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-setup:hover {\n  background: rgba(255, 255, 255, 0.16);\n  color: #ffffff;\n}\n\n.ad-classify-badge.ad-badge-error {\n  background: rgba(255, 59, 48, 0.16);\n  color: #ff453a;\n  border: 1px solid rgba(255, 59, 48, 0.35);\n  cursor: pointer;\n}\n\n.ad-reclassify-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 13px;\n  cursor: pointer;\n  width: 22px;\n  height: 22px;\n  border-radius: 4px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-reclassify-btn:hover {\n  background: rgba(255, 255, 255, 0.1);\n  color: #ffffff;\n}\n\n.ad-reclassify-btn.is-spinning {\n  animation: adSpin 0.75s linear infinite;\n}\n\n@keyframes adSpin {\n  100% { transform: rotate(360deg); }\n}\n\n.ad-spinner-dot {\n  display: inline-block;\n  width: 8px;\n  height: 8px;\n  border: 1.5px solid rgba(96, 165, 250, 0.3);\n  border-top-color: #60a5fa;\n  border-radius: 50%;\n  animation: adSpin 0.7s linear infinite;\n}\n\n/* AI Reasoning Card / Popover */\n.ad-reasoning-card {\n  margin-top: 4px;\n  padding: 6px 10px;\n  background: rgba(15, 23, 42, 0.85);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  border-left: 3px solid #0a84ff;\n  border-radius: 6px;\n  font-size: 11px;\n  color: #94a3b8;\n  line-height: 1.45;\n  display: none;\n}\n\n.ad-reasoning-card.ad-show {\n  display: block;\n}\n\n/* New Category Tag Chip highlight */\n.ad-tag-chip.ad-tag-chip-new {\n  background: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(255, 159, 10, 0.14));\n  border: 1px solid rgba(255, 214, 10, 0.55);\n  color: #ffd60a;\n  box-shadow: 0 0 10px rgba(255, 214, 10, 0.15);\n}\n\n.ad-tag-chip.ad-tag-chip-new .ad-remove-tag:hover {\n  color: #ff453a;\n}\n\n.ad-new-tags-notice {\n  font-size: 11px;\n  color: #ffd60a;\n  margin-top: 4px;\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-weight: 500;\n}\n\n/* Settings Drawer / View inside modal */\n.ad-settings-drawer {\n  position: absolute;\n  inset: 0;\n  background: rgba(18, 24, 38, 0.98);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border-radius: 16px;\n  z-index: 20;\n  display: flex;\n  flex-direction: column;\n  transform: translateX(100%);\n  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n}\n\n.ad-settings-drawer.ad-show {\n  transform: translateX(0);\n}\n\n.ad-settings-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n}\n\n.ad-settings-title {\n  font-size: 15px;\n  font-weight: 700;\n  color: #ffffff;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-settings-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  overflow-y: auto;\n  flex: 1;\n}\n\n.ad-settings-hint {\n  font-size: 12px;\n  color: #94a3b8;\n  line-height: 1.45;\n}\n\n.ad-settings-hint a {\n  color: #0a84ff;\n  text-decoration: none;\n}\n\n.ad-settings-hint a:hover {\n  text-decoration: underline;\n}\n\n.ad-checkbox-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n  margin-top: 4px;\n}\n\n.ad-checkbox-row input {\n  accent-color: #0a84ff;\n  width: 16px;\n  height: 16px;\n  cursor: pointer;\n}\n\n.ad-settings-footer {\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 10px;\n  background: rgba(255, 255, 255, 0.02);\n}\n";
 
   // src/extension/domExtractor.ts
   function extractPageContext() {
@@ -480,11 +480,31 @@
     const geminiModelSelect = shadow.getElementById("ad-gemini-model-select");
     const braveKeyInput = shadow.getElementById("ad-brave-key-input");
     const autoclassifyCheck = shadow.getElementById("ad-autoclassify-check");
+    let lastLoadedSettings = null;
     const openSettings = () => {
       if (!settingsDrawer) return;
       chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (s) => {
+        lastLoadedSettings = s;
         if (geminiKeyInput && s) geminiKeyInput.value = s.geminiApiKey || "";
-        if (geminiModelSelect && s) geminiModelSelect.value = s.geminiModel || "gemini-2.5-flash";
+        if (geminiModelSelect && s) {
+          const models = Array.isArray(s.discoveredModels) && s.discoveredModels.length > 0 ? s.discoveredModels : [
+            { name: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash" },
+            { name: "gemini-2.5-flash-lite", displayName: "Gemini 2.5 Flash Lite" },
+            { name: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash" },
+            { name: "gemini-2.0-flash-lite", displayName: "Gemini 2.0 Flash Lite" },
+            { name: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash" }
+          ];
+          geminiModelSelect.innerHTML = "";
+          models.forEach((m) => {
+            const opt = document.createElement("option");
+            opt.value = m.name;
+            opt.textContent = `${m.displayName || m.name} (${m.name})`;
+            if (m.name === (s.geminiModel || "gemini-2.5-flash")) {
+              opt.selected = true;
+            }
+            geminiModelSelect.appendChild(opt);
+          });
+        }
         if (braveKeyInput && s) braveKeyInput.value = s.braveApiKey || "";
         if (autoclassifyCheck && s) autoclassifyCheck.checked = s.autoClassify !== false;
         settingsDrawer.classList.add("ad-show");
@@ -501,6 +521,8 @@
         const newSettings = {
           geminiApiKey: geminiKeyInput?.value.trim() || "",
           geminiModel: geminiModelSelect?.value || "gemini-2.5-flash",
+          geminiFallbackModels: lastLoadedSettings?.geminiFallbackModels || ["gemini-2.5-flash-lite"],
+          discoveredModels: lastLoadedSettings?.discoveredModels,
           braveApiKey: braveKeyInput?.value.trim() || "",
           autoClassify: autoclassifyCheck?.checked ?? true
         };
@@ -517,101 +539,161 @@
     const classifyBadge = shadow.getElementById("ad-classify-badge");
     const reclassifyBtn = shadow.getElementById("ad-reclassify-btn");
     const reasoningCard = shadow.getElementById("ad-reasoning-card");
+    const handleClassificationResult = (res) => {
+      if (!classifyBadge) return;
+      if (!res || !res.success) {
+        if (res?.error === "NO_API_KEY") {
+          classifyBadge.className = "ad-classify-badge ad-badge-setup";
+          classifyBadge.innerHTML = "\u2699\uFE0F Setup AI";
+          classifyBadge.title = "Click to set up your free Gemini API key";
+          if (reclassifyBtn) reclassifyBtn.style.display = "none";
+        } else if (res?.error === "RATE_LIMIT_EXCEEDED") {
+          classifyBadge.className = "ad-classify-badge ad-badge-error";
+          classifyBadge.innerHTML = "\u26A0\uFE0F Rate Limit (429)";
+          classifyBadge.title = "All configured models exceeded rate limits. Add fallback models in Settings.";
+        } else if (res?.error === "SERVICE_OVERLOADED_503") {
+          classifyBadge.className = "ad-classify-badge ad-badge-error";
+          classifyBadge.innerHTML = "\u26A0\uFE0F Overloaded (503)";
+          classifyBadge.title = "Gemini service overloaded. Add a fallback model (e.g. 2.5 Flash Lite) in Settings.";
+        } else if (res?.error === "INVALID_API_KEY") {
+          classifyBadge.className = "ad-classify-badge ad-badge-error";
+          classifyBadge.innerHTML = "\u26A0\uFE0F Invalid Key";
+          classifyBadge.title = "The Gemini API key provided is invalid or inactive.";
+        } else {
+          classifyBadge.className = "ad-classify-badge ad-badge-error";
+          classifyBadge.innerHTML = "\u26A0\uFE0F AI Failed";
+          classifyBadge.title = res?.error || "Classification failed";
+        }
+        return;
+      }
+      if (reclassifyBtn) reclassifyBtn.style.display = "inline-flex";
+      const cleanModel = (res.modelUsed || "").replace(/^models\//, "");
+      const hadFailover = res.auditChain && res.auditChain.some((a) => a.status === "FAILED");
+      let tooltip = "";
+      if (res.auditChain && res.auditChain.length > 0) {
+        const chainLines = res.auditChain.map(
+          (a) => `\u2022 ${a.model.replace(/^models\//, "")}: ${a.status === "SUCCESS" ? `\u2713 Success (${a.latencyMs}ms)` : `\u2717 ${a.error} (${a.latencyMs}ms)`}`
+        ).join("\n");
+        tooltip = `Execution Cascade:
+${chainLines}
+
+`;
+      }
+      if (res.reasoning) {
+        tooltip += `Reasoning: ${res.reasoning}`;
+      }
+      if (hadFailover) {
+        classifyBadge.className = "ad-classify-badge ad-badge-fallback";
+        classifyBadge.innerHTML = `\u{1FAB6} AI: ${escapeHtml(cleanModel)} [Fallback]`;
+        classifyBadge.title = tooltip || `Recovered via fallback model ${cleanModel} (Click to toggle reasoning)`;
+      } else if (res.method === "BRAVE_GROUNDED") {
+        classifyBadge.className = "ad-classify-badge ad-badge-brave";
+        classifyBadge.innerHTML = `\u{1F50D} AI: Brave (${escapeHtml(cleanModel || "Search")})`;
+        classifyBadge.title = tooltip || "Classified using Brave Search grounding (Click to toggle reasoning)";
+      } else {
+        classifyBadge.className = "ad-classify-badge ad-badge-dom";
+        classifyBadge.innerHTML = `\u2728 AI: ${escapeHtml(cleanModel || "Direct DOM")}`;
+        classifyBadge.title = tooltip || "Classified directly from page text (Click to toggle reasoning)";
+      }
+      if (reasoningCard && res.reasoning) {
+        reasoningCard.textContent = `\u{1F4A1} [${cleanModel || "AI"}] ${res.reasoning}`;
+      }
+      const tagsToAdd = [];
+      if (Array.isArray(res.recommendedTags)) {
+        for (const t of res.recommendedTags) {
+          const trimmed = String(t).trim();
+          if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+        }
+      }
+      if (Array.isArray(res.newTags)) {
+        for (const t of res.newTags) {
+          const trimmed = String(t).trim();
+          if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+        }
+      }
+      if (res.suggestedNewTag) {
+        const trimmed = String(res.suggestedNewTag).trim();
+        if (trimmed && trimmed.toLowerCase() !== "null" && trimmed.toLowerCase() !== "none" && !tagsToAdd.includes(trimmed)) {
+          tagsToAdd.push(trimmed);
+        }
+      }
+      if (tagsToAdd.length === 0) {
+        classifyBadge.className = "ad-classify-badge ad-badge-dom";
+        classifyBadge.innerHTML = "\u2728 AI: No Tags Matched";
+        classifyBadge.title = tooltip || res.reasoning || "No existing or new categories matched this website.";
+        if (reasoningCard && res.reasoning) {
+          reasoningCard.textContent = `\u{1F4A1} ${res.reasoning}`;
+          reasoningCard.classList.add("ad-show");
+        }
+      } else {
+        for (const tag of tagsToAdd) {
+          const isNew = !availableCategories.includes(tag) || res.newTags && res.newTags.includes(tag) || tag === res.suggestedNewTag;
+          addCategoryChip(tag, isNew);
+        }
+      }
+    };
     const runClassification = (forceSearch = false) => {
       if (!classifyBadge) return;
       classifyBadge.className = "ad-classify-badge ad-badge-loading";
-      classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> AI classifying...`;
-      classifyBadge.title = "Analyzing page content and matching taxonomy...";
+      classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> AI initializing...`;
+      classifyBadge.title = "Starting classification workflow...";
       if (reclassifyBtn) {
         reclassifyBtn.classList.add("is-spinning");
         reclassifyBtn.style.display = "inline-flex";
       }
       const pageContext = extractPageContext();
       try {
-        chrome.runtime.sendMessage(
-          {
-            type: "CLASSIFY_WEBSITE",
-            pageContext,
-            availableCategories,
-            forceSearch
-          },
-          (res) => {
+        const port = chrome.runtime.connect({ name: "ad-classify" });
+        port.onMessage.addListener((msg) => {
+          if (!isExtensionContextValid()) return;
+          if (msg.type === "PROGRESS" && msg.progress) {
+            const prog = msg.progress;
+            const isFallback = prog.stage === "FALLBACK_SWITCH";
+            classifyBadge.className = isFallback ? "ad-classify-badge ad-badge-fallback ad-badge-loading" : "ad-classify-badge ad-badge-loading";
+            classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> ${escapeHtml(prog.message)}`;
+            classifyBadge.title = prog.message;
+            return;
+          }
+          if (msg.type === "RESULT" && msg.result) {
             if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
-            if (!isExtensionContextValid()) return;
-            if (!res || !res.success) {
-              if (res?.error === "NO_API_KEY") {
-                classifyBadge.className = "ad-classify-badge ad-badge-setup";
-                classifyBadge.innerHTML = "\u2699\uFE0F Setup AI";
-                classifyBadge.title = "Click to set up your free Gemini API key";
-                if (reclassifyBtn) reclassifyBtn.style.display = "none";
-              } else if (res?.error === "RATE_LIMIT_EXCEEDED") {
-                classifyBadge.className = "ad-classify-badge ad-badge-error";
-                classifyBadge.innerHTML = "\u26A0\uFE0F Rate Limit";
-                classifyBadge.title = "Exceeded free tier requests per minute. Wait a moment and retry.";
-              } else if (res?.error === "INVALID_API_KEY") {
-                classifyBadge.className = "ad-classify-badge ad-badge-error";
-                classifyBadge.innerHTML = "\u26A0\uFE0F Invalid Key";
-                classifyBadge.title = "The Gemini API key provided is invalid or inactive.";
-              } else {
-                classifyBadge.className = "ad-classify-badge ad-badge-error";
-                classifyBadge.innerHTML = "\u26A0\uFE0F AI Failed";
-                classifyBadge.title = res?.error || "Classification failed";
-              }
-              return;
-            }
-            if (reclassifyBtn) reclassifyBtn.style.display = "inline-flex";
-            if (res.method === "BRAVE_GROUNDED") {
-              classifyBadge.className = "ad-classify-badge ad-badge-brave";
-              classifyBadge.innerHTML = "\u{1F50D} AI: Brave Search";
-              classifyBadge.title = res.reasoning ? `Brave Search Grounded: ${res.reasoning} (Click to toggle reasoning)` : "Classified using Brave Search results (Click to toggle reasoning)";
-            } else {
-              classifyBadge.className = "ad-classify-badge ad-badge-dom";
-              classifyBadge.innerHTML = "\u2728 AI: Direct DOM";
-              classifyBadge.title = res.reasoning ? `Direct DOM: ${res.reasoning} (Click to toggle reasoning)` : "Classified directly from page text & metadata (Click to toggle reasoning)";
-            }
-            if (reasoningCard && res.reasoning) {
-              reasoningCard.textContent = `\u{1F4A1} ${res.reasoning}`;
-            }
-            const tagsToAdd = [];
-            if (Array.isArray(res.recommendedTags)) {
-              for (const t of res.recommendedTags) {
-                const trimmed = String(t).trim();
-                if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
-              }
-            }
-            if (Array.isArray(res.newTags)) {
-              for (const t of res.newTags) {
-                const trimmed = String(t).trim();
-                if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
-              }
-            }
-            if (res.suggestedNewTag) {
-              const trimmed = String(res.suggestedNewTag).trim();
-              if (trimmed && trimmed.toLowerCase() !== "null" && trimmed.toLowerCase() !== "none" && !tagsToAdd.includes(trimmed)) {
-                tagsToAdd.push(trimmed);
-              }
-            }
-            if (tagsToAdd.length === 0) {
-              classifyBadge.className = "ad-classify-badge ad-badge-dom";
-              classifyBadge.innerHTML = "\u2728 AI: No Tags Matched";
-              classifyBadge.title = res.reasoning || "No existing or new categories matched this website.";
-              if (reasoningCard && res.reasoning) {
-                reasoningCard.textContent = `\u{1F4A1} ${res.reasoning}`;
-                reasoningCard.classList.add("ad-show");
-              }
-            } else {
-              for (const tag of tagsToAdd) {
-                const isNew = !availableCategories.includes(tag) || res.newTags && res.newTags.includes(tag) || tag === res.suggestedNewTag;
-                addCategoryChip(tag, isNew);
-              }
+            const res = msg.result;
+            handleClassificationResult(res);
+            try {
+              port.disconnect();
+            } catch (_) {
             }
           }
-        );
+        });
+        port.onDisconnect.addListener(() => {
+          if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
+        });
+        port.postMessage({
+          type: "START_CLASSIFY",
+          pageContext,
+          availableCategories,
+          forceSearch
+        });
       } catch (_) {
-        if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
-        if (classifyBadge) {
-          classifyBadge.className = "ad-classify-badge ad-badge-error";
-          classifyBadge.innerHTML = "\u26A0\uFE0F Error";
+        try {
+          chrome.runtime.sendMessage(
+            {
+              type: "CLASSIFY_WEBSITE",
+              pageContext,
+              availableCategories,
+              forceSearch
+            },
+            (res) => {
+              if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
+              if (!isExtensionContextValid()) return;
+              handleClassificationResult(res);
+            }
+          );
+        } catch (err) {
+          if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
+          if (classifyBadge) {
+            classifyBadge.className = "ad-classify-badge ad-badge-error";
+            classifyBadge.innerHTML = "\u26A0\uFE0F Error";
+          }
         }
       }
     };

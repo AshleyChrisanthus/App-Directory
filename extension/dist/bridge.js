@@ -135,7 +135,7 @@
                 checkAndIngestPending();
               }
             }
-            if (changes.ad_gemini_api_key || changes.ad_gemini_model || changes.ad_brave_api_key || changes.ad_auto_classify) {
+            if (changes.ad_gemini_api_key || changes.ad_gemini_model || changes.ad_gemini_fallback_models || changes.ad_discovered_models || changes.ad_brave_api_key || changes.ad_auto_classify) {
               pushSettingsToWebapp();
             }
           }

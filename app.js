@@ -2441,14 +2441,130 @@
   }
 
   // src/modules/settings/types.ts
+  var DEFAULT_KNOWN_MODELS = [
+    { name: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", family: "flash", description: "Fast, high-quality multimodal model" },
+    { name: "gemini-2.5-flash-lite", displayName: "Gemini 2.5 Flash Lite", family: "flash-lite", description: "Ultra-fast with dedicated quota bucket" },
+    { name: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash", family: "flash", description: "High-throughput standard model" },
+    { name: "gemini-2.0-flash-lite", displayName: "Gemini 2.0 Flash Lite", family: "flash-lite", description: "Efficient lightweight model" },
+    { name: "gemini-1.5-flash", displayName: "Gemini 1.5 Flash", family: "flash", description: "Reliable, long context window" },
+    { name: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash", family: "preview", description: "Next-gen preview model" }
+  ];
   var DEFAULT_GLOBAL_SETTINGS = {
     geminiApiKey: "",
     geminiModel: "gemini-2.5-flash",
+    geminiFallbackModels: ["gemini-2.5-flash-lite"],
+    discoveredModels: [...DEFAULT_KNOWN_MODELS],
     braveApiKey: "",
     autoClassify: true,
     openInNewTab: true,
     defaultSort: "dateAdded-desc"
   };
+
+  // src/modules/settings/discovery.ts
+  function getCleanModelName(rawName) {
+    if (!rawName) return "";
+    return rawName.startsWith("models/") ? rawName.slice("models/".length) : rawName;
+  }
+  function categorizeModelFamily(cleanName) {
+    const lower = cleanName.toLowerCase();
+    if (lower.includes("flash-lite") || lower.includes("-8b")) {
+      return "flash-lite";
+    }
+    if (lower.includes("preview") || lower.includes("exp") || lower.includes("3.8")) {
+      return "preview";
+    }
+    if (lower.includes("flash")) {
+      return "flash";
+    }
+    if (lower.includes("pro")) {
+      return "pro";
+    }
+    return "other";
+  }
+  function formatModelDisplayName(cleanName, officialDisplayName) {
+    if (officialDisplayName && officialDisplayName.trim()) {
+      return officialDisplayName.trim();
+    }
+    return cleanName.replace(/^gemini-/i, "Gemini ").replace(/-/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  }
+  async function fetchAvailableModels(apiKey) {
+    const key = apiKey.trim();
+    if (!key) {
+      return {
+        success: false,
+        models: [...DEFAULT_KNOWN_MODELS],
+        error: "Please enter a Gemini API key first."
+      };
+    }
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
+    try {
+      const res = await fetch(endpoint, {
+        method: "GET",
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) {
+        if (res.status === 400 || res.status === 403) {
+          return {
+            success: false,
+            models: [...DEFAULT_KNOWN_MODELS],
+            error: `Invalid API key (HTTP ${res.status}). Check your Google AI Studio key.`
+          };
+        }
+        return {
+          success: false,
+          models: [...DEFAULT_KNOWN_MODELS],
+          error: `Failed to fetch models (HTTP ${res.status}).`
+        };
+      }
+      const data = await res.json();
+      const rawList = Array.isArray(data.models) ? data.models : [];
+      const discovered = [];
+      for (const m of rawList) {
+        if (!m || !m.name) continue;
+        const methods = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
+        if (!methods.includes("generateContent")) continue;
+        const cleanName = getCleanModelName(m.name);
+        if (!cleanName.toLowerCase().startsWith("gemini")) continue;
+        discovered.push({
+          name: cleanName,
+          displayName: formatModelDisplayName(cleanName, m.displayName),
+          description: m.description || "",
+          inputTokenLimit: typeof m.inputTokenLimit === "number" ? m.inputTokenLimit : void 0,
+          outputTokenLimit: typeof m.outputTokenLimit === "number" ? m.outputTokenLimit : void 0,
+          family: categorizeModelFamily(cleanName)
+        });
+      }
+      const familyWeight = {
+        "flash": 1,
+        "flash-lite": 2,
+        "preview": 3,
+        "pro": 4,
+        "other": 5
+      };
+      discovered.sort((a, b) => {
+        const wA = familyWeight[a.family || "other"];
+        const wB = familyWeight[b.family || "other"];
+        if (wA !== wB) return wA - wB;
+        return a.displayName.localeCompare(b.displayName);
+      });
+      if (discovered.length === 0) {
+        return {
+          success: true,
+          models: [...DEFAULT_KNOWN_MODELS]
+        };
+      }
+      return {
+        success: true,
+        models: discovered
+      };
+    } catch (err) {
+      return {
+        success: false,
+        models: [...DEFAULT_KNOWN_MODELS],
+        error: err?.message || "Network error fetching models from Gemini API."
+      };
+    }
+  }
 
   // src/modules/settings/manager.ts
   var SETTINGS_STORAGE_KEY = "appDirectory_global_settings";
@@ -2460,7 +2576,9 @@
       const parsed = JSON.parse(raw);
       return {
         ...DEFAULT_GLOBAL_SETTINGS,
-        ...parsed
+        ...parsed,
+        geminiFallbackModels: Array.isArray(parsed.geminiFallbackModels) ? parsed.geminiFallbackModels : [...DEFAULT_GLOBAL_SETTINGS.geminiFallbackModels],
+        discoveredModels: Array.isArray(parsed.discoveredModels) && parsed.discoveredModels.length > 0 ? parsed.discoveredModels : [...DEFAULT_KNOWN_MODELS]
       };
     } catch (err) {
       console.warn("[Settings] Failed to parse stored settings:", err);
@@ -2490,6 +2608,8 @@
         settings: {
           geminiApiKey: settings.geminiApiKey,
           geminiModel: settings.geminiModel,
+          geminiFallbackModels: settings.geminiFallbackModels,
+          discoveredModels: settings.discoveredModels,
           braveApiKey: settings.braveApiKey,
           autoClassify: settings.autoClassify
         }
@@ -2513,6 +2633,14 @@
     }
     if (extSettings.geminiModel && extSettings.geminiModel !== currentSettings.geminiModel) {
       next.geminiModel = extSettings.geminiModel;
+      changed = true;
+    }
+    if (Array.isArray(extSettings.geminiFallbackModels)) {
+      next.geminiFallbackModels = extSettings.geminiFallbackModels;
+      changed = true;
+    }
+    if (Array.isArray(extSettings.discoveredModels) && extSettings.discoveredModels.length > 0) {
+      next.discoveredModels = extSettings.discoveredModels;
       changed = true;
     }
     if (extSettings.braveApiKey !== void 0 && extSettings.braveApiKey !== currentSettings.braveApiKey) {
@@ -2597,6 +2725,99 @@
       pane.classList.toggle("active", id === `settingsTabPane_${tabName}` || id === `${tabName}Tab`);
     });
   }
+  function getAvailableModelsList() {
+    if (Array.isArray(currentSettings.discoveredModels) && currentSettings.discoveredModels.length > 0) {
+      return currentSettings.discoveredModels;
+    }
+    return [...DEFAULT_KNOWN_MODELS];
+  }
+  function renderModelSelectOptions(selectEl, selectedValue) {
+    const models = getAvailableModelsList();
+    selectEl.innerHTML = "";
+    const groups = {
+      "flash": [],
+      "flash-lite": [],
+      "preview": [],
+      "pro": [],
+      "other": []
+    };
+    for (const m of models) {
+      const fam = m.family || "other";
+      if (groups[fam]) groups[fam].push(m);
+      else groups.other.push(m);
+    }
+    const groupLabels = {
+      "flash": "\u26A1 Flash Models (Fast, High Quality)",
+      "flash-lite": "\u{1FAB6} Flash-Lite Models (Ultra Fast, High Quota)",
+      "preview": "\u{1F9EA} Preview & Experimental Models",
+      "pro": "\u{1F9E0} Pro Models (Deep Reasoning)",
+      "other": "\u{1F4E6} Other Gemini Models"
+    };
+    for (const [key, list] of Object.entries(groups)) {
+      if (list.length === 0) continue;
+      const optGroup = document.createElement("optgroup");
+      optGroup.label = groupLabels[key] || key;
+      for (const m of list) {
+        const opt = document.createElement("option");
+        opt.value = m.name;
+        opt.textContent = `${m.displayName} (${m.name})`;
+        if (m.name === selectedValue) {
+          opt.selected = true;
+        }
+        optGroup.appendChild(opt);
+      }
+      selectEl.appendChild(optGroup);
+    }
+    if (selectedValue && !models.some((m) => m.name === selectedValue)) {
+      const customOpt = document.createElement("option");
+      customOpt.value = selectedValue;
+      customOpt.textContent = `${selectedValue} (Custom)`;
+      customOpt.selected = true;
+      selectEl.appendChild(customOpt);
+    }
+  }
+  function renderFallbackChainList() {
+    const container = document.getElementById("settingsFallbackChainList");
+    if (!container) return;
+    container.innerHTML = "";
+    const fallbackList = Array.isArray(currentSettings.geminiFallbackModels) ? currentSettings.geminiFallbackModels : [];
+    if (fallbackList.length === 0) {
+      const emptyMsg = document.createElement("div");
+      emptyMsg.className = "fallback-empty-hint";
+      emptyMsg.textContent = "No fallback models configured. Add one below to automatically recover if primary hits 429/503.";
+      container.appendChild(emptyMsg);
+      return;
+    }
+    fallbackList.forEach((fbModel, idx) => {
+      const row = document.createElement("div");
+      row.className = "settings-fallback-row";
+      row.dataset.index = String(idx);
+      const badge = document.createElement("span");
+      badge.className = "fallback-badge-pill";
+      badge.textContent = `Fallback ${idx + 1}`;
+      const select = document.createElement("select");
+      select.className = "form-select settings-fallback-item-select";
+      renderModelSelectOptions(select, fbModel);
+      select.addEventListener("change", () => {
+        fallbackList[idx] = select.value;
+        currentSettings.geminiFallbackModels = [...fallbackList];
+      });
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn btn-ghost btn-xs remove-fallback-btn";
+      removeBtn.title = "Remove this fallback model";
+      removeBtn.innerHTML = "\u2715";
+      removeBtn.addEventListener("click", () => {
+        fallbackList.splice(idx, 1);
+        currentSettings.geminiFallbackModels = [...fallbackList];
+        renderFallbackChainList();
+      });
+      row.appendChild(badge);
+      row.appendChild(select);
+      row.appendChild(removeBtn);
+      container.appendChild(row);
+    });
+  }
   function populateSettingsForm() {
     const geminiKeyInput = document.getElementById("settingsGeminiKey");
     const geminiModelSelect = document.getElementById("settingsGeminiModel");
@@ -2605,7 +2826,10 @@
     const openInNewTabCheckbox = document.getElementById("settingsOpenInNewTab");
     const defaultSortSelect = document.getElementById("settingsDefaultSort");
     if (geminiKeyInput) geminiKeyInput.value = currentSettings.geminiApiKey || "";
-    if (geminiModelSelect) geminiModelSelect.value = currentSettings.geminiModel || "gemini-2.5-flash";
+    if (geminiModelSelect) {
+      renderModelSelectOptions(geminiModelSelect, currentSettings.geminiModel || "gemini-2.5-flash");
+    }
+    renderFallbackChainList();
     if (braveKeyInput) braveKeyInput.value = currentSettings.braveApiKey || "";
     if (autoClassifyCheckbox) autoClassifyCheckbox.checked = currentSettings.autoClassify !== false;
     if (openInNewTabCheckbox) openInNewTabCheckbox.checked = currentSettings.openInNewTab !== false;
@@ -2618,9 +2842,19 @@
     const autoClassifyCheckbox = document.getElementById("settingsAutoClassify");
     const openInNewTabCheckbox = document.getElementById("settingsOpenInNewTab");
     const defaultSortSelect = document.getElementById("settingsDefaultSort");
+    const fallbackSelects = document.querySelectorAll(".settings-fallback-item-select");
+    const fallbackModels = [];
+    fallbackSelects.forEach((sel) => {
+      const val = sel.value.trim();
+      if (val && !fallbackModels.includes(val)) {
+        fallbackModels.push(val);
+      }
+    });
     return {
       geminiApiKey: geminiKeyInput ? geminiKeyInput.value.trim() : currentSettings.geminiApiKey,
       geminiModel: geminiModelSelect ? geminiModelSelect.value : currentSettings.geminiModel,
+      geminiFallbackModels: fallbackModels.length > 0 ? fallbackModels : currentSettings.geminiFallbackModels,
+      discoveredModels: currentSettings.discoveredModels || [...DEFAULT_KNOWN_MODELS],
       braveApiKey: braveKeyInput ? braveKeyInput.value.trim() : currentSettings.braveApiKey,
       autoClassify: autoClassifyCheckbox ? autoClassifyCheckbox.checked : currentSettings.autoClassify,
       openInNewTab: openInNewTabCheckbox ? openInNewTabCheckbox.checked : currentSettings.openInNewTab,
@@ -2639,6 +2873,9 @@
     const resetBtn = document.getElementById("resetSettingsBtn");
     const testAiBtn = document.getElementById("settingsTestAiBtn");
     const testStatus = document.getElementById("settingsTestAiStatus");
+    const discoverBtn = document.getElementById("settingsDiscoverModelsBtn");
+    const discoverStatus = document.getElementById("settingsDiscoverStatus");
+    const addFallbackBtn = document.getElementById("settingsAddFallbackBtn");
     const geminiToggle = document.getElementById("settingsGeminiKeyToggle");
     const braveToggle = document.getElementById("settingsBraveKeyToggle");
     const geminiKeyInput = document.getElementById("settingsGeminiKey");
@@ -2675,6 +2912,59 @@
         const isPassword = braveKeyInput.type === "password";
         braveKeyInput.type = isPassword ? "text" : "password";
         braveToggle.textContent = isPassword ? "\u{1F648}" : "\u{1F441}\uFE0F";
+      });
+    }
+    if (discoverBtn) {
+      discoverBtn.addEventListener("click", async () => {
+        const key = geminiKeyInput ? geminiKeyInput.value.trim() : currentSettings.geminiApiKey;
+        if (!key) {
+          if (discoverStatus) {
+            discoverStatus.style.display = "inline-flex";
+            discoverStatus.className = "settings-status-badge error";
+            discoverStatus.textContent = "Please enter a Gemini API key first.";
+          }
+          return;
+        }
+        if (discoverStatus) {
+          discoverStatus.style.display = "inline-flex";
+          discoverStatus.className = "settings-status-badge loading";
+          discoverStatus.textContent = "Fetching models from Gemini API\u2026";
+        }
+        discoverBtn.setAttribute("disabled", "true");
+        const result = await fetchAvailableModels(key);
+        discoverBtn.removeAttribute("disabled");
+        if (result.success && result.models.length > 0) {
+          currentSettings.discoveredModels = result.models;
+          updateSettings({ discoveredModels: result.models });
+          const modelSelect = document.getElementById("settingsGeminiModel");
+          if (modelSelect) {
+            renderModelSelectOptions(modelSelect, currentSettings.geminiModel);
+          }
+          renderFallbackChainList();
+          if (discoverStatus) {
+            discoverStatus.style.display = "inline-flex";
+            discoverStatus.className = "settings-status-badge success";
+            discoverStatus.textContent = `\u2713 Discovered ${result.models.length} models for your key`;
+          }
+        } else {
+          if (discoverStatus) {
+            discoverStatus.style.display = "inline-flex";
+            discoverStatus.className = "settings-status-badge error";
+            discoverStatus.textContent = result.error || "Failed to fetch models.";
+          }
+        }
+      });
+    }
+    if (addFallbackBtn) {
+      addFallbackBtn.addEventListener("click", () => {
+        const available = getAvailableModelsList();
+        const currentList = Array.isArray(currentSettings.geminiFallbackModels) ? [...currentSettings.geminiFallbackModels] : [];
+        const primary = currentSettings.geminiModel || "gemini-2.5-flash";
+        const nextCandidate = available.find((m) => m.name !== primary && !currentList.includes(m.name));
+        const chosen = nextCandidate ? nextCandidate.name : "gemini-2.0-flash";
+        currentList.push(chosen);
+        currentSettings.geminiFallbackModels = currentList;
+        renderFallbackChainList();
       });
     }
     if (testAiBtn) {
@@ -2844,10 +3134,9 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
 
   // src/modules/settings/classifier.ts
-  async function classifyBookmarkWithAI(url, title, description = "", availableCategories, forceSearch = false) {
+  async function classifyBookmarkWithAI(url, title, description = "", availableCategories, forceSearch = false, onProgress) {
     const settings = getSettings();
     const geminiApiKey = settings.geminiApiKey?.trim();
-    const selectedModel = settings.geminiModel || "gemini-2.5-flash";
     const braveApiKey = settings.braveApiKey?.trim();
     if (!geminiApiKey) {
       return {
@@ -2877,6 +3166,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     let searchSnippets = [];
     let method = "DOM_DIRECT";
     if ((isSparse || forceSearch) && braveApiKey) {
+      onProgress?.({
+        stage: "BRAVE_SEARCH",
+        message: "Grounding with Brave Search results..."
+      });
       try {
         const query = `${title || hostname} ${hostname} what is it product summary`;
         const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=4`;
@@ -2903,86 +3196,193 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       }
     }
     const userPrompt = buildTaxonomyUserPrompt(pageContext, availableCategories, searchSnippets);
-    async function callGemini(modelToUse) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelToUse)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
-      return fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
-          },
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: userPrompt }]
-            }
-          ],
-          generationConfig: {
-            response_mime_type: "application/json",
-            temperature: 0.2
-          }
-        })
+    const modelsToTry = [];
+    if (settings.geminiModel && settings.geminiModel.trim()) {
+      modelsToTry.push(settings.geminiModel.trim());
+    }
+    if (Array.isArray(settings.geminiFallbackModels)) {
+      for (const fm of settings.geminiFallbackModels) {
+        const trimmed = (fm || "").trim();
+        if (trimmed && !modelsToTry.includes(trimmed)) {
+          modelsToTry.push(trimmed);
+        }
+      }
+    }
+    if (modelsToTry.length === 0) {
+      modelsToTry.push("gemini-2.5-flash");
+    }
+    const auditChain = [];
+    let lastError = "UNKNOWN_ERROR";
+    for (let idx = 0; idx < modelsToTry.length; idx++) {
+      const currentModel = modelsToTry[idx];
+      const isPrimary = idx === 0;
+      onProgress?.({
+        stage: "ATTEMPTING",
+        model: currentModel,
+        attemptIndex: idx + 1,
+        totalModels: modelsToTry.length,
+        message: isPrimary ? `Querying primary model (${currentModel})...` : `Querying fallback model (${currentModel})...`
       });
-    }
-    let effectiveModel = selectedModel;
-    let response = await callGemini(effectiveModel);
-    if (response.status === 503 && effectiveModel === "gemini-3.8-flash") {
-      console.warn("[Classifier] gemini-3.8-flash returned 503 (overloaded). Falling back to gemini-2.5-flash...");
-      effectiveModel = "gemini-2.5-flash";
-      response = await callGemini(effectiveModel);
-    }
-    if (!response.ok) {
-      if (response.status === 429) {
-        return { success: false, error: "RATE_LIMIT_EXCEEDED", recommendedTags: [] };
-      } else if (response.status === 400 || response.status === 403) {
-        return { success: false, error: "INVALID_API_KEY", recommendedTags: [] };
-      } else if (response.status === 503) {
-        return { success: false, error: "SERVICE_OVERLOADED_503", recommendedTags: [] };
-      } else {
-        return { success: false, error: `API_ERROR_${response.status}`, recommendedTags: [] };
+      const startTime = Date.now();
+      let response = null;
+      let fetchError = null;
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
+            },
+            contents: [
+              {
+                role: "user",
+                parts: [{ text: userPrompt }]
+              }
+            ],
+            generationConfig: {
+              response_mime_type: "application/json",
+              temperature: 0.15
+            }
+          })
+        });
+      } catch (err) {
+        fetchError = err;
       }
-    }
-    try {
-      const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) {
-        return { success: false, error: "NO_RESPONSE_TEXT", recommendedTags: [] };
-      }
-      const parsed = JSON.parse(rawText);
-      const recommendedTags = Array.isArray(parsed.recommendedTags) ? parsed.recommendedTags.map((t) => String(t).trim()).filter(Boolean) : [];
-      const newTags = [];
-      if (Array.isArray(parsed.newTags)) {
-        for (const nt of parsed.newTags) {
-          const trimmed = String(nt).trim();
-          if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+      const latencyMs = Date.now() - startTime;
+      if (fetchError || !response || !response.ok) {
+        const status = response ? response.status : 0;
+        let errorReason = "NETWORK_ERROR";
+        if (status === 429) {
+          errorReason = "RATE_LIMIT_EXCEEDED";
+        } else if (status === 503) {
+          errorReason = "SERVICE_OVERLOADED_503";
+        } else if (status === 400 || status === 403) {
+          errorReason = "INVALID_API_KEY";
+        } else if (status > 0) {
+          errorReason = `HTTP_${status}`;
+        }
+        auditChain.push({
+          model: currentModel,
+          status: "FAILED",
+          error: errorReason,
+          latencyMs
+        });
+        lastError = errorReason;
+        if (errorReason === "INVALID_API_KEY") {
+          onProgress?.({
+            stage: "ERROR",
+            model: currentModel,
+            errorReason,
+            message: "Invalid Gemini API Key."
+          });
+          return {
+            success: false,
+            error: "INVALID_API_KEY",
+            recommendedTags: [],
+            auditChain
+          };
+        }
+        const hasNext = idx + 1 < modelsToTry.length;
+        if (hasNext) {
+          const nextModel = modelsToTry[idx + 1];
+          const friendlyReason = status === 429 ? "Rate limited (429)" : status === 503 ? "Server overloaded (503)" : `Unavailable (${errorReason})`;
+          onProgress?.({
+            stage: "FALLBACK_SWITCH",
+            model: currentModel,
+            targetModel: nextModel,
+            errorReason,
+            attemptIndex: idx + 1,
+            totalModels: modelsToTry.length,
+            message: `\u26A0\uFE0F ${currentModel} ${friendlyReason} \u2192 Trying ${nextModel}...`
+          });
+          continue;
+        } else {
+          onProgress?.({
+            stage: "ERROR",
+            model: currentModel,
+            errorReason,
+            message: `All configured models failed. Last error: ${errorReason}`
+          });
+          return {
+            success: false,
+            error: lastError,
+            recommendedTags: [],
+            auditChain
+          };
         }
       }
-      if (parsed.suggestedNewTag) {
-        const snt = String(parsed.suggestedNewTag).trim();
-        if (snt && snt.toLowerCase() !== "null" && snt.toLowerCase() !== "none" && !newTags.includes(snt)) {
-          newTags.push(snt);
+      try {
+        const data = await response.json();
+        const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!rawText) {
+          auditChain.push({
+            model: currentModel,
+            status: "FAILED",
+            error: "NO_RESPONSE_TEXT",
+            latencyMs
+          });
+          continue;
         }
-      }
-      for (const nt of newTags) {
-        if (!recommendedTags.includes(nt)) {
-          recommendedTags.push(nt);
+        const parsed = JSON.parse(rawText);
+        const recommendedTags = Array.isArray(parsed.recommendedTags) ? parsed.recommendedTags.map((t) => String(t).trim()).filter(Boolean) : [];
+        const newTags = [];
+        if (Array.isArray(parsed.newTags)) {
+          for (const nt of parsed.newTags) {
+            const trimmed = String(nt).trim();
+            if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+          }
         }
+        if (parsed.suggestedNewTag) {
+          const snt = String(parsed.suggestedNewTag).trim();
+          if (snt && snt.toLowerCase() !== "null" && snt.toLowerCase() !== "none" && !newTags.includes(snt)) {
+            newTags.push(snt);
+          }
+        }
+        for (const nt of newTags) {
+          if (!recommendedTags.includes(nt)) {
+            recommendedTags.push(nt);
+          }
+        }
+        const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
+        auditChain.push({
+          model: currentModel,
+          status: "SUCCESS",
+          latencyMs
+        });
+        onProgress?.({
+          stage: "SUCCESS",
+          model: currentModel,
+          message: `Classified via ${currentModel} (${latencyMs}ms)`
+        });
+        return {
+          success: true,
+          method,
+          recommendedTags,
+          newTags,
+          reasoning,
+          suggestedNewTag: newTags[0] || null,
+          modelUsed: currentModel,
+          auditChain
+        };
+      } catch (parseErr) {
+        console.warn(`[Classifier] Parse error from ${currentModel}:`, parseErr);
+        auditChain.push({
+          model: currentModel,
+          status: "FAILED",
+          error: "PARSE_ERROR",
+          latencyMs
+        });
+        continue;
       }
-      const reasoning = typeof parsed.reasoning === "string" ? parsed.reasoning.trim() : "";
-      return {
-        success: true,
-        method,
-        recommendedTags,
-        newTags,
-        reasoning,
-        suggestedNewTag: newTags[0] || null,
-        modelUsed: effectiveModel
-      };
-    } catch (err) {
-      console.error("[Classifier] Error parsing Gemini classification response:", err);
-      return { success: false, error: "PARSE_ERROR", recommendedTags: [] };
     }
+    return {
+      success: false,
+      error: lastError,
+      recommendedTags: [],
+      auditChain
+    };
   }
 
   // src/modules/bookmarks/crud.ts
@@ -3100,7 +3500,19 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       const title = entryName2?.value.trim() || "";
       const desc = entryDescription2?.value.trim() || "";
       const availableCategories = getAllCategories();
-      const result = await classifyBookmarkWithAI(url, title, desc, availableCategories, forceSearch);
+      const result = await classifyBookmarkWithAI(
+        url,
+        title,
+        desc,
+        availableCategories,
+        forceSearch,
+        (event) => {
+          if (categoryAiStatus) {
+            categoryAiStatus.className = "url-autofill-status loading";
+            categoryAiStatus.textContent = event.message;
+          }
+        }
+      );
       if (result.success && result.recommendedTags.length > 0) {
         let addedAny = false;
         for (const tag of result.recommendedTags) {
@@ -3112,14 +3524,19 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         renderCategoryChips();
         if (categoryAiStatus) {
           categoryAiStatus.className = "url-autofill-status success";
+          const cleanModel = (result.modelUsed || "").replace(/^models\//, "");
           const methodTag = result.method === "BRAVE_GROUNDED" ? " [Brave]" : "";
+          const fallbackNotice = result.auditChain && result.auditChain.some((a) => a.status === "FAILED") ? ` [${cleanModel} (Fallback)]` : cleanModel ? ` [${cleanModel}]` : "";
           const newTagNotice = result.newTags && result.newTags.length > 0 ? ` (+${result.newTags.length} new)` : "";
-          categoryAiStatus.textContent = `\u2713 ${result.recommendedTags.length} tags${methodTag}${newTagNotice}`;
+          categoryAiStatus.textContent = `\u2713 ${result.recommendedTags.length} tags${methodTag}${fallbackNotice}${newTagNotice}`;
+          if (result.reasoning) {
+            categoryAiStatus.title = `Reasoning: ${result.reasoning}`;
+          }
           setTimeout(() => {
             if (categoryAiStatus.className.includes("success")) {
               categoryAiStatus.style.display = "none";
             }
-          }, 4500);
+          }, 5e3);
         }
         if (result.newTags && result.newTags.length > 0) {
           showToast(`\u2726 AI suggested new category: "${result.newTags.join(", ")}"`);

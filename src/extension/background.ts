@@ -1,7 +1,13 @@
 // Manifest V3 Background Service Worker for App Directory Companion Extension
 
 import { TAXONOMY_SYSTEM_PROMPT, buildTaxonomyUserPrompt } from './taxonomy';
-import { ExtractedPageContext, ExtensionSettings } from './types';
+import {
+  ExtractedPageContext,
+  ExtensionSettings,
+  ClassificationProgressEvent,
+  ClassificationResult,
+  ModelAuditEntry
+} from './types';
 
 const STORAGE_KEYS = {
   CACHED_FOLDERS: 'ad_cached_folders',
@@ -9,9 +15,12 @@ const STORAGE_KEYS = {
   PENDING_BOOKMARKS: 'ad_pending_bookmarks',
   SETTINGS_GEMINI_KEY: 'ad_gemini_api_key',
   SETTINGS_GEMINI_MODEL: 'ad_gemini_model',
+  SETTINGS_GEMINI_FALLBACK_MODELS: 'ad_gemini_fallback_models',
+  SETTINGS_DISCOVERED_MODELS: 'ad_discovered_models',
   SETTINGS_BRAVE_KEY: 'ad_brave_api_key',
   SETTINGS_AUTO_CLASSIFY: 'ad_auto_classify'
 };
+
 
 // ── Tab Identification Helpers ────────────────────────────
 function isAppDirectoryTab(url?: string, title?: string): boolean {
@@ -142,12 +151,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       chrome.storage.local.get([
         STORAGE_KEYS.SETTINGS_GEMINI_KEY,
         STORAGE_KEYS.SETTINGS_GEMINI_MODEL,
+        STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS,
+        STORAGE_KEYS.SETTINGS_DISCOVERED_MODELS,
         STORAGE_KEYS.SETTINGS_BRAVE_KEY,
         STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY
       ], (res) => {
         sendResponse({
           geminiApiKey: res[STORAGE_KEYS.SETTINGS_GEMINI_KEY] || '',
           geminiModel: res[STORAGE_KEYS.SETTINGS_GEMINI_MODEL] || 'gemini-2.5-flash',
+          geminiFallbackModels: res[STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS] || ['gemini-2.5-flash-lite'],
+          discoveredModels: res[STORAGE_KEYS.SETTINGS_DISCOVERED_MODELS] || [],
           braveApiKey: res[STORAGE_KEYS.SETTINGS_BRAVE_KEY] || '',
           autoClassify: res[STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY] !== false
         });
@@ -157,197 +170,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case 'SAVE_SETTINGS': {
       const s = message.settings || {};
-      chrome.storage.local.set({
+      const toSet: Record<string, any> = {
         [STORAGE_KEYS.SETTINGS_GEMINI_KEY]: s.geminiApiKey || '',
         [STORAGE_KEYS.SETTINGS_GEMINI_MODEL]: s.geminiModel || 'gemini-2.5-flash',
         [STORAGE_KEYS.SETTINGS_BRAVE_KEY]: s.braveApiKey || '',
         [STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY]: s.autoClassify !== false
-      }, () => {
+      };
+      if (Array.isArray(s.geminiFallbackModels)) {
+        toSet[STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS] = s.geminiFallbackModels;
+      }
+      if (Array.isArray(s.discoveredModels)) {
+        toSet[STORAGE_KEYS.SETTINGS_DISCOVERED_MODELS] = s.discoveredModels;
+      }
+      chrome.storage.local.set(toSet, () => {
         sendResponse({ success: true });
       });
       return true;
     }
 
     case 'CLASSIFY_WEBSITE': {
-      (async () => {
-        try {
-          const pageContext: ExtractedPageContext = message.pageContext;
-          const availableCategories: string[] = Array.isArray(message.availableCategories)
-            ? message.availableCategories
-            : [];
-          const forceSearch: boolean = !!message.forceSearch;
+      const pageContext: ExtractedPageContext = message.pageContext;
+      const availableCategories: string[] = Array.isArray(message.availableCategories)
+        ? message.availableCategories
+        : [];
+      const forceSearch: boolean = !!message.forceSearch;
 
-          const res = await chrome.storage.local.get([
-            STORAGE_KEYS.SETTINGS_GEMINI_KEY,
-            STORAGE_KEYS.SETTINGS_GEMINI_MODEL,
-            STORAGE_KEYS.SETTINGS_BRAVE_KEY
-          ]);
-
-          const geminiApiKey = String(res[STORAGE_KEYS.SETTINGS_GEMINI_KEY] || '').trim();
-          const geminiModel = String(res[STORAGE_KEYS.SETTINGS_GEMINI_MODEL] || 'gemini-2.5-flash').trim();
-          const braveApiKey = String(res[STORAGE_KEYS.SETTINGS_BRAVE_KEY] || '').trim();
-
-          if (!geminiApiKey) {
-            sendResponse({ success: false, error: 'NO_API_KEY' });
-            return;
-          }
-
-          let searchSnippets: string[] = [];
-          let method: 'DOM_DIRECT' | 'BRAVE_GROUNDED' = 'DOM_DIRECT';
-
-          // Determine if Brave Search should be queried
-          const shouldSearch = (pageContext?.isSparse || forceSearch) && !!braveApiKey;
-          if (shouldSearch) {
-            try {
-              const query = `${pageContext.title} ${pageContext.hostname} what is it product summary`;
-              const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=4`;
-              const braveResp = await fetch(braveUrl, {
-                headers: {
-                  'Accept': 'application/json',
-                  'X-Subscription-Token': braveApiKey
-                }
-              });
-              if (braveResp.ok) {
-                const braveData = await braveResp.json();
-                const results = braveData.web?.results || [];
-                for (const r of results) {
-                  if (r.title && r.description) {
-                    searchSnippets.push(`${r.title}: ${r.description}`);
-                  }
-                }
-                if (searchSnippets.length > 0) {
-                  method = 'BRAVE_GROUNDED';
-                }
-              }
-            } catch (bErr) {
-              console.warn('[AppDirectory] Brave Search failed, falling back to DOM text:', bErr);
-            }
-          }
-
-          // Build prompt
-          const userPrompt = buildTaxonomyUserPrompt(
-            pageContext,
-            availableCategories,
-            searchSnippets
-          );
-
-          // Query Gemini API
-          const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`;
-          const payload = {
-            system_instruction: {
-              parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
-            },
-            contents: [
-              {
-                role: 'user',
-                parts: [{ text: userPrompt }]
-              }
-            ],
-            generationConfig: {
-              response_mime_type: 'application/json',
-              temperature: 0.15
-            }
-          };
-
-          let response = await fetch(geminiEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          let effectiveModel = geminiModel;
-
-          // Auto-fallback from gemini-3.8-flash to gemini-2.5-flash on 503 Service Unavailable or 500
-          if (!response.ok && (response.status === 503 || response.status === 500) && geminiModel !== 'gemini-2.5-flash') {
-            console.warn(`[AppDirectory] ${geminiModel} returned HTTP ${response.status}. Automatically retrying with gemini-2.5-flash...`);
-            const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
-            try {
-              const fallbackResp = await fetch(fallbackEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-              });
-              if (fallbackResp.ok) {
-                response = fallbackResp;
-                effectiveModel = 'gemini-2.5-flash';
-              }
-            } catch (fErr) {
-              console.warn('[AppDirectory] Fallback to gemini-2.5-flash failed:', fErr);
-            }
-          }
-
-          if (!response.ok) {
-            const errBody = await response.text();
-            console.error('[AppDirectory] Gemini API error:', response.status, errBody);
-            if (response.status === 429) {
-              sendResponse({ success: false, error: 'RATE_LIMIT_EXCEEDED' });
-            } else if (response.status === 400 || response.status === 403) {
-              sendResponse({ success: false, error: 'INVALID_API_KEY' });
-            } else if (response.status === 503) {
-              sendResponse({ success: false, error: 'SERVICE_OVERLOADED_503' });
-            } else {
-              sendResponse({ success: false, error: `API_ERROR_${response.status}` });
-            }
-            return;
-          }
-
-          const data = await response.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!rawText) {
-            sendResponse({ success: false, error: 'NO_RESPONSE_TEXT' });
-            return;
-          }
-
-          let parsed: any;
-          try {
-            parsed = JSON.parse(rawText);
-          } catch (pErr) {
-            console.error('[AppDirectory] Failed to parse JSON from Gemini:', rawText);
-            sendResponse({ success: false, error: 'PARSE_ERROR' });
-            return;
-          }
-
-          const recommendedTags: string[] = Array.isArray(parsed.recommendedTags)
-            ? parsed.recommendedTags.map((t: any) => String(t).trim()).filter(Boolean)
-            : [];
-
-          const newTags: string[] = [];
-          if (Array.isArray(parsed.newTags)) {
-            for (const nt of parsed.newTags) {
-              const trimmed = String(nt).trim();
-              if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
-            }
-          }
-          if (parsed.suggestedNewTag) {
-            const snt = String(parsed.suggestedNewTag).trim();
-            if (snt && snt.toLowerCase() !== 'null' && snt.toLowerCase() !== 'none' && !newTags.includes(snt)) {
-              newTags.push(snt);
-            }
-          }
-
-          // Ensure any suggested new tag is ALSO inside recommendedTags so it is never dropped
-          for (const nt of newTags) {
-            if (!recommendedTags.includes(nt)) {
-              recommendedTags.push(nt);
-            }
-          }
-
-          const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning.trim() : '';
-
-          sendResponse({
-            success: true,
-            method,
-            recommendedTags,
-            newTags,
-            reasoning,
-            suggestedNewTag: newTags[0] || null,
-            modelUsed: effectiveModel
-          });
-        } catch (err: any) {
-          console.error('[AppDirectory] Classification exception:', err);
-          sendResponse({ success: false, error: err?.message || 'UNKNOWN_ERROR' });
-        }
-      })();
+      executeClassificationWorkflow(pageContext, availableCategories, forceSearch)
+        .then((result) => sendResponse(result))
+        .catch((err) => {
+          sendResponse({ success: false, error: err?.message || 'UNKNOWN_ERROR', recommendedTags: [] });
+        });
       return true; // Async response
     }
 
@@ -536,3 +388,330 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return false;
   }
 });
+
+// ── Streamed Port Connection for Real-Time State Badging ──
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'ad-classify') {
+    port.onMessage.addListener(async (msg) => {
+      if (!msg || msg.type !== 'START_CLASSIFY') return;
+      try {
+        const result = await executeClassificationWorkflow(
+          msg.pageContext,
+          msg.availableCategories || [],
+          !!msg.forceSearch,
+          (progress) => {
+            try {
+              port.postMessage({ type: 'PROGRESS', progress });
+            } catch (_) {}
+          }
+        );
+        try {
+          port.postMessage({ type: 'RESULT', result });
+        } catch (_) {}
+      } catch (err: any) {
+        try {
+          port.postMessage({
+            type: 'RESULT',
+            result: {
+              success: false,
+              error: err?.message || 'UNKNOWN_ERROR',
+              recommendedTags: []
+            }
+          });
+        } catch (_) {}
+      }
+    });
+  }
+});
+
+// ── Master Classification Engine with Ordered Fallbacks ──
+async function executeClassificationWorkflow(
+  pageContext: ExtractedPageContext,
+  availableCategories: string[],
+  forceSearch: boolean,
+  onProgress?: (event: ClassificationProgressEvent) => void
+): Promise<ClassificationResult> {
+  const res = await chrome.storage.local.get([
+    STORAGE_KEYS.SETTINGS_GEMINI_KEY,
+    STORAGE_KEYS.SETTINGS_GEMINI_MODEL,
+    STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS,
+    STORAGE_KEYS.SETTINGS_BRAVE_KEY
+  ]);
+
+  const geminiApiKey = String(res[STORAGE_KEYS.SETTINGS_GEMINI_KEY] || '').trim();
+  const primaryModel = String(res[STORAGE_KEYS.SETTINGS_GEMINI_MODEL] || 'gemini-2.5-flash').trim();
+  const rawFallbacks = res[STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS];
+  const fallbackModels: string[] = Array.isArray(rawFallbacks)
+    ? rawFallbacks
+    : ['gemini-2.5-flash-lite'];
+  const braveApiKey = String(res[STORAGE_KEYS.SETTINGS_BRAVE_KEY] || '').trim();
+
+  if (!geminiApiKey) {
+    return {
+      success: false,
+      error: 'NO_API_KEY',
+      recommendedTags: []
+    };
+  }
+
+  let searchSnippets: string[] = [];
+  let method: 'DOM_DIRECT' | 'BRAVE_GROUNDED' = 'DOM_DIRECT';
+
+  // Determine if Brave Search should be queried
+  const shouldSearch = (pageContext?.isSparse || forceSearch) && !!braveApiKey;
+  if (shouldSearch) {
+    onProgress?.({
+      stage: 'BRAVE_SEARCH',
+      message: 'Grounding with Brave Search results...'
+    });
+
+    try {
+      const query = `${pageContext.title} ${pageContext.hostname} what is it product summary`;
+      const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=4`;
+      const braveResp = await fetch(braveUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'X-Subscription-Token': braveApiKey
+        }
+      });
+      if (braveResp.ok) {
+        const braveData = await braveResp.json();
+        const results = braveData.web?.results || [];
+        for (const r of results) {
+          if (r.title && r.description) {
+            searchSnippets.push(`${r.title}: ${r.description}`);
+          }
+        }
+        if (searchSnippets.length > 0) {
+          method = 'BRAVE_GROUNDED';
+        }
+      }
+    } catch (bErr) {
+      console.warn('[AppDirectory] Brave Search failed, falling back to DOM text:', bErr);
+    }
+  }
+
+  // Build prompt
+  const userPrompt = buildTaxonomyUserPrompt(
+    pageContext,
+    availableCategories,
+    searchSnippets
+  );
+
+  // Construct ordered list of models to try
+  const modelsToTry: string[] = [];
+  if (primaryModel) modelsToTry.push(primaryModel);
+  for (const fm of fallbackModels) {
+    const trimmed = (fm || '').trim();
+    if (trimmed && !modelsToTry.includes(trimmed)) {
+      modelsToTry.push(trimmed);
+    }
+  }
+  if (modelsToTry.length === 0) {
+    modelsToTry.push('gemini-2.5-flash');
+  }
+
+  const auditChain: ModelAuditEntry[] = [];
+  let lastError = 'UNKNOWN_ERROR';
+
+  for (let idx = 0; idx < modelsToTry.length; idx++) {
+    const currentModel = modelsToTry[idx];
+    const isPrimary = idx === 0;
+    const cleanModelName = currentModel.replace(/^models\//, '');
+
+    onProgress?.({
+      stage: 'ATTEMPTING',
+      model: currentModel,
+      attemptIndex: idx + 1,
+      totalModels: modelsToTry.length,
+      message: isPrimary
+        ? `Querying ${cleanModelName}...`
+        : `Cascading to fallback (${cleanModelName})...`
+    });
+
+    const startTime = Date.now();
+    let response: Response | null = null;
+    let fetchError: any = null;
+
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cleanModelName)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: TAXONOMY_SYSTEM_PROMPT }]
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: userPrompt }]
+            }
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+            temperature: 0.15
+          }
+        })
+      });
+    } catch (err) {
+      fetchError = err;
+    }
+
+    const latencyMs = Date.now() - startTime;
+
+    if (fetchError || !response || !response.ok) {
+      const status = response ? response.status : 0;
+      let errorReason = 'NETWORK_ERROR';
+      if (status === 429) {
+        errorReason = 'RATE_LIMIT_EXCEEDED';
+      } else if (status === 503) {
+        errorReason = 'SERVICE_OVERLOADED_503';
+      } else if (status === 400 || status === 403) {
+        errorReason = 'INVALID_API_KEY';
+      } else if (status > 0) {
+        errorReason = `HTTP_${status}`;
+      }
+
+      auditChain.push({
+        model: currentModel,
+        status: 'FAILED',
+        error: errorReason,
+        latencyMs
+      });
+
+      lastError = errorReason;
+
+      if (errorReason === 'INVALID_API_KEY') {
+        onProgress?.({
+          stage: 'ERROR',
+          model: currentModel,
+          errorReason,
+          message: 'Invalid Gemini API Key.'
+        });
+        return {
+          success: false,
+          error: 'INVALID_API_KEY',
+          recommendedTags: [],
+          auditChain
+        };
+      }
+
+      const hasNext = idx + 1 < modelsToTry.length;
+      if (hasNext) {
+        const nextModel = modelsToTry[idx + 1];
+        const cleanNextName = nextModel.replace(/^models\//, '');
+        const friendlyReason = status === 429
+          ? 'Rate limited (429)'
+          : status === 503
+          ? 'Overloaded (503)'
+          : `Unavailable (${errorReason})`;
+
+        onProgress?.({
+          stage: 'FALLBACK_SWITCH',
+          model: currentModel,
+          targetModel: nextModel,
+          errorReason,
+          attemptIndex: idx + 1,
+          totalModels: modelsToTry.length,
+          message: `⚠️ ${cleanModelName} ${friendlyReason} → Trying ${cleanNextName}...`
+        });
+        continue;
+      } else {
+        onProgress?.({
+          stage: 'ERROR',
+          model: currentModel,
+          errorReason,
+          message: `All models failed. Last error: ${errorReason}`
+        });
+        return {
+          success: false,
+          error: lastError,
+          recommendedTags: [],
+          auditChain
+        };
+      }
+    }
+
+    try {
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) {
+        auditChain.push({
+          model: currentModel,
+          status: 'FAILED',
+          error: 'NO_RESPONSE_TEXT',
+          latencyMs
+        });
+        continue;
+      }
+
+      const parsed = JSON.parse(rawText);
+      const recommendedTags: string[] = Array.isArray(parsed.recommendedTags)
+        ? parsed.recommendedTags.map((t: any) => String(t).trim()).filter(Boolean)
+        : [];
+
+      const newTags: string[] = [];
+      if (Array.isArray(parsed.newTags)) {
+        for (const nt of parsed.newTags) {
+          const trimmed = String(nt).trim();
+          if (trimmed && !newTags.includes(trimmed)) newTags.push(trimmed);
+        }
+      }
+      if (parsed.suggestedNewTag) {
+        const snt = String(parsed.suggestedNewTag).trim();
+        if (snt && snt.toLowerCase() !== 'null' && snt.toLowerCase() !== 'none' && !newTags.includes(snt)) {
+          newTags.push(snt);
+        }
+      }
+
+      for (const nt of newTags) {
+        if (!recommendedTags.includes(nt)) {
+          recommendedTags.push(nt);
+        }
+      }
+
+      const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning.trim() : '';
+
+      auditChain.push({
+        model: currentModel,
+        status: 'SUCCESS',
+        latencyMs
+      });
+
+      onProgress?.({
+        stage: 'SUCCESS',
+        model: currentModel,
+        message: `Classified via ${cleanModelName} (${latencyMs}ms)`
+      });
+
+      return {
+        success: true,
+        method,
+        recommendedTags,
+        newTags,
+        reasoning,
+        suggestedNewTag: newTags[0] || null,
+        modelUsed: currentModel,
+        auditChain
+      };
+    } catch (parseErr: any) {
+      console.warn(`[AppDirectory] Parse error from ${currentModel}:`, parseErr);
+      auditChain.push({
+        model: currentModel,
+        status: 'FAILED',
+        error: 'PARSE_ERROR',
+        latencyMs
+      });
+      continue;
+    }
+  }
+
+  return {
+    success: false,
+    error: lastError,
+    recommendedTags: [],
+    auditChain
+  };
+}
+

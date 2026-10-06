@@ -501,6 +501,10 @@
   letter-spacing: 0.2px;
   user-select: none;
   transition: all 0.2s ease;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ad-classify-badge.ad-badge-dom {
@@ -512,6 +516,17 @@
 
 .ad-classify-badge.ad-badge-dom:hover {
   background: rgba(52, 199, 89, 0.26);
+}
+
+.ad-classify-badge.ad-badge-fallback {
+  background: rgba(168, 85, 247, 0.16);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  cursor: pointer;
+}
+
+.ad-classify-badge.ad-badge-fallback:hover {
+  background: rgba(168, 85, 247, 0.26);
 }
 
 .ad-classify-badge.ad-badge-brave {

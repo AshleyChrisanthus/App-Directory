@@ -1,4 +1,5 @@
 // Type definitions for App Directory Companion Extension
+import type { DiscoveredModel } from '../modules/settings/types';
 
 export type ClassificationMethod = 'DOM_DIRECT' | 'BRAVE_GROUNDED';
 
@@ -18,6 +19,23 @@ export interface ExtractedPageContext {
   isSparse: boolean;
 }
 
+export interface ModelAuditEntry {
+  model: string;
+  status: 'SUCCESS' | 'FAILED';
+  error?: string;
+  latencyMs?: number;
+}
+
+export interface ClassificationProgressEvent {
+  stage: 'INIT' | 'ATTEMPTING' | 'MODEL_FAILED' | 'FALLBACK_SWITCH' | 'BRAVE_SEARCH' | 'SUCCESS' | 'ERROR';
+  model?: string;
+  targetModel?: string;
+  attemptIndex?: number;
+  totalModels?: number;
+  errorReason?: string;
+  message: string;
+}
+
 export interface ClassificationResult {
   success: boolean;
   method?: ClassificationMethod;
@@ -27,11 +45,14 @@ export interface ClassificationResult {
   suggestedNewTag?: string | null;
   error?: string;
   modelUsed?: string;
+  auditChain?: ModelAuditEntry[];
 }
 
 export interface ExtensionSettings {
   geminiApiKey: string;
-  geminiModel: string; // e.g. 'gemini-2.5-flash' | 'gemini-3.8-flash'
+  geminiModel: string;
+  geminiFallbackModels?: string[];
+  discoveredModels?: DiscoveredModel[];
   braveApiKey?: string;
   autoClassify: boolean;
 }

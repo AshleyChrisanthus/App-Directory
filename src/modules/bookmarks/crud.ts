@@ -150,7 +150,19 @@ export async function suggestCategoriesWithAI(forceSearch: boolean = false): Pro
     const desc = entryDescription?.value.trim() || '';
     const availableCategories = getAllCategories();
 
-    const result = await classifyBookmarkWithAI(url, title, desc, availableCategories, forceSearch);
+    const result = await classifyBookmarkWithAI(
+      url,
+      title,
+      desc,
+      availableCategories,
+      forceSearch,
+      (event) => {
+        if (categoryAiStatus) {
+          categoryAiStatus.className = 'url-autofill-status loading';
+          categoryAiStatus.textContent = event.message;
+        }
+      }
+    );
 
     if (result.success && result.recommendedTags.length > 0) {
       let addedAny = false;
@@ -164,14 +176,21 @@ export async function suggestCategoriesWithAI(forceSearch: boolean = false): Pro
 
       if (categoryAiStatus) {
         categoryAiStatus.className = 'url-autofill-status success';
+        const cleanModel = (result.modelUsed || '').replace(/^models\//, '');
         const methodTag = result.method === 'BRAVE_GROUNDED' ? ' [Brave]' : '';
+        const fallbackNotice = result.auditChain && result.auditChain.some(a => a.status === 'FAILED')
+          ? ` [${cleanModel} (Fallback)]`
+          : cleanModel ? ` [${cleanModel}]` : '';
         const newTagNotice = result.newTags && result.newTags.length > 0 ? ` (+${result.newTags.length} new)` : '';
-        categoryAiStatus.textContent = `✓ ${result.recommendedTags.length} tags${methodTag}${newTagNotice}`;
+        categoryAiStatus.textContent = `✓ ${result.recommendedTags.length} tags${methodTag}${fallbackNotice}${newTagNotice}`;
+        if (result.reasoning) {
+          categoryAiStatus.title = `Reasoning: ${result.reasoning}`;
+        }
         setTimeout(() => {
           if (categoryAiStatus.className.includes('success')) {
             categoryAiStatus.style.display = 'none';
           }
-        }, 4500);
+        }, 5000);
       }
 
       if (result.newTags && result.newTags.length > 0) {

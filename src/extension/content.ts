@@ -2,6 +2,7 @@ import modalCss from './modal.css';
 import { extractPageContext } from './domExtractor';
 import {
   ClassificationResult,
+  ClassificationProgressEvent,
   ExtensionSettings,
   CachedFolder,
   AppDirectoryState
@@ -459,11 +460,34 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   const braveKeyInput = shadow.getElementById('ad-brave-key-input') as HTMLInputElement | null;
   const autoclassifyCheck = shadow.getElementById('ad-autoclassify-check') as HTMLInputElement | null;
 
+  let lastLoadedSettings: ExtensionSettings | null = null;
+
   const openSettings = (): void => {
     if (!settingsDrawer) return;
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (s: ExtensionSettings) => {
+      lastLoadedSettings = s;
       if (geminiKeyInput && s) geminiKeyInput.value = s.geminiApiKey || '';
-      if (geminiModelSelect && s) geminiModelSelect.value = s.geminiModel || 'gemini-2.5-flash';
+      if (geminiModelSelect && s) {
+        const models = (Array.isArray(s.discoveredModels) && s.discoveredModels.length > 0)
+          ? s.discoveredModels
+          : [
+              { name: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+              { name: 'gemini-2.5-flash-lite', displayName: 'Gemini 2.5 Flash Lite' },
+              { name: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+              { name: 'gemini-2.0-flash-lite', displayName: 'Gemini 2.0 Flash Lite' },
+              { name: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash' }
+            ];
+        geminiModelSelect.innerHTML = '';
+        models.forEach((m: any) => {
+          const opt = document.createElement('option');
+          opt.value = m.name;
+          opt.textContent = `${m.displayName || m.name} (${m.name})`;
+          if (m.name === (s.geminiModel || 'gemini-2.5-flash')) {
+            opt.selected = true;
+          }
+          geminiModelSelect.appendChild(opt);
+        });
+      }
       if (braveKeyInput && s) braveKeyInput.value = s.braveApiKey || '';
       if (autoclassifyCheck && s) autoclassifyCheck.checked = s.autoClassify !== false;
       settingsDrawer.classList.add('ad-show');
@@ -483,6 +507,8 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
       const newSettings: ExtensionSettings = {
         geminiApiKey: geminiKeyInput?.value.trim() || '',
         geminiModel: geminiModelSelect?.value || 'gemini-2.5-flash',
+        geminiFallbackModels: lastLoadedSettings?.geminiFallbackModels || ['gemini-2.5-flash-lite'],
+        discoveredModels: lastLoadedSettings?.discoveredModels,
         braveApiKey: braveKeyInput?.value.trim() || '',
         autoClassify: autoclassifyCheck?.checked ?? true
       };
@@ -504,12 +530,115 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   const reclassifyBtn = shadow.getElementById('ad-reclassify-btn');
   const reasoningCard = shadow.getElementById('ad-reasoning-card');
 
+  const handleClassificationResult = (res: ClassificationResult): void => {
+    if (!classifyBadge) return;
+    if (!res || !res.success) {
+      if (res?.error === 'NO_API_KEY') {
+        classifyBadge.className = 'ad-classify-badge ad-badge-setup';
+        classifyBadge.innerHTML = '⚙️ Setup AI';
+        classifyBadge.title = 'Click to set up your free Gemini API key';
+        if (reclassifyBtn) reclassifyBtn.style.display = 'none';
+      } else if (res?.error === 'RATE_LIMIT_EXCEEDED') {
+        classifyBadge.className = 'ad-classify-badge ad-badge-error';
+        classifyBadge.innerHTML = '⚠️ Rate Limit (429)';
+        classifyBadge.title = 'All configured models exceeded rate limits. Add fallback models in Settings.';
+      } else if (res?.error === 'SERVICE_OVERLOADED_503') {
+        classifyBadge.className = 'ad-classify-badge ad-badge-error';
+        classifyBadge.innerHTML = '⚠️ Overloaded (503)';
+        classifyBadge.title = 'Gemini service overloaded. Add a fallback model (e.g. 2.5 Flash Lite) in Settings.';
+      } else if (res?.error === 'INVALID_API_KEY') {
+        classifyBadge.className = 'ad-classify-badge ad-badge-error';
+        classifyBadge.innerHTML = '⚠️ Invalid Key';
+        classifyBadge.title = 'The Gemini API key provided is invalid or inactive.';
+      } else {
+        classifyBadge.className = 'ad-classify-badge ad-badge-error';
+        classifyBadge.innerHTML = '⚠️ AI Failed';
+        classifyBadge.title = res?.error || 'Classification failed';
+      }
+      return;
+    }
+
+    // Successful classification!
+    if (reclassifyBtn) reclassifyBtn.style.display = 'inline-flex';
+
+    const cleanModel = (res.modelUsed || '').replace(/^models\//, '');
+    const hadFailover = res.auditChain && res.auditChain.some(a => a.status === 'FAILED');
+
+    let tooltip = '';
+    if (res.auditChain && res.auditChain.length > 0) {
+      const chainLines = res.auditChain.map(a =>
+        `• ${a.model.replace(/^models\//, '')}: ${a.status === 'SUCCESS' ? `✓ Success (${a.latencyMs}ms)` : `✗ ${a.error} (${a.latencyMs}ms)`}`
+      ).join('\n');
+      tooltip = `Execution Cascade:\n${chainLines}\n\n`;
+    }
+    if (res.reasoning) {
+      tooltip += `Reasoning: ${res.reasoning}`;
+    }
+
+    if (hadFailover) {
+      classifyBadge.className = 'ad-classify-badge ad-badge-fallback';
+      classifyBadge.innerHTML = `🪶 AI: ${escapeHtml(cleanModel)} [Fallback]`;
+      classifyBadge.title = tooltip || `Recovered via fallback model ${cleanModel} (Click to toggle reasoning)`;
+    } else if (res.method === 'BRAVE_GROUNDED') {
+      classifyBadge.className = 'ad-classify-badge ad-badge-brave';
+      classifyBadge.innerHTML = `🔍 AI: Brave (${escapeHtml(cleanModel || 'Search')})`;
+      classifyBadge.title = tooltip || 'Classified using Brave Search grounding (Click to toggle reasoning)';
+    } else {
+      classifyBadge.className = 'ad-classify-badge ad-badge-dom';
+      classifyBadge.innerHTML = `✨ AI: ${escapeHtml(cleanModel || 'Direct DOM')}`;
+      classifyBadge.title = tooltip || 'Classified directly from page text (Click to toggle reasoning)';
+    }
+
+    if (reasoningCard && res.reasoning) {
+      reasoningCard.textContent = `💡 [${cleanModel || 'AI'}] ${res.reasoning}`;
+    }
+
+    // Populate all recommended and new tags
+    const tagsToAdd: string[] = [];
+    if (Array.isArray(res.recommendedTags)) {
+      for (const t of res.recommendedTags) {
+        const trimmed = String(t).trim();
+        if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+      }
+    }
+    if (Array.isArray(res.newTags)) {
+      for (const t of res.newTags) {
+        const trimmed = String(t).trim();
+        if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
+      }
+    }
+    if (res.suggestedNewTag) {
+      const trimmed = String(res.suggestedNewTag).trim();
+      if (trimmed && trimmed.toLowerCase() !== 'null' && trimmed.toLowerCase() !== 'none' && !tagsToAdd.includes(trimmed)) {
+        tagsToAdd.push(trimmed);
+      }
+    }
+
+    if (tagsToAdd.length === 0) {
+      classifyBadge.className = 'ad-classify-badge ad-badge-dom';
+      classifyBadge.innerHTML = '✨ AI: No Tags Matched';
+      classifyBadge.title = tooltip || res.reasoning || 'No existing or new categories matched this website.';
+      if (reasoningCard && res.reasoning) {
+        reasoningCard.textContent = `💡 ${res.reasoning}`;
+        reasoningCard.classList.add('ad-show');
+      }
+    } else {
+      for (const tag of tagsToAdd) {
+        const isNew =
+          !availableCategories.includes(tag) ||
+          (res.newTags && res.newTags.includes(tag)) ||
+          tag === res.suggestedNewTag;
+        addCategoryChip(tag, isNew);
+      }
+    }
+  };
+
   const runClassification = (forceSearch = false): void => {
     if (!classifyBadge) return;
 
     classifyBadge.className = 'ad-classify-badge ad-badge-loading';
-    classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> AI classifying...`;
-    classifyBadge.title = 'Analyzing page content and matching taxonomy...';
+    classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> AI initializing...`;
+    classifyBadge.title = 'Starting classification workflow...';
 
     if (reclassifyBtn) {
       reclassifyBtn.classList.add('is-spinning');
@@ -519,105 +648,63 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     const pageContext = extractPageContext();
 
     try {
-      chrome.runtime.sendMessage(
-        {
-          type: 'CLASSIFY_WEBSITE',
-          pageContext,
-          availableCategories,
-          forceSearch
-        },
-        (res: ClassificationResult) => {
-          if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
-          if (!isExtensionContextValid()) return;
+      // Connect to background worker port for progressive live state badging
+      const port = chrome.runtime.connect({ name: 'ad-classify' });
 
-          if (!res || !res.success) {
-            if (res?.error === 'NO_API_KEY') {
-              classifyBadge.className = 'ad-classify-badge ad-badge-setup';
-              classifyBadge.innerHTML = '⚙️ Setup AI';
-              classifyBadge.title = 'Click to set up your free Gemini API key';
-              if (reclassifyBtn) reclassifyBtn.style.display = 'none';
-            } else if (res?.error === 'RATE_LIMIT_EXCEEDED') {
-              classifyBadge.className = 'ad-classify-badge ad-badge-error';
-              classifyBadge.innerHTML = '⚠️ Rate Limit';
-              classifyBadge.title = 'Exceeded free tier requests per minute. Wait a moment and retry.';
-            } else if (res?.error === 'INVALID_API_KEY') {
-              classifyBadge.className = 'ad-classify-badge ad-badge-error';
-              classifyBadge.innerHTML = '⚠️ Invalid Key';
-              classifyBadge.title = 'The Gemini API key provided is invalid or inactive.';
-            } else {
-              classifyBadge.className = 'ad-classify-badge ad-badge-error';
-              classifyBadge.innerHTML = '⚠️ AI Failed';
-              classifyBadge.title = res?.error || 'Classification failed';
-            }
-            return;
-          }
+      port.onMessage.addListener((msg) => {
+        if (!isExtensionContextValid()) return;
 
-          // Successful classification!
-          if (reclassifyBtn) reclassifyBtn.style.display = 'inline-flex';
-
-          if (res.method === 'BRAVE_GROUNDED') {
-            classifyBadge.className = 'ad-classify-badge ad-badge-brave';
-            classifyBadge.innerHTML = '🔍 AI: Brave Search';
-            classifyBadge.title = res.reasoning
-              ? `Brave Search Grounded: ${res.reasoning} (Click to toggle reasoning)`
-              : 'Classified using Brave Search results (Click to toggle reasoning)';
-          } else {
-            classifyBadge.className = 'ad-classify-badge ad-badge-dom';
-            classifyBadge.innerHTML = '✨ AI: Direct DOM';
-            classifyBadge.title = res.reasoning
-              ? `Direct DOM: ${res.reasoning} (Click to toggle reasoning)`
-              : 'Classified directly from page text & metadata (Click to toggle reasoning)';
-          }
-
-          if (reasoningCard && res.reasoning) {
-            reasoningCard.textContent = `💡 ${res.reasoning}`;
-          }
-
-          // Populate all recommended and new tags
-          const tagsToAdd: string[] = [];
-          if (Array.isArray(res.recommendedTags)) {
-            for (const t of res.recommendedTags) {
-              const trimmed = String(t).trim();
-              if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
-            }
-          }
-          if (Array.isArray(res.newTags)) {
-            for (const t of res.newTags) {
-              const trimmed = String(t).trim();
-              if (trimmed && !tagsToAdd.includes(trimmed)) tagsToAdd.push(trimmed);
-            }
-          }
-          if (res.suggestedNewTag) {
-            const trimmed = String(res.suggestedNewTag).trim();
-            if (trimmed && trimmed.toLowerCase() !== 'null' && trimmed.toLowerCase() !== 'none' && !tagsToAdd.includes(trimmed)) {
-              tagsToAdd.push(trimmed);
-            }
-          }
-
-          if (tagsToAdd.length === 0) {
-            classifyBadge.className = 'ad-classify-badge ad-badge-dom';
-            classifyBadge.innerHTML = '✨ AI: No Tags Matched';
-            classifyBadge.title = res.reasoning || 'No existing or new categories matched this website.';
-            if (reasoningCard && res.reasoning) {
-              reasoningCard.textContent = `💡 ${res.reasoning}`;
-              reasoningCard.classList.add('ad-show');
-            }
-          } else {
-            for (const tag of tagsToAdd) {
-              const isNew =
-                !availableCategories.includes(tag) ||
-                (res.newTags && res.newTags.includes(tag)) ||
-                tag === res.suggestedNewTag;
-              addCategoryChip(tag, isNew);
-            }
-          }
+        if (msg.type === 'PROGRESS' && msg.progress) {
+          const prog: ClassificationProgressEvent = msg.progress;
+          const isFallback = prog.stage === 'FALLBACK_SWITCH';
+          classifyBadge.className = isFallback
+            ? 'ad-classify-badge ad-badge-fallback ad-badge-loading'
+            : 'ad-classify-badge ad-badge-loading';
+          classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> ${escapeHtml(prog.message)}`;
+          classifyBadge.title = prog.message;
+          return;
         }
-      );
+
+        if (msg.type === 'RESULT' && msg.result) {
+          if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
+          const res: ClassificationResult = msg.result;
+          handleClassificationResult(res);
+          try { port.disconnect(); } catch (_) {}
+        }
+      });
+
+      port.onDisconnect.addListener(() => {
+        if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
+      });
+
+      port.postMessage({
+        type: 'START_CLASSIFY',
+        pageContext,
+        availableCategories,
+        forceSearch
+      });
     } catch (_) {
-      if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
-      if (classifyBadge) {
-        classifyBadge.className = 'ad-classify-badge ad-badge-error';
-        classifyBadge.innerHTML = '⚠️ Error';
+      // Fallback to one-shot sendMessage if port connection encounters an issue
+      try {
+        chrome.runtime.sendMessage(
+          {
+            type: 'CLASSIFY_WEBSITE',
+            pageContext,
+            availableCategories,
+            forceSearch
+          },
+          (res: ClassificationResult) => {
+            if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
+            if (!isExtensionContextValid()) return;
+            handleClassificationResult(res);
+          }
+        );
+      } catch (err: any) {
+        if (reclassifyBtn) reclassifyBtn.classList.remove('is-spinning');
+        if (classifyBadge) {
+          classifyBadge.className = 'ad-classify-badge ad-badge-error';
+          classifyBadge.innerHTML = '⚠️ Error';
+        }
       }
     }
   };
