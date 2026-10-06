@@ -51,11 +51,20 @@ function isExtensionContextValid(): boolean {
   }
 }
 
+let isModalOpening = false;
+let lastToggleTimestamp = 0;
+
 function toggleModal(): void {
   if (!isExtensionContextValid()) {
     console.warn('[App Directory Companion] Extension was reloaded. Please refresh this page.');
     return;
   }
+
+  const now = Date.now();
+  if (now - lastToggleTimestamp < 400 || isModalOpening) {
+    return;
+  }
+  lastToggleTimestamp = now;
 
   const existingHost = document.getElementById('app-directory-modal-host');
   if (existingHost) {
@@ -69,21 +78,35 @@ function toggleModal(): void {
     return;
   }
 
+  isModalOpening = true;
+
   // Fetch folders and categories from extension background
   try {
     chrome.runtime.sendMessage({ type: 'GET_APP_DIRECTORY_STATE' }, (response: AppDirectoryState) => {
+      isModalOpening = false;
       try {
         if (!isExtensionContextValid()) return;
         if (chrome.runtime.lastError) return;
+
+        // Double check host was not mounted in the meantime
+        if (document.getElementById('app-directory-modal-host')) {
+          return;
+        }
+
         const folders: CachedFolder[] = (response && response.folders) || [];
         const categories: string[] = (response && response.categories) || [];
         renderModal(folders, categories);
       } catch (_) {}
     });
-  } catch (_) {}
+  } catch (_) {
+    isModalOpening = false;
+  }
 }
 
 function renderModal(availableFolders: CachedFolder[], availableCategories: string[]): void {
+  // Purge any stale or duplicate modal hosts in the DOM
+  document.querySelectorAll('#app-directory-modal-host').forEach((node) => node.remove());
+
   const host = document.createElement('div');
   host.id = 'app-directory-modal-host';
   const shadow = host.attachShadow({ mode: 'open' });
@@ -898,9 +921,7 @@ function escapeHtml(str: string): string {
 (window as any).__APP_DIRECTORY_CLEANUP__ = () => {
   try {
     window.removeEventListener('keydown', handlePageShortcut, true);
-    document.removeEventListener('keydown', handlePageShortcut, true);
-    const host = document.getElementById('app-directory-modal-host');
-    if (host) host.remove();
+    document.querySelectorAll('#app-directory-modal-host').forEach((node) => node.remove());
   } catch (_) {}
 };
 
@@ -913,7 +934,7 @@ function handlePageShortcut(e: KeyboardEvent): void {
     return;
   }
 
-  if (!e.altKey || e.ctrlKey) return;
+  if (!e.altKey || e.ctrlKey || e.metaKey) return;
 
   const isA = e.code === 'KeyA' || e.key === 'a' || e.key === 'A';
   const isS = e.code === 'KeyS' || e.key === 's' || e.key === 'S';
@@ -921,17 +942,14 @@ function handlePageShortcut(e: KeyboardEvent): void {
   const isD = e.code === 'KeyD' || e.key === 'd' || e.key === 'D';
 
   if (isA || isS || isB || isD) {
-    const existingHost = document.getElementById('app-directory-modal-host');
-    if (!existingHost) {
-      e.preventDefault();
-      e.stopPropagation();
-      toggleModal();
-    }
+    e.preventDefault();
+    e.stopPropagation();
+    toggleModal();
   }
 }
 
+// Attach only to window (capture phase) to prevent double-firing across window and document
 window.addEventListener('keydown', handlePageShortcut, true);
-document.addEventListener('keydown', handlePageShortcut, true);
 
 // Listen for messages from background script
 try {

@@ -112,13 +112,21 @@ async function triggerModalOnActiveTab(tab?: chrome.tabs.Tab): Promise<void> {
 }
 
 // Extension icon click
+let lastActionClickTime = 0;
 chrome.action.onClicked.addListener((tab) => {
+  const now = Date.now();
+  if (now - lastActionClickTime < 400) return;
+  lastActionClickTime = now;
   triggerModalOnActiveTab(tab);
 });
 
 // Keyboard shortcut (Alt+A / Alt+D)
+let lastCommandTriggerTime = 0;
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'add-to-app-directory') {
+    const now = Date.now();
+    if (now - lastCommandTriggerTime < 400) return;
+    lastCommandTriggerTime = now;
     triggerModalOnActiveTab();
   }
 });
