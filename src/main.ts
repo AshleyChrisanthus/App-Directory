@@ -834,6 +834,9 @@ if (entryUrl) {
     if (entryIcon && !entryIcon.value.trim()) {
       updateModalIconPreview();
     }
+    // Only auto-fill metadata while adding a new bookmark, not when viewing/editing existing ones
+    if (state.editingId) return;
+
     if (urlAutofillDebounceTimer) clearTimeout(urlAutofillDebounceTimer);
     urlAutofillDebounceTimer = setTimeout(() => {
       const val = entryUrl.value.trim();
@@ -844,11 +847,14 @@ if (entryUrl) {
   });
 
   entryUrl.addEventListener('paste', () => {
+    if (state.editingId) return;
     if (urlAutofillDebounceTimer) clearTimeout(urlAutofillDebounceTimer);
     setTimeout(() => autoFillUrlMetadata(false), 50);
   });
 
   entryUrl.addEventListener('blur', () => {
+    // Never auto-fill or auto-classify on blur when editing/viewing an existing bookmark
+    if (state.editingId) return;
     const url = entryUrl.value.trim();
     if (url && entryIcon && !entryIcon.value.trim()) {
       updateModalIconPreview();

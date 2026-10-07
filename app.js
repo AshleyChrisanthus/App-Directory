@@ -3438,7 +3438,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           }
         }
         const settings = getSettings();
-        if (settings.autoClassify && settings.geminiApiKey) {
+        if (!state.editingId && settings.autoClassify && settings.geminiApiKey && state.selectedCategories.length === 0) {
           suggestCategoriesWithAI();
         }
         if (urlAutofillStatus) {
@@ -3513,6 +3513,11 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           }
         }
       );
+      const modalBackdrop2 = document.getElementById("modalBackdrop");
+      const isModalStillOpen = modalBackdrop2 && modalBackdrop2.classList.contains("active");
+      if (!isModalStillOpen) {
+        return;
+      }
       if (result.success && result.recommendedTags.length > 0) {
         let addedAny = false;
         for (const tag of result.recommendedTags) {
@@ -9351,6 +9356,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       if (entryIcon && !entryIcon.value.trim()) {
         updateModalIconPreview();
       }
+      if (state.editingId) return;
       if (urlAutofillDebounceTimer) clearTimeout(urlAutofillDebounceTimer);
       urlAutofillDebounceTimer = setTimeout(() => {
         const val = entryUrl.value.trim();
@@ -9360,10 +9366,12 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       }, 650);
     });
     entryUrl.addEventListener("paste", () => {
+      if (state.editingId) return;
       if (urlAutofillDebounceTimer) clearTimeout(urlAutofillDebounceTimer);
       setTimeout(() => autoFillUrlMetadata(false), 50);
     });
     entryUrl.addEventListener("blur", () => {
+      if (state.editingId) return;
       const url = entryUrl.value.trim();
       if (url && entryIcon && !entryIcon.value.trim()) {
         updateModalIconPreview();

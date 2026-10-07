@@ -83,9 +83,9 @@ export async function autoFillUrlMetadata(force: boolean = false, overwriteTitle
         }
       }
 
-      // Auto-classify with AI if enabled and API key is present
+      // Auto-classify with AI ONLY for new bookmarks if enabled, API key is present, and categories aren't already set
       const settings = getSettings();
-      if (settings.autoClassify && settings.geminiApiKey) {
+      if (!state.editingId && settings.autoClassify && settings.geminiApiKey && state.selectedCategories.length === 0) {
         suggestCategoriesWithAI();
       }
 
@@ -163,6 +163,14 @@ export async function suggestCategoriesWithAI(forceSearch: boolean = false): Pro
         }
       }
     );
+
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const isModalStillOpen = modalBackdrop && modalBackdrop.classList.contains('active');
+
+    // If modal was closed while AI request was in flight, abort cleanly to avoid orphaned toasts or state mutations
+    if (!isModalStillOpen) {
+      return;
+    }
 
     if (result.success && result.recommendedTags.length > 0) {
       let addedAny = false;
