@@ -9885,6 +9885,46 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   if (cmdPaletteTrigger) {
     cmdPaletteTrigger.addEventListener("click", () => openCommandPalette(paletteCallbacks));
   }
+  function initMobileScrollControls() {
+    const mobileBottomNav = document.getElementById("mobileBottomNav");
+    const mobileAddFab2 = document.getElementById("mobileAddFab");
+    if (!mobileBottomNav && !mobileAddFab2) return;
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+    let scrollDelta = 0;
+    function onScroll() {
+      const currentScrollY = Math.max(0, window.scrollY);
+      const diff = currentScrollY - lastScrollY;
+      if (currentScrollY <= 20) {
+        mobileBottomNav?.classList.remove("nav-hidden");
+        mobileAddFab2?.classList.remove("fab-hidden");
+        scrollDelta = 0;
+        lastScrollY = currentScrollY;
+        ticking = false;
+        return;
+      }
+      if (diff > 0 && scrollDelta < 0 || diff < 0 && scrollDelta > 0) {
+        scrollDelta = diff;
+      } else {
+        scrollDelta += diff;
+      }
+      if (scrollDelta > 8) {
+        mobileBottomNav?.classList.add("nav-hidden");
+        mobileAddFab2?.classList.add("fab-hidden");
+      } else if (scrollDelta < -8) {
+        mobileBottomNav?.classList.remove("nav-hidden");
+        mobileAddFab2?.classList.remove("fab-hidden");
+      }
+      lastScrollY = currentScrollY;
+      ticking = false;
+    }
+    window.addEventListener("scroll", () => {
+      if (!ticking) {
+        window.requestAnimationFrame(onScroll);
+        ticking = true;
+      }
+    }, { passive: true });
+  }
   async function init() {
     initTheme();
     initSidebar();
@@ -9893,6 +9933,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     handleToggleInsights(state.isInsightsOpen);
     await initStorage();
     initTopNavReveal();
+    initMobileScrollControls();
     initCommandPalette(paletteCallbacks);
     initSettingsModal();
     registerServiceWorker();

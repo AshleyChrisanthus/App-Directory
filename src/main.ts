@@ -1284,6 +1284,60 @@ if (cmdPaletteTrigger) {
   cmdPaletteTrigger.addEventListener('click', () => openCommandPalette(paletteCallbacks));
 }
 
+// Auto-hide mobile bottom bar and FAB on scroll down, reveal on scroll up
+function initMobileScrollControls(): void {
+  const mobileBottomNav = document.getElementById('mobileBottomNav');
+  const mobileAddFab = document.getElementById('mobileAddFab');
+  if (!mobileBottomNav && !mobileAddFab) return;
+
+  let lastScrollY = window.scrollY;
+  let ticking = false;
+  let scrollDelta = 0;
+
+  function onScroll(): void {
+    const currentScrollY = Math.max(0, window.scrollY);
+    const diff = currentScrollY - lastScrollY;
+
+    // At the top of the page, always show both controls
+    if (currentScrollY <= 20) {
+      mobileBottomNav?.classList.remove('nav-hidden');
+      mobileAddFab?.classList.remove('fab-hidden');
+      scrollDelta = 0;
+      lastScrollY = currentScrollY;
+      ticking = false;
+      return;
+    }
+
+    // Accumulate scroll movement in current direction
+    if ((diff > 0 && scrollDelta < 0) || (diff < 0 && scrollDelta > 0)) {
+      scrollDelta = diff;
+    } else {
+      scrollDelta += diff;
+    }
+
+    // Scrolling down -> hide both
+    if (scrollDelta > 8) {
+      mobileBottomNav?.classList.add('nav-hidden');
+      mobileAddFab?.classList.add('fab-hidden');
+    }
+    // Scrolling up -> reveal both
+    else if (scrollDelta < -8) {
+      mobileBottomNav?.classList.remove('nav-hidden');
+      mobileAddFab?.classList.remove('fab-hidden');
+    }
+
+    lastScrollY = currentScrollY;
+    ticking = false;
+  }
+
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      window.requestAnimationFrame(onScroll);
+      ticking = true;
+    }
+  }, { passive: true });
+}
+
 // ── Initialize App ───────────────────────────────────────
 async function init(): Promise<void> {
   initTheme();
@@ -1293,6 +1347,7 @@ async function init(): Promise<void> {
   handleToggleInsights(state.isInsightsOpen);
   await initStorage();
   initTopNavReveal();
+  initMobileScrollControls();
   initCommandPalette(paletteCallbacks);
   initSettingsModal();
 

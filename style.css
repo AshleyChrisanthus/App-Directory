@@ -89,6 +89,9 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
 }
 
 body {
@@ -96,6 +99,9 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
   transition: background var(--transition), color var(--transition);
 }
 
@@ -116,6 +122,8 @@ body {
 .top-nav-wrapper {
   position: relative;
   width: 100%;
+  max-width: 100vw;
+  overflow-x: clip;
   z-index: 80;
   transition: box-shadow 0.25s ease, background 0.25s ease;
 }
@@ -5345,6 +5353,11 @@ select:focus {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
   .toolbar-left {
@@ -5353,17 +5366,23 @@ select:focus {
     align-items: stretch;
     gap: 10px;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
   .search-box {
-    max-width: none;
+    max-width: 100%;
     width: 100%;
+    min-width: 0;
     height: 42px;
     border-radius: 999px;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
     position: relative;
+    box-sizing: border-box;
   }
 
   .search-box input {
@@ -5392,20 +5411,28 @@ select:focus {
     display: flex !important;
     align-items: center;
     gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 2px 0 4px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    flex-wrap: nowrap !important;
+    padding: 2px 4px 6px 0;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    box-sizing: border-box;
+    touch-action: pan-x;
   }
 
   .mobile-category-track::-webkit-scrollbar {
     display: none;
+    width: 0;
+    height: 0;
   }
 
   .mobile-cat-chip {
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -5418,7 +5445,7 @@ select:focus {
     border: 1px solid var(--border);
     cursor: pointer;
     user-select: none;
-    white-space: nowrap;
+    white-space: nowrap !important;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
@@ -5702,12 +5729,22 @@ select:focus {
     cursor: pointer;
     z-index: 90;
     user-select: none;
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease, box-shadow 0.2s ease;
+    will-change: transform, opacity;
   }
 
   .mobile-fab:active {
     transform: scale(0.94);
     box-shadow: 0 3px 10px rgba(10, 132, 255, 0.4);
+  }
+
+  .mobile-fab.fab-hidden {
+    transform: translateY(140px) scale(0.8) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
   }
 
   /* 7. Mobile Fixed Bottom Navigation Bar */
@@ -5727,6 +5764,13 @@ select:focus {
     z-index: 100;
     align-items: center;
     justify-content: space-around;
+    transform: translateY(0);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+  }
+
+  .mobile-bottom-nav.nav-hidden {
+    transform: translateY(calc(100% + env(safe-area-inset-bottom, 0px) + 20px)) !important;
   }
 
   .mobile-nav-tab {
