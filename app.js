@@ -6721,7 +6721,31 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
 
   // src/modules/extension/sync.ts
+  var isExtensionSyncInitialized = false;
+  var currentOnDataChanged = null;
+  var recentlyProcessedBookmarks = /* @__PURE__ */ new Map();
+  function isDuplicateBookmark(key) {
+    const now = Date.now();
+    const lastTime = recentlyProcessedBookmarks.get(key);
+    if (lastTime && now - lastTime < 1500) {
+      return true;
+    }
+    recentlyProcessedBookmarks.set(key, now);
+    if (recentlyProcessedBookmarks.size > 100) {
+      for (const [k, time] of recentlyProcessedBookmarks) {
+        if (now - time > 5e3) {
+          recentlyProcessedBookmarks.delete(k);
+        }
+      }
+    }
+    return false;
+  }
   function initExtensionSync(onDataChanged) {
+    currentOnDataChanged = onDataChanged;
+    if (isExtensionSyncInitialized) {
+      return;
+    }
+    isExtensionSyncInitialized = true;
     const broadcastState = () => {
       if (typeof window === "undefined" || typeof window.postMessage !== "function") return;
       try {
@@ -6759,6 +6783,16 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         } else if (type === "APP_DIRECTORY_NEW_BOOKMARK" && entry) {
           const migrated = migrateEntry(entry);
           if (!migrated) return;
+          const dedupeKey = migrated.id || migrated.url;
+          if (dedupeKey && isDuplicateBookmark(dedupeKey)) {
+            if (typeof window !== "undefined" && typeof window.postMessage === "function") {
+              window.postMessage({
+                type: "APP_DIRECTORY_SAVE_SUCCESS",
+                id: migrated.id
+              }, "*");
+            }
+            return;
+          }
           const existingIdx = state.entries.findIndex((e) => e.id === migrated.id || e.url === migrated.url);
           if (existingIdx !== -1) {
             state.entries[existingIdx] = migrated;
@@ -6766,7 +6800,9 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
             state.entries.unshift(migrated);
           }
           await saveEntries(state.entries);
-          onDataChanged();
+          if (currentOnDataChanged) {
+            currentOnDataChanged();
+          }
           showToast(`Added "${migrated.name}" from extension!`);
           if (typeof window !== "undefined" && typeof window.postMessage === "function") {
             window.postMessage({
@@ -6779,6 +6815,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           for (const raw of entries) {
             const item = migrateEntry(raw);
             if (!item) continue;
+            const dedupeKey = item.id || item.url;
+            if (dedupeKey && isDuplicateBookmark(dedupeKey)) {
+              continue;
+            }
             const exists = state.entries.some((e) => e.id === item.id || e.url === item.url);
             if (!exists) {
               state.entries.unshift(item);
@@ -6787,7 +6827,9 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           }
           if (addedCount > 0) {
             await saveEntries(state.entries);
-            onDataChanged();
+            if (currentOnDataChanged) {
+              currentOnDataChanged();
+            }
             showToast(`Imported ${addedCount} bookmark${addedCount !== 1 ? "s" : ""} from extension!`);
           }
           if (typeof window !== "undefined" && typeof window.postMessage === "function") {
@@ -9699,21 +9741,24 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     initCommandPalette(paletteCallbacks);
     initSettingsModal();
     registerServiceWorker();
+    let hasBootstrappedUnlockedState = false;
+    const bootstrapUnlockedApp = () => {
+      if (hasBootstrappedUnlockedState) return;
+      hasBootstrappedUnlockedState = true;
+      render();
+      cacheExistingIconsOffline(render);
+      initExtensionSync(render);
+      handleIncomingWebShare();
+    };
     await initPasscodeProtection({
       onUnlocked: () => {
-        render();
-        cacheExistingIconsOffline(render);
-        initExtensionSync(render);
-        handleIncomingWebShare();
+        bootstrapUnlockedApp();
       },
       onLocked: () => {
       }
     });
     if (isAppUnlocked()) {
-      render();
-      cacheExistingIconsOffline(render);
-      initExtensionSync(render);
-      handleIncomingWebShare();
+      bootstrapUnlockedApp();
     }
     let isSyncingTheme = false;
     const syncThemeFromExternal = () => {

@@ -5,7 +5,37 @@ import { getAllCategories } from '../categories/manager';
 import { showToast } from '../../utils/dom';
 import { syncSettingsFromExtension } from '../settings/manager';
 
+let isExtensionSyncInitialized = false;
+let currentOnDataChanged: (() => void) | null = null;
+const recentlyProcessedBookmarks = new Map<string, number>();
+
+function isDuplicateBookmark(key: string): boolean {
+  const now = Date.now();
+  const lastTime = recentlyProcessedBookmarks.get(key);
+  if (lastTime && now - lastTime < 1500) {
+    return true;
+  }
+  recentlyProcessedBookmarks.set(key, now);
+
+  // Tidy up older entries
+  if (recentlyProcessedBookmarks.size > 100) {
+    for (const [k, time] of recentlyProcessedBookmarks) {
+      if (now - time > 5000) {
+        recentlyProcessedBookmarks.delete(k);
+      }
+    }
+  }
+  return false;
+}
+
 export function initExtensionSync(onDataChanged: () => void): void {
+  currentOnDataChanged = onDataChanged;
+
+  if (isExtensionSyncInitialized) {
+    return;
+  }
+  isExtensionSyncInitialized = true;
+
   const broadcastState = (): void => {
     if (typeof window === 'undefined' || typeof window.postMessage !== 'function') return;
     try {
@@ -46,6 +76,17 @@ export function initExtensionSync(onDataChanged: () => void): void {
       const migrated = migrateEntry(entry);
       if (!migrated) return;
 
+      const dedupeKey = migrated.id || migrated.url;
+      if (dedupeKey && isDuplicateBookmark(dedupeKey)) {
+        if (typeof window !== 'undefined' && typeof window.postMessage === 'function') {
+          window.postMessage({
+            type: 'APP_DIRECTORY_SAVE_SUCCESS',
+            id: migrated.id
+          }, '*');
+        }
+        return;
+      }
+
       const existingIdx = state.entries.findIndex(e => e.id === migrated.id || e.url === migrated.url);
       if (existingIdx !== -1) {
         state.entries[existingIdx] = migrated;
@@ -54,7 +95,9 @@ export function initExtensionSync(onDataChanged: () => void): void {
       }
 
       await saveEntries(state.entries);
-      onDataChanged();
+      if (currentOnDataChanged) {
+        currentOnDataChanged();
+      }
       showToast(`Added "${migrated.name}" from extension!`);
 
       if (typeof window !== 'undefined' && typeof window.postMessage === 'function') {
@@ -68,6 +111,10 @@ export function initExtensionSync(onDataChanged: () => void): void {
       for (const raw of entries) {
         const item = migrateEntry(raw);
         if (!item) continue;
+        const dedupeKey = item.id || item.url;
+        if (dedupeKey && isDuplicateBookmark(dedupeKey)) {
+          continue;
+        }
         const exists = state.entries.some(e => e.id === item.id || e.url === item.url);
         if (!exists) {
           state.entries.unshift(item);
@@ -77,7 +124,9 @@ export function initExtensionSync(onDataChanged: () => void): void {
 
       if (addedCount > 0) {
         await saveEntries(state.entries);
-        onDataChanged();
+        if (currentOnDataChanged) {
+          currentOnDataChanged();
+        }
         showToast(`Imported ${addedCount} bookmark${addedCount !== 1 ? 's' : ''} from extension!`);
       }
 

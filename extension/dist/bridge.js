@@ -1,6 +1,12 @@
 "use strict";
 (() => {
   // src/extension/bridge.ts
+  if (typeof window.__APP_DIRECTORY_BRIDGE_CLEANUP__ === "function") {
+    try {
+      window.__APP_DIRECTORY_BRIDGE_CLEANUP__();
+    } catch (_) {
+    }
+  }
   function isExtensionContextValid() {
     try {
       return typeof chrome !== "undefined" && typeof chrome.runtime !== "undefined" && !!chrome.runtime.id;
@@ -68,7 +74,7 @@
     } catch (_) {
     }
   }
-  window.addEventListener("message", (event) => {
+  var onWindowMessage = (event) => {
     if (!isExtensionContextValid()) return;
     if (!event.data || typeof event.data !== "object") return;
     const { type, folders, categories, entries, entryIds, settings } = event.data;
@@ -103,49 +109,76 @@
     } else if (type === "APP_DIRECTORY_REQUEST_SETTINGS") {
       pushSettingsToWebapp();
     }
-  });
+  };
+  window.addEventListener("message", onWindowMessage);
+  var lastForwardedBookmarkId = "";
+  var lastForwardedBookmarkTime = 0;
+  var onRuntimeMessage = (message, _sender, sendResponse) => {
+    try {
+      if (!isExtensionContextValid()) return;
+      if (message && message.type === "SAVE_BOOKMARK_DIRECT" && message.entry) {
+        const entryId = message.entry.id || message.entry.url || "";
+        const now = Date.now();
+        if (entryId && entryId === lastForwardedBookmarkId && now - lastForwardedBookmarkTime < 1500) {
+          sendResponse({ success: true, deduped: true });
+          return;
+        }
+        lastForwardedBookmarkId = entryId;
+        lastForwardedBookmarkTime = now;
+        window.postMessage({
+          type: "APP_DIRECTORY_NEW_BOOKMARK",
+          entry: message.entry
+        }, "*");
+        sendResponse({ success: true });
+      }
+    } catch (_) {
+    }
+  };
   try {
     if (isExtensionContextValid() && chrome.runtime?.onMessage) {
-      chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-        try {
-          if (!isExtensionContextValid()) return;
-          if (message && message.type === "SAVE_BOOKMARK_DIRECT" && message.entry) {
-            window.postMessage({
-              type: "APP_DIRECTORY_NEW_BOOKMARK",
-              entry: message.entry
-            }, "*");
-            sendResponse({ success: true });
-          }
-        } catch (_) {
-        }
-      });
+      chrome.runtime.onMessage.addListener(onRuntimeMessage);
     }
   } catch (_) {
   }
   window.addEventListener("focus", onFocus);
   document.addEventListener("visibilitychange", onVisibilityChange);
+  var onStorageChanged = (changes, areaName) => {
+    try {
+      if (!isExtensionContextValid()) return;
+      if (areaName === "local") {
+        if (changes.ad_pending_bookmarks) {
+          const newPending = changes.ad_pending_bookmarks.newValue;
+          if (Array.isArray(newPending) && newPending.length > 0) {
+            checkAndIngestPending();
+          }
+        }
+        if (changes.ad_gemini_api_key || changes.ad_gemini_model || changes.ad_gemini_fallback_models || changes.ad_discovered_models || changes.ad_brave_api_key || changes.ad_auto_classify) {
+          pushSettingsToWebapp();
+        }
+      }
+    } catch (_) {
+    }
+  };
   try {
     if (isExtensionContextValid() && chrome.storage?.onChanged) {
-      chrome.storage.onChanged.addListener((changes, areaName) => {
-        try {
-          if (!isExtensionContextValid()) return;
-          if (areaName === "local") {
-            if (changes.ad_pending_bookmarks) {
-              const newPending = changes.ad_pending_bookmarks.newValue;
-              if (Array.isArray(newPending) && newPending.length > 0) {
-                checkAndIngestPending();
-              }
-            }
-            if (changes.ad_gemini_api_key || changes.ad_gemini_model || changes.ad_gemini_fallback_models || changes.ad_discovered_models || changes.ad_brave_api_key || changes.ad_auto_classify) {
-              pushSettingsToWebapp();
-            }
-          }
-        } catch (_) {
-        }
-      });
+      chrome.storage.onChanged.addListener(onStorageChanged);
     }
   } catch (_) {
   }
+  window.__APP_DIRECTORY_BRIDGE_CLEANUP__ = () => {
+    try {
+      window.removeEventListener("message", onWindowMessage);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
+        chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+      }
+      if (typeof chrome !== "undefined" && chrome.storage?.onChanged) {
+        chrome.storage.onChanged.removeListener(onStorageChanged);
+      }
+    } catch (_) {
+    }
+  };
   setTimeout(() => {
     if (isExtensionContextValid()) {
       window.postMessage({ type: "APP_DIRECTORY_PING" }, "*");

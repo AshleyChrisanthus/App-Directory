@@ -1221,12 +1221,19 @@ async function init(): Promise<void> {
 
   registerServiceWorker();
 
+  let hasBootstrappedUnlockedState = false;
+  const bootstrapUnlockedApp = () => {
+    if (hasBootstrappedUnlockedState) return;
+    hasBootstrappedUnlockedState = true;
+    render();
+    cacheExistingIconsOffline(render);
+    initExtensionSync(render);
+    handleIncomingWebShare();
+  };
+
   await initPasscodeProtection({
     onUnlocked: () => {
-      render();
-      cacheExistingIconsOffline(render);
-      initExtensionSync(render);
-      handleIncomingWebShare();
+      bootstrapUnlockedApp();
     },
     onLocked: () => {
       // Handled by lock overlay
@@ -1234,10 +1241,7 @@ async function init(): Promise<void> {
   });
 
   if (isAppUnlocked()) {
-    render();
-    cacheExistingIconsOffline(render);
-    initExtensionSync(render);
-    handleIncomingWebShare();
+    bootstrapUnlockedApp();
   }
 
   let isSyncingTheme = false;
