@@ -72,7 +72,10 @@ export function renderCard(entry: BookmarkEntry): HTMLElement {
         }
       </div>
       <div class="card-info">
-        <div class="card-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
+        <div class="card-name" title="${escapeHtml(entry.name)}">
+          <span class="card-title-text">${escapeHtml(entry.name)}</span>
+          <span class="card-status-dot ${entry.health && entry.health.status === 'broken' ? 'is-broken' : 'is-online'}" title="${entry.health && entry.health.status === 'broken' ? 'Website unreachable or broken' : 'Website online'}"></span>
+        </div>
         <div class="card-url" title="${escapeHtml(entry.url)}">
           <span>${escapeHtml(domain)}</span>
           <svg class="card-url-arrow" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
@@ -98,17 +101,29 @@ export function renderCard(entry: BookmarkEntry): HTMLElement {
       </div>
     ` : ''}
     <div class="card-meta">
-      ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)} (Click to view folder)"><span>${escapeHtml(folder.icon || '📁')}</span> ${escapeHtml(folder.name)}</span>` : ''}
-      ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
-      <span class="meta-item" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
-      ${(entry.visitCount || 0) > 0 ? `
-        <span class="meta-dot"></span>
-        <span class="meta-item">${entry.visitCount} visit${entry.visitCount !== 1 ? 's' : ''}</span>
-      ` : ''}
-      <div class="card-actions">
-        <button class="btn btn-ghost refresh-btn" title="Check for updated icon">🔄</button>
-        <button class="btn btn-ghost edit-btn" title="Edit">✏️</button>
-        <button class="btn btn-danger delete-btn" title="Delete">🗑️</button>
+      <div class="card-tags-row">
+        ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)} (Click to view folder)"><span>${escapeHtml(folder.icon || '📁')}</span> ${escapeHtml(folder.name)}</span>` : ''}
+        ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
+      </div>
+      <div class="card-footer-row">
+        <div class="card-footer-left">
+          <span class="meta-item meta-added-date" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
+          ${(entry.visitCount || 0) > 0 ? `
+            <span class="meta-dot"></span>
+            <span class="meta-item">${entry.visitCount} visit${entry.visitCount !== 1 ? 's' : ''}</span>
+          ` : ''}
+        </div>
+        <div class="card-footer-right">
+          <button type="button" class="card-open-btn" title="Open ${escapeHtml(entry.name)} in new tab">
+            <span>Open</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </button>
+          <div class="card-actions">
+            <button class="btn btn-ghost refresh-btn" title="Check for updated icon">🔄</button>
+            <button class="btn btn-ghost edit-btn" title="Edit">✏️</button>
+            <button class="btn btn-danger delete-btn" title="Delete">🗑️</button>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -125,9 +140,19 @@ export function renderCard(entry: BookmarkEntry): HTMLElement {
         target?.closest('.refresh-btn') ||
         target?.closest('.edit-btn') ||
         target?.closest('.delete-btn') ||
+        target?.closest('.card-open-btn') ||
         target?.closest('.card-pending-icon-box')) return;
     visitEntry(entry.id, render);
   });
+
+  // Open button
+  const cardOpenBtn = card.querySelector('.card-open-btn');
+  if (cardOpenBtn) {
+    cardOpenBtn.addEventListener('click', (e: Event) => {
+      e.stopPropagation();
+      visitEntry(entry.id, render);
+    });
+  }
 
   // Favorite toggle
   const favBtn = card.querySelector('.card-favorite');
@@ -446,6 +471,18 @@ export function renderCardsOnly(): void {
     } else {
       statsText.textContent = `Showing ${showing} of ${total} site${total !== 1 ? 's' : ''}`;
     }
+  }
+
+  // Update header count badge (Stitch mobile header & desktop pill)
+  const headerCountBadge = document.getElementById('headerCountBadge');
+  if (headerCountBadge) {
+    headerCountBadge.textContent = String(total);
+  }
+
+  // Dynamic search placeholder
+  const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+  if (searchInput && !searchInput.value) {
+    searchInput.placeholder = `Search ${total} bookmarks…`;
   }
 
   // Active Category Filter Banner

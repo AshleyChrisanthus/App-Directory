@@ -130,6 +130,7 @@ export function populateCategories(onFilterChanged?: () => void): void {
   }
 
   updateCatFilterLabel();
+  renderMobileCategoryTrack(onFilterChanged);
 
   const datalist = document.getElementById('categorySuggestions');
   if (datalist) {
@@ -140,6 +141,72 @@ export function populateCategories(onFilterChanged?: () => void): void {
       datalist.appendChild(opt);
     });
   }
+}
+
+export function renderMobileCategoryTrack(onFilterChanged?: () => void): void {
+  const track = document.getElementById('mobileCategoryTrack');
+  if (!track) return;
+
+  track.innerHTML = '';
+  const allCats = getAllCategories();
+  const total = state.entries.length;
+  const isAllActive = state.selectedFilterCategories.size === 0 ||
+    (state.catFilterMode === 'union' && state.selectedFilterCategories.size === allCats.length);
+
+  // "All" chip
+  const allChip = document.createElement('button');
+  allChip.type = 'button';
+  allChip.className = `mobile-cat-chip ${isAllActive ? 'is-active' : ''}`;
+  allChip.innerHTML = `<span class="mobile-cat-name">All</span> <span class="mobile-cat-count">${total}</span>`;
+  allChip.addEventListener('click', () => {
+    state.selectedFilterCategories.clear();
+    const catFilterList = document.getElementById('catFilterList');
+    if (catFilterList) {
+      catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        (cb as HTMLInputElement).checked = false;
+      });
+    }
+    updateCatFilterLabel();
+    renderMobileCategoryTrack(onFilterChanged);
+    if (onFilterChanged) onFilterChanged();
+  });
+  track.appendChild(allChip);
+
+  // Category counts
+  const counts: Record<string, number> = {};
+  state.entries.forEach(e => {
+    (e.categories || []).forEach(cat => {
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+  });
+
+  allCats.forEach(cat => {
+    const isCatActive = !isAllActive && state.selectedFilterCategories.has(cat);
+    const count = counts[cat] || 0;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `mobile-cat-chip ${isCatActive ? 'is-active' : ''}`;
+    chip.innerHTML = `<span class="mobile-cat-name">${escapeHtml(cat)}</span> <span class="mobile-cat-count">${count}</span>`;
+    chip.addEventListener('click', () => {
+      if (state.selectedFilterCategories.has(cat) && state.selectedFilterCategories.size === 1) {
+        state.selectedFilterCategories.clear();
+      } else {
+        state.selectedFilterCategories.clear();
+        state.selectedFilterCategories.add(cat);
+      }
+      const catFilterList = document.getElementById('catFilterList');
+      if (catFilterList) {
+        catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          const input = cb as HTMLInputElement;
+          input.checked = state.selectedFilterCategories.has(input.value);
+        });
+      }
+      updateCatFilterLabel();
+      renderMobileCategoryTrack(onFilterChanged);
+      if (onFilterChanged) onFilterChanged();
+    });
+    track.appendChild(chip);
+  });
 }
 
 export function renderCategoryChips(): void {

@@ -185,9 +185,138 @@ body {
   transition: opacity var(--transition), transform var(--transition);
 }
 
-.logo:hover {
-  opacity: 0.85;
-  transform: scale(1.02);
+.logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.logo-wrapper:hover {
+  opacity: 0.88;
+  transform: scale(1.01);
+}
+
+.logo-icon-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.logo-text-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logo-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.header-count-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  line-height: 1.2;
+}
+
+.logo-subtitle {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  display: none;
+}
+
+/* Base Hidden States for Desktop (Activated on Mobile @media <= 768px) */
+.mobile-category-track {
+  display: none;
+}
+
+.mobile-fab {
+  display: none;
+}
+
+.mobile-bottom-nav {
+  display: none;
+}
+
+.toolbar-sub-row {
+  display: contents;
+}
+
+.card-open-btn {
+  display: none;
+}
+
+.card-status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  background-color: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.45);
+  flex-shrink: 0;
+}
+
+.card-status-dot.is-broken {
+  background-color: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.45);
+}
+
+.card-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.card-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.card-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--text-tertiary);
+}
+
+.card-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .header-right {
@@ -5102,22 +5231,547 @@ select:focus {
 }
 
 @media (max-width: 768px) {
-  .header { padding: 12px 16px; }
-  .toolbar { padding: 10px 16px; }
-  .grid { padding: 8px 16px 32px; grid-template-columns: 1fr; }
-  .stats-bar { padding: 4px 16px 8px; }
-  .search-box { max-width: none; }
-  .btn-label { display: none; }
-  .form-row { grid-template-columns: 1fr; }
+  /* 1. Header Layout */
+  .header {
+    padding: 12px 16px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Hide sidebar toggle on mobile (Bottom nav directory tab resets/manages vault view) */
+  #sidebarToggleBtn {
+    display: none !important;
+  }
+
+  .logo-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon-box {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+
+  .logo-text-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .logo-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-title {
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--text-primary);
+  }
+
+  .header-count-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+
+  .logo-subtitle {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: -0.01em;
+  }
+
+  /* Header Quick Action Icons (Mockup: Cloud Sync, Passcode Lock, Theme Toggle) */
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Hide non-mobile actions from header */
+  #refreshAllBtn,
+  #healthCheckBtn,
+  #acceptAllIconsBtn,
+  #dismissAllIconsBtn,
+  #importBtn,
+  #exportSplitGroup,
+  #settingsBtn,
+  #themeCustomizerBtn {
+    display: none !important;
+  }
+
+  #cloudSyncBtn,
+  #securityLockBtn,
+  #themeToggle {
+    display: inline-flex !important;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+  }
+
+  /* 2. Toolbar & Full-Width Search */
+  .toolbar {
+    padding: 8px 16px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .toolbar-left {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .search-box {
+    max-width: none;
+    width: 100%;
+    height: 42px;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.06);
+    position: relative;
+  }
+
+  .search-box input {
+    font-size: 0.92rem;
+    padding-left: 38px;
+    padding-right: 56px;
+    height: 100%;
+    border-radius: 999px;
+  }
+
+  .search-box svg {
+    left: 13px;
+  }
+
+  .search-kbd-shortcut {
+    right: 8px;
+  }
+
+  /* Hide desktop category dropdown on mobile since horizontal track is used */
+  #catFilterDropdown {
+    display: none !important;
+  }
+
+  /* 3. Horizontal Category Track (Google Stitch UX) */
+  .mobile-category-track {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 0 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .mobile-category-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-cat-chip {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mobile-cat-chip:active {
+    transform: scale(0.96);
+  }
+
+  .mobile-cat-chip .mobile-cat-count {
+    font-size: 0.72rem;
+    opacity: 0.75;
+    font-weight: 600;
+  }
+
+  .mobile-cat-chip.is-active {
+    background: var(--accent);
+    color: #ffffff;
+    border-color: var(--accent);
+    font-weight: 600;
+    box-shadow: 0 2px 10px rgba(10, 132, 255, 0.35);
+  }
+
+  .mobile-cat-chip.is-active .mobile-cat-count {
+    opacity: 0.9;
+  }
+
+  /* 4. Sub-Toolbar (Sort dropdown, Favorites toggle, View Switcher) */
+  .toolbar-sub-row {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+
+  #sortSelect {
+    flex: 1;
+    min-width: 130px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 0 10px;
+    color: var(--text-primary);
+  }
+
+  #pinFavoritesBtn {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+
+  .view-mode-switcher {
+    height: 36px;
+    flex-shrink: 0;
+  }
+
+  /* Hide insights button and Add Website button from mobile toolbar */
+  #insightsToggleBtn,
+  .toolbar-right {
+    display: none !important;
+  }
+
+  /* 5. Stitch Mobile Cards */
+  .grid {
+    padding: 8px 16px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  .main-content-area {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .stats-bar {
+    padding: 4px 16px 8px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-label {
+    display: none;
+  }
+
+  .card {
+    border-radius: 16px;
+    padding: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-right: 36px; /* space for star favorite */
+  }
+
+  .card-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .card-icon img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+  }
+
+  .card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .card-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .card-title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-left: 2px;
+    flex-shrink: 0;
+  }
+
+  .card-url {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-family: inherit;
+  }
+
+  .card-favorite {
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    opacity: 1;
+    font-size: 1.1rem;
+  }
+
+  .card-description {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    margin: 2px 0 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 4px;
+    width: 100%;
+  }
+
+  .card-tags-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .tag {
+    padding: 3px 9px;
+    font-size: 0.72rem;
+    border-radius: 999px;
+  }
+
+  .card-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    border-top: 1px solid var(--border-light);
+    padding-top: 8px;
+    margin-top: 2px;
+  }
+
+  .card-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    color: var(--text-tertiary);
+  }
+
+  .card-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .card-open-btn {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .card-open-btn:active {
+    transform: scale(0.96);
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: 0;
+  }
 
   .card-actions .btn {
     opacity: 1;
+    padding: 4px 7px;
+    font-size: 0.74rem;
+    border-radius: 8px;
   }
-}
 
-@media (max-width: 480px) {
-  .toolbar-left { flex-direction: column; align-items: stretch; }
-  .toolbar-left select { width: 100%; }
+  /* 6. Mobile Floating Action Button (FAB) */
+  .mobile-fab {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    right: 18px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 22px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #ffffff;
+    font-size: 0.92rem;
+    font-weight: 600;
+    box-shadow: 0 6px 20px -2px rgba(10, 132, 255, 0.55), 0 2px 6px rgba(0, 0, 0, 0.12);
+    border: none;
+    cursor: pointer;
+    z-index: 90;
+    user-select: none;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  }
+
+  .mobile-fab:active {
+    transform: scale(0.94);
+    box-shadow: 0 3px 10px rgba(10, 132, 255, 0.4);
+  }
+
+  /* 7. Mobile Fixed Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--modal-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    z-index: 100;
+    align-items: center;
+    justify-content: space-around;
+  }
+
+  .mobile-nav-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 100%;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px 4px;
+    transition: color 0.18s ease;
+    user-select: none;
+  }
+
+  .mobile-nav-tab .mobile-nav-icon {
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), stroke 0.18s ease;
+  }
+
+  .mobile-nav-tab .mobile-nav-label {
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+
+  .mobile-nav-tab.is-active {
+    color: var(--accent);
+  }
+
+  .mobile-nav-tab.is-active .mobile-nav-label {
+    font-weight: 700;
+  }
+
+  .mobile-nav-tab.is-active .mobile-nav-icon {
+    stroke: var(--accent);
+    transform: scale(1.1);
+  }
+
+  .mobile-nav-tab:active .mobile-nav-icon {
+    transform: scale(0.92);
+  }
 }
 
 /* ── Master Passcode Lock Screen & Security Modal ──────────────── */

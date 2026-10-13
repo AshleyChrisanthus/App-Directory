@@ -1202,6 +1202,83 @@ if (headerLogo) {
   });
 }
 
+// Mobile FAB (Add Website - Google Stitch Design)
+const mobileAddFab = document.getElementById('mobileAddFab');
+if (mobileAddFab) {
+  mobileAddFab.addEventListener('click', () => {
+    openModal();
+  });
+}
+
+// Mobile Fixed Bottom Navigation Tabs (Google Stitch Design)
+const navTabDirectory = document.getElementById('navTabDirectory');
+const navTabFavorites = document.getElementById('navTabFavorites');
+const navTabInsights = document.getElementById('navTabInsights');
+const navTabSettings = document.getElementById('navTabSettings');
+
+function updateMobileBottomNavActiveTab(activeTab: 'directory' | 'favorites' | 'insights' | 'settings'): void {
+  const tabs = [navTabDirectory, navTabFavorites, navTabInsights, navTabSettings];
+  tabs.forEach(tab => tab?.classList.remove('is-active'));
+  if (activeTab === 'directory') navTabDirectory?.classList.add('is-active');
+  else if (activeTab === 'favorites') navTabFavorites?.classList.add('is-active');
+  else if (activeTab === 'insights') navTabInsights?.classList.add('is-active');
+  else if (activeTab === 'settings') navTabSettings?.classList.add('is-active');
+}
+
+if (navTabDirectory) {
+  navTabDirectory.addEventListener('click', () => {
+    updateMobileBottomNavActiveTab('directory');
+    if (state.isInsightsOpen) handleToggleInsights(false);
+    resetToAllBookmarks();
+  });
+}
+
+if (navTabFavorites) {
+  navTabFavorites.addEventListener('click', () => {
+    updateMobileBottomNavActiveTab('favorites');
+    if (state.isInsightsOpen) handleToggleInsights(false);
+    setActiveFolder('favorites', render);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+if (navTabInsights) {
+  navTabInsights.addEventListener('click', () => {
+    const isNowOpen = !state.isInsightsOpen;
+    handleToggleInsights(isNowOpen);
+    if (isNowOpen) {
+      updateMobileBottomNavActiveTab('insights');
+    } else {
+      updateMobileBottomNavActiveTab(state.activeFolderId === 'favorites' ? 'favorites' : 'directory');
+    }
+  });
+}
+
+if (navTabSettings) {
+  navTabSettings.addEventListener('click', () => {
+    updateMobileBottomNavActiveTab('settings');
+    openSettingsModal('ai');
+  });
+}
+
+// Reset mobile tab when settings modal closes
+const settingsModalBackdrop = document.getElementById('settingsModalBackdrop');
+const settingsModalClose = document.getElementById('settingsModalClose');
+const settingsModalCancelBtn = document.getElementById('settingsModalCancelBtn');
+const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+[settingsModalClose, settingsModalCancelBtn, saveSettingsBtn].forEach(btn => {
+  btn?.addEventListener('click', () => {
+    updateMobileBottomNavActiveTab(state.activeFolderId === 'favorites' ? 'favorites' : 'directory');
+  });
+});
+if (settingsModalBackdrop) {
+  settingsModalBackdrop.addEventListener('click', (e) => {
+    if (e.target === settingsModalBackdrop) {
+      updateMobileBottomNavActiveTab(state.activeFolderId === 'favorites' ? 'favorites' : 'directory');
+    }
+  });
+}
+
 // Command palette trigger button in header
 if (cmdPaletteTrigger) {
   cmdPaletteTrigger.addEventListener('click', () => openCommandPalette(paletteCallbacks));

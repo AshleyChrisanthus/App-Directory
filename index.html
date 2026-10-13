@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=36e50421">
+  <link rel="stylesheet" href="style.css?v=67868cea">
 </head>
 <body>
   <!-- Top Navigation Wrapper (Smart Reveal on Hover/Scroll) -->
@@ -24,7 +24,16 @@
         <button id="sidebarToggleBtn" class="btn btn-icon sidebar-toggle-btn" title="Toggle Folders Sidebar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
-        <h1 class="logo" id="headerLogo" title="Reset to All Bookmarks">📂 App Directory</h1>
+        <div class="logo logo-wrapper" id="headerLogo" title="Reset to All Bookmarks">
+          <div class="logo-icon-box">📁</div>
+          <div class="logo-text-col">
+            <div class="logo-title-row">
+              <span class="logo-title">App Directory</span>
+              <span class="header-count-badge" id="headerCountBadge">0</span>
+            </div>
+            <span class="logo-subtitle">Curated Bookmark Vault</span>
+          </div>
+        </div>
       </div>
       <div class="header-right">
         <button id="refreshAllBtn" class="btn btn-ghost" title="Check for updated icons">
@@ -114,6 +123,8 @@
           <button type="button" class="search-clear-btn" id="searchClearBtn" style="display: none;" title="Clear search">✕</button>
           <button type="button" class="search-kbd-shortcut" id="cmdPaletteTrigger" title="Open Command Palette (Ctrl+K / ⌘K)"><kbd id="cmdPaletteKbdLabel">Ctrl+K</kbd></button>
         </div>
+        <!-- Mobile Category Pill Track (Google Stitch UX) -->
+        <div class="mobile-category-track" id="mobileCategoryTrack" aria-label="Category Filters"></div>
         <!-- Multi-Category Filter Dropdown with Integrated Settings -->
         <div class="custom-dropdown cat-filter-dropdown" id="catFilterDropdown">
           <div class="cat-filter-btn-group" id="catFilterBtnGroup">
@@ -151,35 +162,37 @@
             </div>
           </div>
         </div>
-        <select id="sortSelect">
-          <option value="dateAdded-desc">Newest First</option>
-          <option value="dateAdded-asc">Oldest First</option>
-          <option value="name-asc">Name A–Z</option>
-          <option value="name-desc">Name Z–A</option>
-          <option value="visitCount-desc">Most Visited</option>
-          <option value="lastVisited-desc">Recently Visited</option>
-        </select>
-        <button type="button" id="pinFavoritesBtn" class="btn btn-secondary toolbar-toggle-btn" title="Pin favorites to the top of the list" aria-pressed="false">
-          <span class="toggle-star-icon">⭐</span>
-          <span class="toggle-text">Pin Favorites</span>
-        </button>
-        <!-- Custom View Layout Switcher (Issue #16) -->
-        <div class="view-mode-switcher" id="viewModeSwitcher" role="group" aria-label="View Layout">
-          <button type="button" class="view-mode-btn is-active" id="viewCardsBtn" data-view="cards" title="Cards View (Bento Grid)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+        <div class="toolbar-sub-row" id="toolbarSubRow">
+          <select id="sortSelect">
+            <option value="dateAdded-desc">Newest First</option>
+            <option value="dateAdded-asc">Oldest First</option>
+            <option value="name-asc">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="visitCount-desc">Most Visited</option>
+            <option value="lastVisited-desc">Recently Visited</option>
+          </select>
+          <button type="button" id="pinFavoritesBtn" class="btn btn-secondary toolbar-toggle-btn" title="Pin favorites to the top of the list" aria-pressed="false">
+            <span class="toggle-star-icon">⭐</span>
+            <span class="toggle-text">Pin Favorites</span>
           </button>
-          <button type="button" class="view-mode-btn" id="viewTableBtn" data-view="table" title="Compact Table View">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <button type="button" class="view-mode-btn" id="viewIconsBtn" data-view="icons" title="Minimal Icon Grid (Speed Dial)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
+          <!-- Custom View Layout Switcher (Issue #16) -->
+          <div class="view-mode-switcher" id="viewModeSwitcher" role="group" aria-label="View Layout">
+            <button type="button" class="view-mode-btn is-active" id="viewCardsBtn" data-view="cards" title="Cards View (Bento Grid)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+            </button>
+            <button type="button" class="view-mode-btn" id="viewTableBtn" data-view="table" title="Compact Table View">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <button type="button" class="view-mode-btn" id="viewIconsBtn" data-view="icons" title="Minimal Icon Grid (Speed Dial)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.2"/><circle cx="12" cy="5" r="2.2"/><circle cx="19" cy="5" r="2.2"/><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="12" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/></svg>
+            </button>
+          </div>
+          <!-- Insights Dashboard Toggle (Issue #19) -->
+          <button type="button" id="insightsToggleBtn" class="btn btn-secondary toolbar-toggle-btn" title="Toggle Insights & Analytics Dashboard" aria-expanded="false">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            <span class="toggle-text">Insights</span>
           </button>
         </div>
-        <!-- Insights Dashboard Toggle (Issue #19) -->
-        <button type="button" id="insightsToggleBtn" class="btn btn-secondary toolbar-toggle-btn" title="Toggle Insights & Analytics Dashboard" aria-expanded="false">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-          <span class="toggle-text">Insights</span>
-        </button>
       </div>
       <div class="toolbar-right">
         <button id="addBtn" class="btn btn-primary">
@@ -1105,6 +1118,45 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile Floating Action Button (FAB - Google Stitch Design) -->
+  <button class="mobile-fab" id="mobileAddFab" title="Add Website" aria-label="Add Website">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <span>Add Website</span>
+  </button>
+
+  <!-- Mobile Fixed Bottom Navigation Bar (Google Stitch Design) -->
+  <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile Navigation">
+    <button type="button" class="mobile-nav-tab is-active" data-tab="directory" id="navTabDirectory" title="Directory Vault">
+      <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+        <path d="M6 6h10"/>
+        <path d="M6 10h10"/>
+      </svg>
+      <span class="mobile-nav-label">Directory</span>
+    </button>
+    <button type="button" class="mobile-nav-tab" data-tab="favorites" id="navTabFavorites" title="Starred Favorites">
+      <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+      <span class="mobile-nav-label">Favorites</span>
+    </button>
+    <button type="button" class="mobile-nav-tab" data-tab="insights" id="navTabInsights" title="Usage Analytics & Insights">
+      <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span class="mobile-nav-label">Insights</span>
+    </button>
+    <button type="button" class="mobile-nav-tab" data-tab="settings" id="navTabSettings" title="App Settings">
+      <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span class="mobile-nav-label">Settings</span>
+    </button>
+  </nav>
 
   <!-- Toast container -->
   <div id="toastContainer" class="toast-container"></div>

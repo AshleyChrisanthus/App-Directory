@@ -2089,6 +2089,7 @@
       }
     }
     updateCatFilterLabel();
+    renderMobileCategoryTrack(onFilterChanged);
     const datalist = document.getElementById("categorySuggestions");
     if (datalist) {
       datalist.innerHTML = "";
@@ -2098,6 +2099,64 @@
         datalist.appendChild(opt);
       });
     }
+  }
+  function renderMobileCategoryTrack(onFilterChanged) {
+    const track = document.getElementById("mobileCategoryTrack");
+    if (!track) return;
+    track.innerHTML = "";
+    const allCats = getAllCategories();
+    const total = state.entries.length;
+    const isAllActive = state.selectedFilterCategories.size === 0 || state.catFilterMode === "union" && state.selectedFilterCategories.size === allCats.length;
+    const allChip = document.createElement("button");
+    allChip.type = "button";
+    allChip.className = `mobile-cat-chip ${isAllActive ? "is-active" : ""}`;
+    allChip.innerHTML = `<span class="mobile-cat-name">All</span> <span class="mobile-cat-count">${total}</span>`;
+    allChip.addEventListener("click", () => {
+      state.selectedFilterCategories.clear();
+      const catFilterList2 = document.getElementById("catFilterList");
+      if (catFilterList2) {
+        catFilterList2.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          cb.checked = false;
+        });
+      }
+      updateCatFilterLabel();
+      renderMobileCategoryTrack(onFilterChanged);
+      if (onFilterChanged) onFilterChanged();
+    });
+    track.appendChild(allChip);
+    const counts = {};
+    state.entries.forEach((e) => {
+      (e.categories || []).forEach((cat) => {
+        counts[cat] = (counts[cat] || 0) + 1;
+      });
+    });
+    allCats.forEach((cat) => {
+      const isCatActive = !isAllActive && state.selectedFilterCategories.has(cat);
+      const count = counts[cat] || 0;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = `mobile-cat-chip ${isCatActive ? "is-active" : ""}`;
+      chip.innerHTML = `<span class="mobile-cat-name">${escapeHtml(cat)}</span> <span class="mobile-cat-count">${count}</span>`;
+      chip.addEventListener("click", () => {
+        if (state.selectedFilterCategories.has(cat) && state.selectedFilterCategories.size === 1) {
+          state.selectedFilterCategories.clear();
+        } else {
+          state.selectedFilterCategories.clear();
+          state.selectedFilterCategories.add(cat);
+        }
+        const catFilterList2 = document.getElementById("catFilterList");
+        if (catFilterList2) {
+          catFilterList2.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+            const input = cb;
+            input.checked = state.selectedFilterCategories.has(input.value);
+          });
+        }
+        updateCatFilterLabel();
+        renderMobileCategoryTrack(onFilterChanged);
+        if (onFilterChanged) onFilterChanged();
+      });
+      track.appendChild(chip);
+    });
   }
   function renderCategoryChips() {
     const container = document.getElementById("categoryTags");
@@ -4308,7 +4367,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">` : '<span class="icon-fallback">\u{1F310}</span>'}
       </div>
       <div class="card-info">
-        <div class="card-name" title="${escapeHtml(entry.name)}">${escapeHtml(entry.name)}</div>
+        <div class="card-name" title="${escapeHtml(entry.name)}">
+          <span class="card-title-text">${escapeHtml(entry.name)}</span>
+          <span class="card-status-dot ${entry.health && entry.health.status === "broken" ? "is-broken" : "is-online"}" title="${entry.health && entry.health.status === "broken" ? "Website unreachable or broken" : "Website online"}"></span>
+        </div>
         <div class="card-url" title="${escapeHtml(entry.url)}">
           <span>${escapeHtml(domain)}</span>
           <svg class="card-url-arrow" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
@@ -4334,17 +4396,29 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       </div>
     ` : ""}
     <div class="card-meta">
-      ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || "#0a84ff")}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)} (Click to view folder)"><span>${escapeHtml(folder.icon || "\u{1F4C1}")}</span> ${escapeHtml(folder.name)}</span>` : ""}
-      ${(entry.categories || []).map((cat) => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join("")}
-      <span class="meta-item" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
-      ${(entry.visitCount || 0) > 0 ? `
-        <span class="meta-dot"></span>
-        <span class="meta-item">${entry.visitCount} visit${entry.visitCount !== 1 ? "s" : ""}</span>
-      ` : ""}
-      <div class="card-actions">
-        <button class="btn btn-ghost refresh-btn" title="Check for updated icon">\u{1F504}</button>
-        <button class="btn btn-ghost edit-btn" title="Edit">\u270F\uFE0F</button>
-        <button class="btn btn-danger delete-btn" title="Delete">\u{1F5D1}\uFE0F</button>
+      <div class="card-tags-row">
+        ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || "#0a84ff")}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)} (Click to view folder)"><span>${escapeHtml(folder.icon || "\u{1F4C1}")}</span> ${escapeHtml(folder.name)}</span>` : ""}
+        ${(entry.categories || []).map((cat) => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join("")}
+      </div>
+      <div class="card-footer-row">
+        <div class="card-footer-left">
+          <span class="meta-item meta-added-date" title="Added: ${formatDateFull(entry.dateAdded)}">Added ${timeAgo(entry.dateAdded)}</span>
+          ${(entry.visitCount || 0) > 0 ? `
+            <span class="meta-dot"></span>
+            <span class="meta-item">${entry.visitCount} visit${entry.visitCount !== 1 ? "s" : ""}</span>
+          ` : ""}
+        </div>
+        <div class="card-footer-right">
+          <button type="button" class="card-open-btn" title="Open ${escapeHtml(entry.name)} in new tab">
+            <span>Open</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          </button>
+          <div class="card-actions">
+            <button class="btn btn-ghost refresh-btn" title="Check for updated icon">\u{1F504}</button>
+            <button class="btn btn-ghost edit-btn" title="Edit">\u270F\uFE0F</button>
+            <button class="btn btn-danger delete-btn" title="Delete">\u{1F5D1}\uFE0F</button>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -4355,9 +4429,16 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         if (folder) setActiveFolder(folder.id, render);
         return;
       }
-      if (target?.closest(".card-favorite") || target?.closest(".refresh-btn") || target?.closest(".edit-btn") || target?.closest(".delete-btn") || target?.closest(".card-pending-icon-box")) return;
+      if (target?.closest(".card-favorite") || target?.closest(".refresh-btn") || target?.closest(".edit-btn") || target?.closest(".delete-btn") || target?.closest(".card-open-btn") || target?.closest(".card-pending-icon-box")) return;
       visitEntry(entry.id, render);
     });
+    const cardOpenBtn = card.querySelector(".card-open-btn");
+    if (cardOpenBtn) {
+      cardOpenBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        visitEntry(entry.id, render);
+      });
+    }
     const favBtn = card.querySelector(".card-favorite");
     if (favBtn) {
       favBtn.addEventListener("click", (e) => {
@@ -4617,6 +4698,14 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       } else {
         statsText.textContent = `Showing ${showing} of ${total} site${total !== 1 ? "s" : ""}`;
       }
+    }
+    const headerCountBadge = document.getElementById("headerCountBadge");
+    if (headerCountBadge) {
+      headerCountBadge.textContent = String(total);
+    }
+    const searchInput2 = document.getElementById("searchInput");
+    if (searchInput2 && !searchInput2.value) {
+      searchInput2.placeholder = `Search ${total} bookmarks\u2026`;
     }
     if (activeCatFilterBanner) {
       if (activeCats.length > 0 && activeCats.length < getAllCategories().length) {
@@ -9725,6 +9814,72 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     headerLogo.addEventListener("click", (e) => {
       e.preventDefault();
       resetToAllBookmarks();
+    });
+  }
+  var mobileAddFab = document.getElementById("mobileAddFab");
+  if (mobileAddFab) {
+    mobileAddFab.addEventListener("click", () => {
+      openModal();
+    });
+  }
+  var navTabDirectory = document.getElementById("navTabDirectory");
+  var navTabFavorites = document.getElementById("navTabFavorites");
+  var navTabInsights = document.getElementById("navTabInsights");
+  var navTabSettings = document.getElementById("navTabSettings");
+  function updateMobileBottomNavActiveTab(activeTab) {
+    const tabs = [navTabDirectory, navTabFavorites, navTabInsights, navTabSettings];
+    tabs.forEach((tab) => tab?.classList.remove("is-active"));
+    if (activeTab === "directory") navTabDirectory?.classList.add("is-active");
+    else if (activeTab === "favorites") navTabFavorites?.classList.add("is-active");
+    else if (activeTab === "insights") navTabInsights?.classList.add("is-active");
+    else if (activeTab === "settings") navTabSettings?.classList.add("is-active");
+  }
+  if (navTabDirectory) {
+    navTabDirectory.addEventListener("click", () => {
+      updateMobileBottomNavActiveTab("directory");
+      if (state.isInsightsOpen) handleToggleInsights(false);
+      resetToAllBookmarks();
+    });
+  }
+  if (navTabFavorites) {
+    navTabFavorites.addEventListener("click", () => {
+      updateMobileBottomNavActiveTab("favorites");
+      if (state.isInsightsOpen) handleToggleInsights(false);
+      setActiveFolder("favorites", render);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+  if (navTabInsights) {
+    navTabInsights.addEventListener("click", () => {
+      const isNowOpen = !state.isInsightsOpen;
+      handleToggleInsights(isNowOpen);
+      if (isNowOpen) {
+        updateMobileBottomNavActiveTab("insights");
+      } else {
+        updateMobileBottomNavActiveTab(state.activeFolderId === "favorites" ? "favorites" : "directory");
+      }
+    });
+  }
+  if (navTabSettings) {
+    navTabSettings.addEventListener("click", () => {
+      updateMobileBottomNavActiveTab("settings");
+      openSettingsModal("ai");
+    });
+  }
+  var settingsModalBackdrop = document.getElementById("settingsModalBackdrop");
+  var settingsModalClose = document.getElementById("settingsModalClose");
+  var settingsModalCancelBtn = document.getElementById("settingsModalCancelBtn");
+  var saveSettingsBtn = document.getElementById("saveSettingsBtn");
+  [settingsModalClose, settingsModalCancelBtn, saveSettingsBtn].forEach((btn) => {
+    btn?.addEventListener("click", () => {
+      updateMobileBottomNavActiveTab(state.activeFolderId === "favorites" ? "favorites" : "directory");
+    });
+  });
+  if (settingsModalBackdrop) {
+    settingsModalBackdrop.addEventListener("click", (e) => {
+      if (e.target === settingsModalBackdrop) {
+        updateMobileBottomNavActiveTab(state.activeFolderId === "favorites" ? "favorites" : "directory");
+      }
     });
   }
   if (cmdPaletteTrigger) {
