@@ -64,7 +64,19 @@ export interface CachedFolder {
   color?: string;
 }
 
+export interface CachedBookmark {
+  id: string;
+  name: string;
+  url: string;
+  icon?: string | null;
+  iconUrl?: string | null;
+  categories?: string[];
+  folderId?: string | null;
+  dateAdded?: string;
+}
+
 export interface AppDirectoryState {
   folders: CachedFolder[];
   categories: string[];
+  entries?: CachedBookmark[];
 }

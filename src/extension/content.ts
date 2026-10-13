@@ -5,6 +5,7 @@ import {
   ClassificationProgressEvent,
   ExtensionSettings,
   CachedFolder,
+  CachedBookmark,
   AppDirectoryState
 } from './types';
 
@@ -13,6 +14,21 @@ if (typeof (window as any).__APP_DIRECTORY_CLEANUP__ === 'function') {
   try {
     (window as any).__APP_DIRECTORY_CLEANUP__();
   } catch (_) {}
+}
+
+function normalizeUrlForExactComparison(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    // Strip trailing slash from pathname if present (except root pathname '/')
+    let pathname = parsed.pathname;
+    if (pathname.length > 1 && pathname.endsWith('/')) {
+      pathname = pathname.slice(0, -1);
+    }
+    // Return exact protocol, host, full pathname, and search params, omitting hash
+    return `${parsed.protocol}//${parsed.host}${pathname}${parsed.search}`.toLowerCase();
+  } catch {
+    return rawUrl.trim().toLowerCase().replace(/\/+$/, '');
+  }
 }
 
 function detectFavicon(): string {
@@ -80,7 +96,7 @@ function toggleModal(): void {
 
   isModalOpening = true;
 
-  // Fetch folders and categories from extension background
+  // Fetch folders, categories, and cached entries from extension background
   try {
     chrome.runtime.sendMessage({ type: 'GET_APP_DIRECTORY_STATE' }, (response: AppDirectoryState) => {
       isModalOpening = false;
@@ -95,7 +111,8 @@ function toggleModal(): void {
 
         const folders: CachedFolder[] = (response && response.folders) || [];
         const categories: string[] = (response && response.categories) || [];
-        renderModal(folders, categories);
+        const entries: CachedBookmark[] = (response && response.entries) || [];
+        renderModal(folders, categories, entries);
       } catch (_) {}
     });
   } catch (_) {
@@ -103,7 +120,11 @@ function toggleModal(): void {
   }
 }
 
-function renderModal(availableFolders: CachedFolder[], availableCategories: string[]): void {
+function renderModal(
+  availableFolders: CachedFolder[],
+  availableCategories: string[],
+  cachedEntries: CachedBookmark[] = []
+): void {
   // Purge any stale or duplicate modal hosts in the DOM
   document.querySelectorAll('#app-directory-modal-host').forEach((node) => node.remove());
 
@@ -121,6 +142,13 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   const initialIcon = detectFavicon();
   const initialDesc = detectDescription();
 
+  // Find exact URL match in cached entries
+  const currentNormalizedUrl = normalizeUrlForExactComparison(initialUrl);
+  const matchedEntry: CachedBookmark | undefined = cachedEntries.find((entry) => {
+    if (!entry || !entry.url) return false;
+    return normalizeUrlForExactComparison(entry.url) === currentNormalizedUrl;
+  });
+
   const selectedCategories: string[] = [];
   let isFavorite = false;
   let suggestionHighlightedIndex = -1;
@@ -135,6 +163,7 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
           <div class="ad-app-icon">📁</div>
           <span class="ad-modal-title">Add to App Directory</span>
           <span class="ad-badge-local">Local DB</span>
+          ${matchedEntry ? `<button type="button" class="ad-duplicate-banner-trigger" id="ad-duplicate-banner-btn" title="View already saved bookmark details">⚠️ Saved in Database</button>` : ''}
         </div>
         <div class="ad-header-actions">
           <button type="button" class="ad-icon-btn" id="ad-settings-toggle-btn" title="Companion AI Settings">⚙️</button>
@@ -247,6 +276,57 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
           <button type="button" class="ad-btn ad-btn-primary" id="ad-settings-save-btn">Save Settings</button>
         </div>
       </div>
+
+      <!-- Duplicate Suggestion Drawer (Right Side Panel) -->
+      ${matchedEntry ? `
+      <div class="ad-duplicate-drawer" id="ad-duplicate-drawer">
+        <div class="ad-duplicate-header">
+          <div class="ad-duplicate-title">
+            <span>⚠️</span> Already Saved in Database
+          </div>
+          <button type="button" class="ad-icon-btn" id="ad-duplicate-close-btn" title="Dismiss / Back">✕</button>
+        </div>
+        <div class="ad-duplicate-body">
+          <div class="ad-duplicate-notice">
+            This webpage is already registered in your App Directory database. You can still save it as a new entry if you wish.
+          </div>
+          <div class="ad-duplicate-card">
+            <div class="ad-duplicate-card-header">
+              <div class="ad-duplicate-card-icon">
+                ${matchedEntry.iconUrl ? `<img src="${escapeHtml(matchedEntry.iconUrl)}" alt="" onerror="this.src='https://icons.duckduckgo.com/ip3/${window.location.hostname}.ico'">` : (matchedEntry.icon || '📁')}
+              </div>
+              <div class="ad-duplicate-card-meta">
+                <div class="ad-duplicate-entry-title">${escapeHtml(matchedEntry.name || 'Untitled')}</div>
+                <a class="ad-duplicate-entry-url" href="${escapeHtml(matchedEntry.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(matchedEntry.url)}</a>
+              </div>
+            </div>
+            <div class="ad-duplicate-details">
+              ${matchedEntry.folderId && availableFolders.find(f => f.id === matchedEntry.folderId) ? `
+              <div class="ad-duplicate-detail-row">
+                <span class="ad-duplicate-detail-label">Folder</span>
+                <span class="ad-duplicate-detail-value">${escapeHtml(availableFolders.find(f => f.id === matchedEntry.folderId)?.name || '')}</span>
+              </div>` : ''}
+              ${Array.isArray(matchedEntry.categories) && matchedEntry.categories.length > 0 ? `
+              <div class="ad-duplicate-detail-row" style="flex-direction: column; align-items: flex-start;">
+                <span class="ad-duplicate-detail-label">Categories</span>
+                <div class="ad-duplicate-tags">
+                  ${matchedEntry.categories.map(c => `<span class="ad-duplicate-tag">${escapeHtml(c)}</span>`).join('')}
+                </div>
+              </div>` : ''}
+              ${matchedEntry.dateAdded ? `
+              <div class="ad-duplicate-detail-row">
+                <span class="ad-duplicate-detail-label">Date Saved</span>
+                <span class="ad-duplicate-detail-value">${new Date(matchedEntry.dateAdded).toLocaleDateString()}</span>
+              </div>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="ad-duplicate-footer">
+          <span class="ad-duplicate-footer-hint">Save below to add another entry anyway</span>
+          <button type="button" class="ad-btn ad-btn-secondary" id="ad-duplicate-dismiss-btn">Dismiss</button>
+        </div>
+      </div>
+      ` : ''}
 
       <div class="ad-success-overlay" id="ad-success-overlay">
         <div class="ad-success-icon">✓</div>
@@ -471,6 +551,36 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
     });
   }
 
+  // ── Duplicate Suggestion Drawer Logic ───────────────────────
+  const duplicateDrawer = shadow.getElementById('ad-duplicate-drawer');
+  const duplicateBannerBtn = shadow.getElementById('ad-duplicate-banner-btn');
+  const duplicateCloseBtn = shadow.getElementById('ad-duplicate-close-btn');
+  const duplicateDismissBtn = shadow.getElementById('ad-duplicate-dismiss-btn');
+
+  const closeDuplicateDrawer = (): void => {
+    if (duplicateDrawer) duplicateDrawer.classList.remove('ad-show');
+  };
+
+  const openDuplicateDrawer = (): void => {
+    closeSettings();
+    if (duplicateDrawer) duplicateDrawer.classList.add('ad-show');
+  };
+
+  if (duplicateBannerBtn) duplicateBannerBtn.addEventListener('click', openDuplicateDrawer);
+  if (duplicateCloseBtn) duplicateCloseBtn.addEventListener('click', closeDuplicateDrawer);
+  if (duplicateDismissBtn) duplicateDismissBtn.addEventListener('click', closeDuplicateDrawer);
+
+  // If a duplicate match was found, automatically slide in the suggestion side drawer
+  if (matchedEntry && duplicateDrawer) {
+    // Slight delay so the user sees the main modal render smoothly first
+    setTimeout(() => {
+      // Don't auto-open if user already opened settings drawer
+      if (!settingsDrawer?.classList.contains('ad-show')) {
+        openDuplicateDrawer();
+      }
+    }, 280);
+  }
+
   // ── Settings Drawer Logic ─────────────────────────────────
   const settingsDrawer = shadow.getElementById('ad-settings-drawer');
   const settingsToggleBtn = shadow.getElementById('ad-settings-toggle-btn');
@@ -486,6 +596,7 @@ function renderModal(availableFolders: CachedFolder[], availableCategories: stri
   let lastLoadedSettings: ExtensionSettings | null = null;
 
   const openSettings = (): void => {
+    closeDuplicateDrawer();
     if (!settingsDrawer) return;
     chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (s: ExtensionSettings) => {
       lastLoadedSettings = s;

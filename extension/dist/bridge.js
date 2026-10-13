@@ -71,13 +71,14 @@
   window.addEventListener("message", (event) => {
     if (!isExtensionContextValid()) return;
     if (!event.data || typeof event.data !== "object") return;
-    const { type, folders, categories, entryIds, settings } = event.data;
+    const { type, folders, categories, entries, entryIds, settings } = event.data;
     if (type === "APP_DIRECTORY_SYNC_RESPONSE" || type === "APP_DIRECTORY_READY") {
       try {
         chrome.runtime.sendMessage({
           type: "CACHE_APP_DIRECTORY_STATE",
           folders: folders || [],
-          categories: categories || []
+          categories: categories || [],
+          entries: Array.isArray(entries) ? entries : []
         });
       } catch (_) {
       }

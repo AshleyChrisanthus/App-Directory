@@ -6733,7 +6733,17 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
             icon: f.icon || "\u{1F4C1}",
             color: f.color || "#0a84ff"
           })),
-          categories: getAllCategories()
+          categories: getAllCategories(),
+          entries: (state.entries || []).map((e) => ({
+            id: e.id,
+            name: e.name,
+            url: e.url,
+            icon: e.icon || null,
+            iconUrl: e.iconUrl || null,
+            categories: e.categories || [],
+            folderId: e.folderId || null,
+            dateAdded: e.dateAdded
+          }))
         }, "*");
       } catch (_) {
       }

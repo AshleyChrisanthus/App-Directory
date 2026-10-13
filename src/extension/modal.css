@@ -730,3 +730,218 @@
   gap: 10px;
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* Duplicate Suggestion Drawer (Slides in from the right) */
+.ad-duplicate-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  background: rgba(18, 24, 38, 0.98);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 16px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -8px 0 25px rgba(0, 0, 0, 0.4);
+}
+
+.ad-duplicate-drawer.ad-show {
+  transform: translateX(0);
+}
+
+.ad-duplicate-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 159, 10, 0.06);
+}
+
+.ad-duplicate-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ff9f0a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ad-duplicate-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(255, 159, 10, 0.18);
+  color: #ff9f0a;
+  border: 1px solid rgba(255, 159, 10, 0.35);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ad-duplicate-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ad-duplicate-notice {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.ad-duplicate-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 159, 10, 0.25);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ad-duplicate-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ad-duplicate-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+  overflow: hidden;
+}
+
+.ad-duplicate-card-icon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.ad-duplicate-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ad-duplicate-entry-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #f8fafc;
+  word-break: break-word;
+}
+
+.ad-duplicate-entry-url {
+  font-size: 11.5px;
+  color: #38bdf8;
+  text-decoration: none;
+  word-break: break-all;
+  line-height: 1.35;
+}
+
+.ad-duplicate-entry-url:hover {
+  text-decoration: underline;
+}
+
+.ad-duplicate-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ad-duplicate-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ad-duplicate-detail-label {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.ad-duplicate-detail-value {
+  color: #e2e8f0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ad-duplicate-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.ad-duplicate-tag {
+  background: rgba(10, 132, 255, 0.14);
+  border: 1px solid rgba(10, 132, 255, 0.28);
+  color: #93c5fd;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+}
+
+.ad-duplicate-footer {
+  padding: 12px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ad-duplicate-footer-hint {
+  font-size: 11px;
+  color: #94a3b8;
+  flex: 1;
+}
+
+.ad-duplicate-banner-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(255, 159, 10, 0.14);
+  border: 1px solid rgba(255, 159, 10, 0.3);
+  color: #ff9f0a;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ad-duplicate-banner-trigger:hover {
+  background: rgba(255, 159, 10, 0.22);
+  border-color: rgba(255, 159, 10, 0.5);
+  color: #ffb340;
+}
+

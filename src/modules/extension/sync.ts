@@ -17,7 +17,17 @@ export function initExtensionSync(onDataChanged: () => void): void {
           icon: f.icon || '📁',
           color: f.color || '#0a84ff'
         })),
-        categories: getAllCategories()
+        categories: getAllCategories(),
+        entries: (state.entries || []).map(e => ({
+          id: e.id,
+          name: e.name,
+          url: e.url,
+          icon: e.icon || null,
+          iconUrl: e.iconUrl || null,
+          categories: e.categories || [],
+          folderId: e.folderId || null,
+          dateAdded: e.dateAdded
+        }))
       }, '*');
     } catch (_) {}
   };

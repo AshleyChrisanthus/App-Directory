@@ -81,15 +81,16 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (!isExtensionContextValid()) return;
   if (!event.data || typeof event.data !== 'object') return;
 
-  const { type, folders, categories, entryIds, settings } = event.data;
+  const { type, folders, categories, entries, entryIds, settings } = event.data;
 
   if (type === 'APP_DIRECTORY_SYNC_RESPONSE' || type === 'APP_DIRECTORY_READY') {
-    // Cache latest folders and categories in extension storage
+    // Cache latest folders, categories, and entries in extension storage
     try {
       chrome.runtime.sendMessage({
         type: 'CACHE_APP_DIRECTORY_STATE',
         folders: folders || [],
-        categories: categories || []
+        categories: categories || [],
+        entries: Array.isArray(entries) ? entries : []
       });
     } catch (_) {}
 

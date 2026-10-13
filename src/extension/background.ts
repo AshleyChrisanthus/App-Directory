@@ -12,6 +12,7 @@ import {
 const STORAGE_KEYS = {
   CACHED_FOLDERS: 'ad_cached_folders',
   CACHED_CATEGORIES: 'ad_cached_categories',
+  CACHED_ENTRIES: 'ad_cached_entries',
   PENDING_BOOKMARKS: 'ad_pending_bookmarks',
   SETTINGS_GEMINI_KEY: 'ad_gemini_api_key',
   SETTINGS_GEMINI_MODEL: 'ad_gemini_model',
@@ -137,20 +138,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   switch (message.type) {
     case 'GET_APP_DIRECTORY_STATE': {
-      chrome.storage.local.get([STORAGE_KEYS.CACHED_FOLDERS, STORAGE_KEYS.CACHED_CATEGORIES], (res) => {
+      chrome.storage.local.get([
+        STORAGE_KEYS.CACHED_FOLDERS,
+        STORAGE_KEYS.CACHED_CATEGORIES,
+        STORAGE_KEYS.CACHED_ENTRIES
+      ], (res) => {
         sendResponse({
           folders: res[STORAGE_KEYS.CACHED_FOLDERS] || [],
-          categories: res[STORAGE_KEYS.CACHED_CATEGORIES] || []
+          categories: res[STORAGE_KEYS.CACHED_CATEGORIES] || [],
+          entries: res[STORAGE_KEYS.CACHED_ENTRIES] || []
         });
       });
       return true; // Async response
     }
 
     case 'CACHE_APP_DIRECTORY_STATE': {
-      chrome.storage.local.set({
+      const toSet: Record<string, any> = {
         [STORAGE_KEYS.CACHED_FOLDERS]: message.folders || [],
         [STORAGE_KEYS.CACHED_CATEGORIES]: message.categories || []
-      });
+      };
+      if (Array.isArray(message.entries)) {
+        toSet[STORAGE_KEYS.CACHED_ENTRIES] = message.entries;
+      }
+      chrome.storage.local.set(toSet);
       sendResponse({ success: true });
       return false;
     }
@@ -320,6 +330,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             }
           });
         }
+
+        // Update CACHED_ENTRIES so subsequent checks know about this entry immediately
+        chrome.storage.local.get([STORAGE_KEYS.CACHED_ENTRIES], (entRes) => {
+          const rawEntries = entRes[STORAGE_KEYS.CACHED_ENTRIES];
+          const entriesList: any[] = Array.isArray(rawEntries) ? [...rawEntries] : [];
+          const existingIdx = entriesList.findIndex((e) => e.id === entry.id || e.url === entry.url);
+          const cachedItem = {
+            id: entry.id,
+            name: entry.name,
+            url: entry.url,
+            icon: entry.icon || null,
+            iconUrl: entry.iconUrl || null,
+            categories: entry.categories || [],
+            folderId: entry.folderId || null,
+            dateAdded: entry.dateAdded
+          };
+          if (existingIdx !== -1) {
+            entriesList[existingIdx] = cachedItem;
+          } else {
+            entriesList.unshift(cachedItem);
+          }
+          chrome.storage.local.set({ [STORAGE_KEYS.CACHED_ENTRIES]: entriesList });
+        });
 
         // Broadcast to all currently open App Directory tabs (local, localhost, hosted)
         const tabs = await chrome.tabs.query({});
