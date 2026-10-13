@@ -565,6 +565,17 @@
   cursor: pointer;
 }
 
+.ad-classify-badge.ad-badge-duplicate {
+  background: rgba(255, 159, 10, 0.16);
+  color: #ff9f0a;
+  border: 1px solid rgba(255, 159, 10, 0.35);
+  cursor: pointer;
+}
+
+.ad-classify-badge.ad-badge-duplicate:hover {
+  background: rgba(255, 159, 10, 0.26);
+}
+
 .ad-reclassify-btn {
   background: transparent;
   border: none;

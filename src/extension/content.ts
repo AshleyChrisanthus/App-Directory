@@ -18,16 +18,32 @@ if (typeof (window as any).__APP_DIRECTORY_CLEANUP__ === 'function') {
 
 function normalizeUrlForExactComparison(rawUrl: string): string {
   try {
-    const parsed = new URL(rawUrl.trim());
-    // Strip trailing slash from pathname if present (except root pathname '/')
-    let pathname = parsed.pathname;
+    const trimmed = (rawUrl || '').trim();
+    if (!trimmed) return '';
+    const parsed = new URL(trimmed);
+    
+    // Normalize host: strip leading 'www.' so 'www.site.com/page' matches 'site.com/page'
+    const host = parsed.host.toLowerCase().replace(/^www\./, '');
+    
+    // Normalize pathname: collapse multiple slashes, strip trailing slash except for root '/'
+    let pathname = parsed.pathname.replace(/\/+/g, '/');
     if (pathname.length > 1 && pathname.endsWith('/')) {
       pathname = pathname.slice(0, -1);
     }
-    // Return exact protocol, host, full pathname, and search params, omitting hash
-    return `${parsed.protocol}//${parsed.host}${pathname}${parsed.search}`.toLowerCase();
+    
+    // Sort search parameters and ignore transient analytics/tracking tags (utm_*, ref, fbclid)
+    const searchParams = new URLSearchParams(parsed.search);
+    const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'ref'];
+    for (const p of trackingParams) {
+      searchParams.delete(p);
+    }
+    searchParams.sort();
+    const search = searchParams.toString();
+    const queryPart = search ? `?${search}` : '';
+
+    return `${parsed.protocol}//${host}${pathname}${queryPart}`.toLowerCase();
   } catch {
-    return rawUrl.trim().toLowerCase().replace(/\/+$/, '');
+    return (rawUrl || '').trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/+$/, '');
   }
 }
 
@@ -322,7 +338,7 @@ function renderModal(
           </div>
         </div>
         <div class="ad-duplicate-footer">
-          <span class="ad-duplicate-footer-hint">Save below to add another entry anyway</span>
+          <span class="ad-duplicate-footer-hint">Save to add another entry anyway</span>
           <button type="button" class="ad-btn ad-btn-secondary" id="ad-duplicate-dismiss-btn">Dismiss</button>
         </div>
       </div>
@@ -867,7 +883,19 @@ function renderModal(
       if (!isExtensionContextValid()) return;
       if (s && s.geminiApiKey) {
         if (reclassifyBtn) reclassifyBtn.style.display = 'inline-flex';
-        if (s.autoClassify !== false) {
+
+        if (matchedEntry) {
+          // If record already exists in database, DO NOT waste Gemini classification quota
+          if (classifyBadge) {
+            classifyBadge.className = 'ad-classify-badge ad-badge-duplicate';
+            classifyBadge.innerHTML = 'ℹ️ Already Saved (Use ↻ to Classify)';
+            classifyBadge.title = 'Page is already saved in App Directory. Auto AI tagging skipped to save quota. Click ↻ (reload button) to classify anyway.';
+          }
+          if (reasoningCard) {
+            reasoningCard.textContent = 'ℹ️ Auto-classification skipped because this page is already in your database. Click the reload button (↻) to run AI classification anyway.';
+            reasoningCard.classList.add('ad-show');
+          }
+        } else if (s.autoClassify !== false) {
           runClassification(false);
         } else if (classifyBadge) {
           classifyBadge.className = 'ad-classify-badge ad-badge-dom';
