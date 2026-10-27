@@ -41,6 +41,7 @@ import {
   populateCategories,
   getAllCategories,
   updateCatFilterLabel,
+  updateMobileCategoryTrackActiveState,
   updateModeToggleUI,
   renderCategorySuggestions,
   hideCategorySuggestions,
@@ -57,6 +58,7 @@ import {
   openMobileFoldersDrawer,
   closeMobileFoldersDrawer,
   setActiveFolder,
+  renderFoldersSidebar,
   deleteFolder,
   populateFolderSelect
 } from './modules/folders/sidebar';
@@ -530,6 +532,7 @@ if (catFilterBtn && catFilterDropdown) {
         catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => ((cb as HTMLInputElement).checked = true));
       }
       updateCatFilterLabel();
+      updateMobileCategoryTrackActiveState();
       renderCardsOnly();
     });
   }
@@ -548,6 +551,7 @@ if (catFilterBtn && catFilterDropdown) {
         catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => ((cb as HTMLInputElement).checked = false));
       }
       updateCatFilterLabel();
+      updateMobileCategoryTrackActiveState();
       renderCardsOnly();
     });
   }
@@ -558,6 +562,7 @@ if (catFilterBtn && catFilterDropdown) {
       localStorage.setItem(FILTER_MODE_KEY, 'union');
       updateModeToggleUI();
       updateCatFilterLabel();
+      updateMobileCategoryTrackActiveState();
       renderCardsOnly();
     });
   }
@@ -568,6 +573,7 @@ if (catFilterBtn && catFilterDropdown) {
       localStorage.setItem(FILTER_MODE_KEY, 'intersect');
       updateModeToggleUI();
       updateCatFilterLabel();
+      updateMobileCategoryTrackActiveState();
       renderCardsOnly();
     });
   }
@@ -619,8 +625,9 @@ if (activeCatFilterBannerClear) {
       catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => ((cb as HTMLInputElement).checked = false));
     }
     updateCatFilterLabel();
+    updateMobileCategoryTrackActiveState();
     renderCardsOnly();
-    if (state.isInsightsOpen) renderInsightsDashboard(render);
+    if (state.isInsightsOpen) renderInsightsDashboard(undefined, undefined, render);
     showToast('Cleared category filter');
   });
 }
@@ -1184,16 +1191,28 @@ if (healthFilterPills) {
 
 // Header Logo Reset
 function resetToAllBookmarks(): void {
+  const hadSearch = Boolean(searchInput && searchInput.value);
+  const hadCats = state.selectedFilterCategories.size > 0;
+  const hadFolder = state.activeFolderId !== 'all';
+
   if (searchInput) searchInput.value = '';
   if (searchClearBtn) searchClearBtn.style.display = 'none';
   state.selectedFilterCategories.clear();
-  const catCheckboxes = document.querySelectorAll('.cat-filter-checkbox');
-  catCheckboxes.forEach(cb => { (cb as HTMLInputElement).checked = false; });
+  if (catFilterList) {
+    catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      (cb as HTMLInputElement).checked = false;
+    });
+  }
   const catSearch = document.getElementById('catFilterSearchInput') as HTMLInputElement | null;
   if (catSearch) catSearch.value = '';
   updateCatFilterLabel();
-  setActiveFolder('all', render);
-  render();
+  updateMobileCategoryTrackActiveState();
+
+  if (hadSearch || hadCats || hadFolder) {
+    state.activeFolderId = 'all';
+    renderFoldersSidebar(render);
+    renderCardsOnly();
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1296,7 +1315,11 @@ if (navTabFavorites) {
     closeMobileFoldersDrawer();
     updateMobileBottomNavActiveTab('favorites');
     if (state.isInsightsOpen) handleToggleInsights(false);
-    setActiveFolder('favorites', render);
+    if (state.activeFolderId !== 'favorites') {
+      state.activeFolderId = 'favorites';
+      renderFoldersSidebar(render);
+      renderCardsOnly();
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 }

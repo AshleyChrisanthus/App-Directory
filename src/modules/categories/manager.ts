@@ -1,7 +1,6 @@
-import { DEFAULT_CATEGORIES, CAT_COLORS_KEY, FILTER_MODE_KEY } from '../../core/constants';
+import { DEFAULT_CATEGORIES } from '../../core/constants';
 import { state } from '../../core/state';
-import { getLatestStoredEntries, saveEntries } from '../../core/storage';
-import { escapeHtml, showToast } from '../../utils/dom';
+import { escapeHtml } from '../../utils/dom';
 import { getCategoryTagStyle } from '../theme/theme';
 
 export function getAllCategories(): string[] {
@@ -66,6 +65,24 @@ export function updateCatFilterLabel(): void {
   }
 }
 
+export function updateMobileCategoryTrackActiveState(): void {
+  const track = document.getElementById('mobileCategoryTrack');
+  if (!track) return;
+  const allCats = getAllCategories();
+  const isAllActive =
+    state.selectedFilterCategories.size === 0 ||
+    (state.catFilterMode === 'union' && state.selectedFilterCategories.size === allCats.length);
+
+  track.querySelectorAll('.mobile-cat-chip').forEach(btn => {
+    const cat = btn.getAttribute('data-cat');
+    if (cat === '__all__') {
+      btn.classList.toggle('is-active', isAllActive);
+    } else if (cat) {
+      btn.classList.toggle('is-active', !isAllActive && state.selectedFilterCategories.has(cat));
+    }
+  });
+}
+
 export function populateCategories(onFilterChanged?: () => void): void {
   const catFilterSearchInput = document.getElementById('catFilterSearchInput') as HTMLInputElement | null;
   const catFilterSearchClearBtn = document.getElementById('catFilterSearchClearBtn');
@@ -96,11 +113,12 @@ export function populateCategories(onFilterChanged?: () => void): void {
 
   if (catFilterList) {
     catFilterList.innerHTML = '';
+    const frag = document.createDocumentFragment();
     if (filteredCats.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'dropdown-empty-search';
       empty.textContent = `No categories match "${query}"`;
-      catFilterList.appendChild(empty);
+      frag.appendChild(empty);
     } else {
       filteredCats.forEach(cat => {
         const item = document.createElement('label');
@@ -121,12 +139,14 @@ export function populateCategories(onFilterChanged?: () => void): void {
               state.selectedFilterCategories.delete(cat);
             }
             updateCatFilterLabel();
+            updateMobileCategoryTrackActiveState();
             if (onFilterChanged) onFilterChanged();
           });
         }
-        catFilterList.appendChild(item);
+        frag.appendChild(item);
       });
     }
+    catFilterList.appendChild(frag);
   }
 
   updateCatFilterLabel();
@@ -135,11 +155,13 @@ export function populateCategories(onFilterChanged?: () => void): void {
   const datalist = document.getElementById('categorySuggestions');
   if (datalist) {
     datalist.innerHTML = '';
+    const dlFrag = document.createDocumentFragment();
     allCats.forEach(cat => {
       const opt = document.createElement('option');
       opt.value = cat;
-      datalist.appendChild(opt);
+      dlFrag.appendChild(opt);
     });
+    datalist.appendChild(dlFrag);
   }
 }
 
@@ -148,17 +170,21 @@ export function renderMobileCategoryTrack(onFilterChanged?: () => void): void {
   if (!track) return;
 
   track.innerHTML = '';
+  const frag = document.createDocumentFragment();
   const allCats = getAllCategories();
   const total = state.entries.length;
-  const isAllActive = state.selectedFilterCategories.size === 0 ||
+  const isAllActive =
+    state.selectedFilterCategories.size === 0 ||
     (state.catFilterMode === 'union' && state.selectedFilterCategories.size === allCats.length);
 
   // "All" chip
   const allChip = document.createElement('button');
   allChip.type = 'button';
+  allChip.setAttribute('data-cat', '__all__');
   allChip.className = `mobile-cat-chip ${isAllActive ? 'is-active' : ''}`;
   allChip.innerHTML = `<span class="mobile-cat-name">All</span> <span class="mobile-cat-count">${total}</span>`;
   allChip.addEventListener('click', () => {
+    if (state.selectedFilterCategories.size === 0) return;
     state.selectedFilterCategories.clear();
     const catFilterList = document.getElementById('catFilterList');
     if (catFilterList) {
@@ -167,10 +193,10 @@ export function renderMobileCategoryTrack(onFilterChanged?: () => void): void {
       });
     }
     updateCatFilterLabel();
-    renderMobileCategoryTrack(onFilterChanged);
+    updateMobileCategoryTrackActiveState();
     if (onFilterChanged) onFilterChanged();
   });
-  track.appendChild(allChip);
+  frag.appendChild(allChip);
 
   // Category counts
   const counts: Record<string, number> = {};
@@ -185,6 +211,7 @@ export function renderMobileCategoryTrack(onFilterChanged?: () => void): void {
     const count = counts[cat] || 0;
     const chip = document.createElement('button');
     chip.type = 'button';
+    chip.setAttribute('data-cat', cat);
     chip.className = `mobile-cat-chip ${isCatActive ? 'is-active' : ''}`;
     chip.innerHTML = `<span class="mobile-cat-name">${escapeHtml(cat)}</span> <span class="mobile-cat-count">${count}</span>`;
     chip.addEventListener('click', () => {
@@ -202,11 +229,13 @@ export function renderMobileCategoryTrack(onFilterChanged?: () => void): void {
         });
       }
       updateCatFilterLabel();
-      renderMobileCategoryTrack(onFilterChanged);
+      updateMobileCategoryTrackActiveState();
       if (onFilterChanged) onFilterChanged();
     });
-    track.appendChild(chip);
+    frag.appendChild(chip);
   });
+
+  track.appendChild(frag);
 }
 
 export function renderCategoryChips(): void {

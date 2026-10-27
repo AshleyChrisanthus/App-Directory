@@ -61,11 +61,14 @@ export function toggleSidebar(): void {
 
 export function setActiveFolder(folderId: ActiveFolderId, onFolderChanged?: () => void): void {
   state.activeFolderId = folderId;
-  renderFoldersSidebar(onFolderChanged);
   if (typeof window !== 'undefined' && window.innerWidth <= 768) {
     closeMobileFoldersDrawer();
   }
-  if (onFolderChanged) onFolderChanged();
+  if (onFolderChanged) {
+    onFolderChanged();
+  } else {
+    renderFoldersSidebar();
+  }
 }
 
 export function updateActiveFolderBanner(onFolderChanged?: () => void): void {
@@ -124,6 +127,9 @@ export function updateActiveFolderBanner(onFolderChanged?: () => void): void {
 }
 
 export function setupFolderDropTarget(element: HTMLElement, targetFolderId: string, onDropSuccess?: () => void): void {
+  if (element.getAttribute('data-drop-bound') === 'true') return;
+  element.setAttribute('data-drop-bound', 'true');
+
   element.addEventListener('dragover', (e: DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer) {
@@ -199,8 +205,11 @@ export function deleteFolder(folderId: string, onFolderDeleted?: () => void): vo
     state.activeFolderId = 'all';
   }
 
-  renderFoldersSidebar(onFolderDeleted);
-  if (onFolderDeleted) onFolderDeleted();
+  if (onFolderDeleted) {
+    onFolderDeleted();
+  } else {
+    renderFoldersSidebar();
+  }
   showToast(`Deleted folder "${folder.name}"`);
 }
 
@@ -219,12 +228,20 @@ export function renderFoldersSidebar(
   if (!sidebarFoldersList) return;
 
   const diskList = state.entries;
-  const allTotal = diskList.length;
-  const favTotal = diskList.filter(e => e.isFavorite).length;
-  const unorgTotal = diskList.filter(e => !e.folderId).length;
-  const brokenTotal = diskList.filter(e => e.health && e.health.status === 'broken').length;
+  let favTotal = 0;
+  let unorgTotal = 0;
+  let brokenTotal = 0;
+  const folderCounts = new Map<string, number>();
 
-  if (countAll) countAll.textContent = String(allTotal);
+  for (let i = 0; i < diskList.length; i++) {
+    const e = diskList[i];
+    if (e.isFavorite) favTotal++;
+    if (!e.folderId) unorgTotal++;
+    else folderCounts.set(e.folderId, (folderCounts.get(e.folderId) || 0) + 1);
+    if (e.health && e.health.status === 'broken') brokenTotal++;
+  }
+
+  if (countAll) countAll.textContent = String(diskList.length);
   if (countFavorites) countFavorites.textContent = String(favTotal);
   if (countUnorganized) countUnorganized.textContent = String(unorgTotal);
   if (countBroken) countBroken.textContent = String(brokenTotal);
@@ -242,8 +259,9 @@ export function renderFoldersSidebar(
   }
 
   sidebarFoldersList.innerHTML = '';
+  const frag = document.createDocumentFragment();
   state.folders.forEach(folder => {
-    const folderCount = diskList.filter(e => e.folderId === folder.id).length;
+    const folderCount = folderCounts.get(folder.id) || 0;
     const item = document.createElement('button');
     item.type = 'button';
     item.className = `sidebar-nav-item ${state.activeFolderId === folder.id ? 'active' : ''}`;
@@ -264,30 +282,24 @@ export function renderFoldersSidebar(
 
     item.addEventListener('click', e => {
       const target = e.target as HTMLElement;
-      if (target.closest('.edit-folder-action') || target.closest('.delete-folder-action')) return;
-      setActiveFolder(folder.id, onFolderChanged);
-    });
-
-    const editBtn = item.querySelector('.edit-folder-action');
-    if (editBtn) {
-      editBtn.addEventListener('click', e => {
+      if (target.closest('.edit-folder-action')) {
         e.stopPropagation();
         if (onEditFolder) onEditFolder(folder.id);
         else openFolderModal(folder.id);
-      });
-    }
-
-    const delBtn = item.querySelector('.delete-folder-action');
-    if (delBtn) {
-      delBtn.addEventListener('click', e => {
+        return;
+      }
+      if (target.closest('.delete-folder-action')) {
         e.stopPropagation();
         deleteFolder(folder.id, onFolderChanged);
-      });
-    }
+        return;
+      }
+      setActiveFolder(folder.id, onFolderChanged);
+    });
 
     setupFolderDropTarget(item, folder.id, onFolderChanged);
-    sidebarFoldersList.appendChild(item);
+    frag.appendChild(item);
   });
+  sidebarFoldersList.appendChild(frag);
 
   updateActiveFolderBanner(onFolderChanged);
 }

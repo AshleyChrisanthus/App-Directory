@@ -5457,7 +5457,9 @@ select:focus {
     cursor: pointer;
     user-select: none;
     white-space: nowrap !important;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-cat-chip:active {
@@ -5510,11 +5512,18 @@ select:focus {
     border-radius: 10px;
     font-size: 0.82rem;
     flex-shrink: 0;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .view-mode-switcher {
     height: 36px;
     flex-shrink: 0;
+  }
+
+  .view-mode-btn {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Hide insights button and Add Website button from mobile toolbar */
@@ -5526,8 +5535,15 @@ select:focus {
   /* 5. Stitch Mobile Cards */
   .grid {
     padding: 8px 16px calc(96px + env(safe-area-inset-bottom, 0px)) !important;
-    grid-template-columns: 1fr !important;
     gap: 12px;
+  }
+
+  .grid.view-cards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .grid.view-icons {
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)) !important;
   }
 
   .main-content-area {
@@ -5549,13 +5565,30 @@ select:focus {
   .card {
     border-radius: 16px;
     padding: 16px;
-    background: var(--bg-card);
+    background: var(--card-bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    animation: none;
     border: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     gap: 10px;
     position: relative;
     box-shadow: var(--shadow-sm);
+    touch-action: manipulation;
+  }
+
+  .card::before,
+  .icon-card::before {
+    display: none;
+  }
+
+  .table-row,
+  .icon-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    animation: none;
+    touch-action: manipulation;
   }
 
   .card-top {

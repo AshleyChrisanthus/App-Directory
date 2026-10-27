@@ -1,4 +1,28 @@
-﻿import { KNOWN_APP_ICONS } from '../core/constants';
+import { KNOWN_APP_ICONS } from '../core/constants';
+
+const shortDateFormatter =
+  typeof Intl !== 'undefined'
+    ? new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    : null;
+
+const fullDateFormatter =
+  typeof Intl !== 'undefined'
+    ? new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : null;
+
+const shortDateCache = new Map<string, string>();
+const fullDateCache = new Map<string, string>();
+const domainCache = new Map<string, string>();
 
 export function escapeHtml(str?: string | null): string {
   if (!str) return '';
@@ -31,29 +55,35 @@ export function generateId(): string {
 
 export function formatDate(iso?: string | null): string {
   if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
+  const cached = shortDateCache.get(iso);
+  if (cached) return cached;
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return '—';
+  const formatted = shortDateFormatter
+    ? shortDateFormatter.format(ts)
+    : new Date(ts).toLocaleDateString();
+  shortDateCache.set(iso, formatted);
+  return formatted;
 }
 
 export function formatDateFull(iso?: string | null): string {
   if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const cached = fullDateCache.get(iso);
+  if (cached) return cached;
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return '—';
+  const formatted = fullDateFormatter
+    ? fullDateFormatter.format(ts)
+    : new Date(ts).toLocaleString();
+  fullDateCache.set(iso, formatted);
+  return formatted;
 }
 
 export function timeAgo(iso?: string | null): string {
   if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return '';
+  const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
@@ -75,9 +105,14 @@ export function ensureProtocol(url?: string | null): string {
 
 export function getDomain(url?: string | null): string {
   if (!url) return '';
+  const cached = domainCache.get(url);
+  if (cached !== undefined) return cached;
   try {
-    return new URL(ensureProtocol(url)).hostname;
+    const host = new URL(ensureProtocol(url)).hostname;
+    domainCache.set(url, host);
+    return host;
   } catch {
+    domainCache.set(url, url);
     return url;
   }
 }

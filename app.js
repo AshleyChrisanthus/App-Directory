@@ -456,6 +456,21 @@
   }
 
   // src/utils/dom.ts
+  var shortDateFormatter = typeof Intl !== "undefined" ? new Intl.DateTimeFormat(void 0, {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  }) : null;
+  var fullDateFormatter = typeof Intl !== "undefined" ? new Intl.DateTimeFormat(void 0, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }) : null;
+  var shortDateCache = /* @__PURE__ */ new Map();
+  var fullDateCache = /* @__PURE__ */ new Map();
+  var domainCache = /* @__PURE__ */ new Map();
   function escapeHtml(str) {
     if (!str) return "";
     return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -477,27 +492,29 @@
   }
   function formatDate(iso) {
     if (!iso) return "\u2014";
-    const d = new Date(iso);
-    return d.toLocaleDateString(void 0, {
-      year: "numeric",
-      month: "short",
-      day: "numeric"
-    });
+    const cached = shortDateCache.get(iso);
+    if (cached) return cached;
+    const ts = Date.parse(iso);
+    if (Number.isNaN(ts)) return "\u2014";
+    const formatted = shortDateFormatter ? shortDateFormatter.format(ts) : new Date(ts).toLocaleDateString();
+    shortDateCache.set(iso, formatted);
+    return formatted;
   }
   function formatDateFull(iso) {
     if (!iso) return "\u2014";
-    const d = new Date(iso);
-    return d.toLocaleDateString(void 0, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+    const cached = fullDateCache.get(iso);
+    if (cached) return cached;
+    const ts = Date.parse(iso);
+    if (Number.isNaN(ts)) return "\u2014";
+    const formatted = fullDateFormatter ? fullDateFormatter.format(ts) : new Date(ts).toLocaleString();
+    fullDateCache.set(iso, formatted);
+    return formatted;
   }
   function timeAgo(iso) {
     if (!iso) return "";
-    const diff = Date.now() - new Date(iso).getTime();
+    const ts = Date.parse(iso);
+    if (Number.isNaN(ts)) return "";
+    const diff = Date.now() - ts;
     const mins = Math.floor(diff / 6e4);
     if (mins < 1) return "just now";
     if (mins < 60) return `${mins}m ago`;
@@ -517,9 +534,14 @@
   }
   function getDomain(url) {
     if (!url) return "";
+    const cached = domainCache.get(url);
+    if (cached !== void 0) return cached;
     try {
-      return new URL(ensureProtocol(url)).hostname;
+      const host = new URL(ensureProtocol(url)).hostname;
+      domainCache.set(url, host);
+      return host;
     } catch {
+      domainCache.set(url, url);
       return url;
     }
   }
@@ -2032,6 +2054,20 @@
       }
     }
   }
+  function updateMobileCategoryTrackActiveState() {
+    const track = document.getElementById("mobileCategoryTrack");
+    if (!track) return;
+    const allCats = getAllCategories();
+    const isAllActive = state.selectedFilterCategories.size === 0 || state.catFilterMode === "union" && state.selectedFilterCategories.size === allCats.length;
+    track.querySelectorAll(".mobile-cat-chip").forEach((btn) => {
+      const cat = btn.getAttribute("data-cat");
+      if (cat === "__all__") {
+        btn.classList.toggle("is-active", isAllActive);
+      } else if (cat) {
+        btn.classList.toggle("is-active", !isAllActive && state.selectedFilterCategories.has(cat));
+      }
+    });
+  }
   function populateCategories(onFilterChanged) {
     const catFilterSearchInput2 = document.getElementById("catFilterSearchInput");
     const catFilterSearchClearBtn2 = document.getElementById("catFilterSearchClearBtn");
@@ -2056,11 +2092,12 @@
     const filteredCats = query ? allCats.filter((cat) => cat.toLowerCase().includes(query)) : allCats;
     if (catFilterList2) {
       catFilterList2.innerHTML = "";
+      const frag = document.createDocumentFragment();
       if (filteredCats.length === 0) {
         const empty = document.createElement("div");
         empty.className = "dropdown-empty-search";
         empty.textContent = `No categories match "${query}"`;
-        catFilterList2.appendChild(empty);
+        frag.appendChild(empty);
       } else {
         filteredCats.forEach((cat) => {
           const item = document.createElement("label");
@@ -2081,37 +2118,44 @@
                 state.selectedFilterCategories.delete(cat);
               }
               updateCatFilterLabel();
+              updateMobileCategoryTrackActiveState();
               if (onFilterChanged) onFilterChanged();
             });
           }
-          catFilterList2.appendChild(item);
+          frag.appendChild(item);
         });
       }
+      catFilterList2.appendChild(frag);
     }
     updateCatFilterLabel();
     renderMobileCategoryTrack(onFilterChanged);
     const datalist = document.getElementById("categorySuggestions");
     if (datalist) {
       datalist.innerHTML = "";
+      const dlFrag = document.createDocumentFragment();
       allCats.forEach((cat) => {
         const opt = document.createElement("option");
         opt.value = cat;
-        datalist.appendChild(opt);
+        dlFrag.appendChild(opt);
       });
+      datalist.appendChild(dlFrag);
     }
   }
   function renderMobileCategoryTrack(onFilterChanged) {
     const track = document.getElementById("mobileCategoryTrack");
     if (!track) return;
     track.innerHTML = "";
+    const frag = document.createDocumentFragment();
     const allCats = getAllCategories();
     const total = state.entries.length;
     const isAllActive = state.selectedFilterCategories.size === 0 || state.catFilterMode === "union" && state.selectedFilterCategories.size === allCats.length;
     const allChip = document.createElement("button");
     allChip.type = "button";
+    allChip.setAttribute("data-cat", "__all__");
     allChip.className = `mobile-cat-chip ${isAllActive ? "is-active" : ""}`;
     allChip.innerHTML = `<span class="mobile-cat-name">All</span> <span class="mobile-cat-count">${total}</span>`;
     allChip.addEventListener("click", () => {
+      if (state.selectedFilterCategories.size === 0) return;
       state.selectedFilterCategories.clear();
       const catFilterList2 = document.getElementById("catFilterList");
       if (catFilterList2) {
@@ -2120,10 +2164,10 @@
         });
       }
       updateCatFilterLabel();
-      renderMobileCategoryTrack(onFilterChanged);
+      updateMobileCategoryTrackActiveState();
       if (onFilterChanged) onFilterChanged();
     });
-    track.appendChild(allChip);
+    frag.appendChild(allChip);
     const counts = {};
     state.entries.forEach((e) => {
       (e.categories || []).forEach((cat) => {
@@ -2135,6 +2179,7 @@
       const count = counts[cat] || 0;
       const chip = document.createElement("button");
       chip.type = "button";
+      chip.setAttribute("data-cat", cat);
       chip.className = `mobile-cat-chip ${isCatActive ? "is-active" : ""}`;
       chip.innerHTML = `<span class="mobile-cat-name">${escapeHtml(cat)}</span> <span class="mobile-cat-count">${count}</span>`;
       chip.addEventListener("click", () => {
@@ -2152,11 +2197,12 @@
           });
         }
         updateCatFilterLabel();
-        renderMobileCategoryTrack(onFilterChanged);
+        updateMobileCategoryTrackActiveState();
         if (onFilterChanged) onFilterChanged();
       });
-      track.appendChild(chip);
+      frag.appendChild(chip);
     });
+    track.appendChild(frag);
   }
   function renderCategoryChips() {
     const container = document.getElementById("categoryTags");
@@ -3155,11 +3201,14 @@
   }
   function setActiveFolder(folderId, onFolderChanged) {
     state.activeFolderId = folderId;
-    renderFoldersSidebar(onFolderChanged);
     if (typeof window !== "undefined" && window.innerWidth <= 768) {
       closeMobileFoldersDrawer();
     }
-    if (onFolderChanged) onFolderChanged();
+    if (onFolderChanged) {
+      onFolderChanged();
+    } else {
+      renderFoldersSidebar();
+    }
   }
   function updateActiveFolderBanner(onFolderChanged) {
     const activeFolderBanner = document.getElementById("activeFolderBanner");
@@ -3213,6 +3262,8 @@
     activeFolderBanner.style.display = "none";
   }
   function setupFolderDropTarget(element, targetFolderId, onDropSuccess) {
+    if (element.getAttribute("data-drop-bound") === "true") return;
+    element.setAttribute("data-drop-bound", "true");
     element.addEventListener("dragover", (e) => {
       e.preventDefault();
       if (e.dataTransfer) {
@@ -3278,8 +3329,11 @@
     if (state.activeFolderId === folderId) {
       state.activeFolderId = "all";
     }
-    renderFoldersSidebar(onFolderDeleted);
-    if (onFolderDeleted) onFolderDeleted();
+    if (onFolderDeleted) {
+      onFolderDeleted();
+    } else {
+      renderFoldersSidebar();
+    }
     showToast(`Deleted folder "${folder.name}"`);
   }
   function renderFoldersSidebar(onFolderChanged, onEditFolder) {
@@ -3292,11 +3346,18 @@
     const sidebarBrokenView = document.getElementById("sidebarBrokenView");
     if (!sidebarFoldersList) return;
     const diskList = state.entries;
-    const allTotal = diskList.length;
-    const favTotal = diskList.filter((e) => e.isFavorite).length;
-    const unorgTotal = diskList.filter((e) => !e.folderId).length;
-    const brokenTotal = diskList.filter((e) => e.health && e.health.status === "broken").length;
-    if (countAll) countAll.textContent = String(allTotal);
+    let favTotal = 0;
+    let unorgTotal = 0;
+    let brokenTotal = 0;
+    const folderCounts = /* @__PURE__ */ new Map();
+    for (let i = 0; i < diskList.length; i++) {
+      const e = diskList[i];
+      if (e.isFavorite) favTotal++;
+      if (!e.folderId) unorgTotal++;
+      else folderCounts.set(e.folderId, (folderCounts.get(e.folderId) || 0) + 1);
+      if (e.health && e.health.status === "broken") brokenTotal++;
+    }
+    if (countAll) countAll.textContent = String(diskList.length);
     if (countFavorites) countFavorites.textContent = String(favTotal);
     if (countUnorganized) countUnorganized.textContent = String(unorgTotal);
     if (countBroken) countBroken.textContent = String(brokenTotal);
@@ -3312,8 +3373,9 @@
       });
     }
     sidebarFoldersList.innerHTML = "";
+    const frag = document.createDocumentFragment();
     state.folders.forEach((folder) => {
-      const folderCount = diskList.filter((e) => e.folderId === folder.id).length;
+      const folderCount = folderCounts.get(folder.id) || 0;
       const item = document.createElement("button");
       item.type = "button";
       item.className = `sidebar-nav-item ${state.activeFolderId === folder.id ? "active" : ""}`;
@@ -3332,27 +3394,23 @@
     `;
       item.addEventListener("click", (e) => {
         const target = e.target;
-        if (target.closest(".edit-folder-action") || target.closest(".delete-folder-action")) return;
-        setActiveFolder(folder.id, onFolderChanged);
-      });
-      const editBtn = item.querySelector(".edit-folder-action");
-      if (editBtn) {
-        editBtn.addEventListener("click", (e) => {
+        if (target.closest(".edit-folder-action")) {
           e.stopPropagation();
           if (onEditFolder) onEditFolder(folder.id);
           else openFolderModal(folder.id);
-        });
-      }
-      const delBtn = item.querySelector(".delete-folder-action");
-      if (delBtn) {
-        delBtn.addEventListener("click", (e) => {
+          return;
+        }
+        if (target.closest(".delete-folder-action")) {
           e.stopPropagation();
           deleteFolder(folder.id, onFolderChanged);
-        });
-      }
+          return;
+        }
+        setActiveFolder(folder.id, onFolderChanged);
+      });
       setupFolderDropTarget(item, folder.id, onFolderChanged);
-      sidebarFoldersList.appendChild(item);
+      frag.appendChild(item);
     });
+    sidebarFoldersList.appendChild(frag);
     updateActiveFolderBanner(onFolderChanged);
   }
   function populateFolderSelect(selectedId = "") {
@@ -4740,6 +4798,16 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
 
   // src/modules/bookmarks/filter-sort.ts
+  var tsCache = /* @__PURE__ */ new Map();
+  function getTimestamp(iso) {
+    if (!iso) return 0;
+    const cached = tsCache.get(iso);
+    if (cached !== void 0) return cached;
+    const parsed = Date.parse(iso);
+    const val = Number.isNaN(parsed) ? 0 : parsed;
+    tsCache.set(iso, val);
+    return val;
+  }
   function getFilteredEntries() {
     const searchInput2 = document.getElementById("searchInput");
     const sortSelect2 = document.getElementById("sortSelect");
@@ -4795,12 +4863,12 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         return sortDir === "desc" ? valB - valA : valA - valB;
       }
       if (sortField === "lastVisited") {
-        valA = a.lastVisited ? new Date(a.lastVisited).getTime() : 0;
-        valB = b.lastVisited ? new Date(b.lastVisited).getTime() : 0;
+        valA = getTimestamp(a.lastVisited);
+        valB = getTimestamp(b.lastVisited);
         return sortDir === "desc" ? valB - valA : valA - valB;
       }
-      valA = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
-      valB = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
+      valA = getTimestamp(a.dateAdded);
+      valB = getTimestamp(b.dateAdded);
       return sortDir === "desc" ? valB - valA : valA - valB;
     });
     return filtered;
@@ -5190,8 +5258,14 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
 
   // src/modules/bookmarks/render.ts
+  var pendingRenderRafId = null;
+  var currentRenderToken = 0;
   function setViewMode(mode) {
     if (!["cards", "table", "icons"].includes(mode)) mode = "cards";
+    if (state.currentViewMode === mode) {
+      const grid = document.getElementById("grid");
+      if (grid && grid.children.length > 0) return;
+    }
     state.currentViewMode = mode;
     localStorage.setItem(VIEW_LAYOUT_KEY, mode);
     const viewCardsBtn2 = document.getElementById("viewCardsBtn");
@@ -5202,32 +5276,35 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     if (viewIconsBtn2) viewIconsBtn2.classList.toggle("is-active", mode === "icons");
     renderCardsOnly();
   }
-  function renderCard(entry) {
+  function renderCard(entry, folderMap) {
     const card = document.createElement("div");
     card.className = "card";
     card.setAttribute("data-id", entry.id);
-    card.setAttribute("draggable", "true");
-    card.addEventListener("dragstart", (e) => {
-      if (e.dataTransfer) {
-        e.dataTransfer.setData("text/plain", entry.id);
-        e.dataTransfer.effectAllowed = "move";
-      }
-      card.classList.add("is-dragging");
-    });
-    card.addEventListener("dragend", () => {
-      card.classList.remove("is-dragging");
-    });
+    const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+    if (!isMobile) {
+      card.setAttribute("draggable", "true");
+      card.addEventListener("dragstart", (e) => {
+        if (e.dataTransfer) {
+          e.dataTransfer.setData("text/plain", entry.id);
+          e.dataTransfer.effectAllowed = "move";
+        }
+        card.classList.add("is-dragging");
+      });
+      card.addEventListener("dragend", () => {
+        card.classList.remove("is-dragging");
+      });
+      card.addEventListener("mousemove", (e) => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
+        card.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
+      });
+    }
     const pendingIcon = state.pendingIcons.get(entry.id);
     if (pendingIcon) {
       card.classList.add("has-pending-icon");
     }
-    card.addEventListener("mousemove", (e) => {
-      const rect = card.getBoundingClientRect();
-      card.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
-      card.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
-    });
     const domain = getDomain(entry.url);
-    const folder = entry.folderId ? state.folders.find((f) => f.id === entry.folderId) : null;
+    const folder = entry.folderId ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find((f) => f.id === entry.folderId)) || null : null;
     const iconSrc = entry.icon || entry.iconUrl || "";
     card.innerHTML = `
     <button class="card-favorite ${entry.isFavorite ? "active" : ""}" title="${entry.isFavorite ? "Unpin from favorites" : "Pin to favorites"}">
@@ -5235,7 +5312,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     </button>
     <div class="card-top">
       <div class="card-icon" title="Current icon">
-        ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">` : '<span class="icon-fallback">\u{1F310}</span>'}
+        ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">` : '<span class="icon-fallback">\u{1F310}</span>'}
       </div>
       <div class="card-info">
         <div class="card-name" title="${escapeHtml(entry.name)}">
@@ -5252,7 +5329,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           <span class="pending-badge">New Icon</span>
           <div class="pending-preview-row">
             <div class="card-icon new-icon-preview" title="New icon preview">
-              <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">
+              <img src="${escapeHtml(pendingIcon)}" alt="" decoding="async" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">
             </div>
             <button type="button" class="btn-accept accept-icon-btn" title="Accept new icon">\u2713 Accept</button>
             <button type="button" class="btn btn-ghost dismiss-icon-btn" title="Dismiss new icon">\u2715</button>
@@ -5295,84 +5372,75 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   `;
     card.addEventListener("click", (e) => {
       const target = e.target;
-      if (target?.closest(".folder-tag")) {
+      if (!target) return;
+      if (target.closest(".folder-tag")) {
         e.stopPropagation();
         if (folder) setActiveFolder(folder.id, render);
         return;
       }
-      if (target?.closest(".card-favorite") || target?.closest(".refresh-btn") || target?.closest(".edit-btn") || target?.closest(".delete-btn") || target?.closest(".card-open-btn") || target?.closest(".card-pending-icon-box")) return;
-      visitEntry(entry.id, render);
-    });
-    const cardOpenBtn = card.querySelector(".card-open-btn");
-    if (cardOpenBtn) {
-      cardOpenBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        visitEntry(entry.id, render);
-      });
-    }
-    const favBtn = card.querySelector(".card-favorite");
-    if (favBtn) {
-      favBtn.addEventListener("click", (e) => {
+      if (target.closest(".card-favorite")) {
         e.stopPropagation();
         toggleFavorite(entry.id, render);
-      });
-    }
-    const refreshBtn = card.querySelector(".refresh-btn");
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", (e) => {
+        return;
+      }
+      const refreshBtn = target.closest(".refresh-btn");
+      if (refreshBtn) {
         e.stopPropagation();
         refreshEntryIcon(entry.id, refreshBtn, render);
-      });
-    }
-    if (pendingIcon) {
-      const acceptBtn = card.querySelector(".accept-icon-btn");
-      if (acceptBtn) {
-        acceptBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          acceptPendingIcon(entry.id, render);
-        });
+        return;
       }
-      const dismissBtn = card.querySelector(".dismiss-icon-btn");
-      if (dismissBtn) {
-        dismissBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          dismissPendingIcon(entry.id, render);
-        });
-      }
-    }
-    const editBtn = card.querySelector(".edit-btn");
-    if (editBtn) {
-      editBtn.addEventListener("click", (e) => {
+      if (target.closest(".edit-btn")) {
         e.stopPropagation();
         openModal(entry.id);
-      });
-    }
-    const deleteBtn = card.querySelector(".delete-btn");
-    if (deleteBtn) {
-      deleteBtn.addEventListener("click", (e) => {
+        return;
+      }
+      if (target.closest(".delete-btn")) {
         e.stopPropagation();
         deleteEntry(entry.id, render);
-      });
-    }
+        return;
+      }
+      if (target.closest(".card-open-btn")) {
+        e.stopPropagation();
+        visitEntry(entry.id, render);
+        return;
+      }
+      if (pendingIcon) {
+        if (target.closest(".accept-icon-btn")) {
+          e.stopPropagation();
+          acceptPendingIcon(entry.id, render);
+          return;
+        }
+        if (target.closest(".dismiss-icon-btn")) {
+          e.stopPropagation();
+          dismissPendingIcon(entry.id, render);
+          return;
+        }
+        if (target.closest(".card-pending-icon-box")) return;
+      }
+      visitEntry(entry.id, render);
+    });
     return card;
   }
-  function renderTableRow(entry) {
+  function renderTableRow(entry, folderMap) {
     const row = document.createElement("div");
     row.className = "table-row";
     row.setAttribute("data-id", entry.id);
-    row.setAttribute("draggable", "true");
-    row.addEventListener("dragstart", (e) => {
-      if (e.dataTransfer) {
-        e.dataTransfer.setData("text/plain", entry.id);
-        e.dataTransfer.effectAllowed = "move";
-      }
-      row.classList.add("is-dragging");
-    });
-    row.addEventListener("dragend", () => {
-      row.classList.remove("is-dragging");
-    });
+    const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+    if (!isMobile) {
+      row.setAttribute("draggable", "true");
+      row.addEventListener("dragstart", (e) => {
+        if (e.dataTransfer) {
+          e.dataTransfer.setData("text/plain", entry.id);
+          e.dataTransfer.effectAllowed = "move";
+        }
+        row.classList.add("is-dragging");
+      });
+      row.addEventListener("dragend", () => {
+        row.classList.remove("is-dragging");
+      });
+    }
     const domain = getDomain(entry.url);
-    const folder = entry.folderId ? state.folders.find((f) => f.id === entry.folderId) : null;
+    const folder = entry.folderId ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find((f) => f.id === entry.folderId)) || null : null;
     const iconSrc = entry.icon || entry.iconUrl || "";
     const pendingIcon = state.pendingIcons.get(entry.id);
     if (pendingIcon) {
@@ -5386,7 +5454,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     </div>
     <div class="table-cell-icon">
       <div class="table-icon-frame" title="${escapeHtml(entry.name)}">
-        ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-size:12px;\\'>\u{1F310}</span>'">` : '<span style="font-size:12px;">\u{1F310}</span>'}
+        ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<span style=\\'font-size:12px;\\'>\u{1F310}</span>'">` : '<span style="font-size:12px;">\u{1F310}</span>'}
       </div>
     </div>
     <div class="table-cell-main">
@@ -5404,7 +5472,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         <div class="table-pending-pill" title="New icon proposed">
           <span class="pending-badge">New Icon</span>
           <div class="table-new-icon-preview" title="New icon preview">
-            <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">
+            <img src="${escapeHtml(pendingIcon)}" alt="" decoding="async" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>\u{1F310}</span>'">
           </div>
           <button type="button" class="btn-accept accept-icon-btn table-accept-btn" title="Accept new icon">\u2713 Accept</button>
           <button type="button" class="btn btn-ghost dismiss-icon-btn table-dismiss-btn" title="Dismiss new icon">\u2715</button>
@@ -5429,81 +5497,74 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   `;
     row.addEventListener("click", (e) => {
       const target = e.target;
-      if (target?.closest(".folder-tag")) {
+      if (!target) return;
+      if (target.closest(".folder-tag")) {
         e.stopPropagation();
         if (folder) setActiveFolder(folder.id, render);
         return;
       }
-      if (target?.closest(".table-fav-btn") || target?.closest(".refresh-btn") || target?.closest(".edit-btn") || target?.closest(".delete-btn") || target?.closest(".table-pending-pill")) return;
-      visitEntry(entry.id, render);
-    });
-    const favBtn = row.querySelector(".table-fav-btn");
-    if (favBtn) {
-      favBtn.addEventListener("click", (e) => {
+      if (target.closest(".table-fav-btn")) {
         e.stopPropagation();
         toggleFavorite(entry.id, render);
-      });
-    }
-    const refreshBtn = row.querySelector(".refresh-btn");
-    if (refreshBtn) {
-      refreshBtn.addEventListener("click", (e) => {
+        return;
+      }
+      const refreshBtn = target.closest(".refresh-btn");
+      if (refreshBtn) {
         e.stopPropagation();
         refreshEntryIcon(entry.id, refreshBtn, render);
-      });
-    }
-    if (pendingIcon) {
-      const acceptBtn = row.querySelector(".accept-icon-btn");
-      if (acceptBtn) {
-        acceptBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          acceptPendingIcon(entry.id, render);
-        });
+        return;
       }
-      const dismissBtn = row.querySelector(".dismiss-icon-btn");
-      if (dismissBtn) {
-        dismissBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          dismissPendingIcon(entry.id, render);
-        });
-      }
-    }
-    const editBtn = row.querySelector(".edit-btn");
-    if (editBtn) {
-      editBtn.addEventListener("click", (e) => {
+      if (target.closest(".edit-btn")) {
         e.stopPropagation();
         openModal(entry.id);
-      });
-    }
-    const deleteBtn = row.querySelector(".delete-btn");
-    if (deleteBtn) {
-      deleteBtn.addEventListener("click", (e) => {
+        return;
+      }
+      if (target.closest(".delete-btn")) {
         e.stopPropagation();
         deleteEntry(entry.id, render);
-      });
-    }
+        return;
+      }
+      if (pendingIcon) {
+        if (target.closest(".accept-icon-btn")) {
+          e.stopPropagation();
+          acceptPendingIcon(entry.id, render);
+          return;
+        }
+        if (target.closest(".dismiss-icon-btn")) {
+          e.stopPropagation();
+          dismissPendingIcon(entry.id, render);
+          return;
+        }
+        if (target.closest(".table-pending-pill")) return;
+      }
+      visitEntry(entry.id, render);
+    });
     return row;
   }
-  function renderIconCard(entry) {
+  function renderIconCard(entry, folderMap) {
     const card = document.createElement("div");
     card.className = "icon-card";
     card.setAttribute("data-id", entry.id);
-    card.setAttribute("draggable", "true");
-    card.addEventListener("dragstart", (e) => {
-      if (e.dataTransfer) {
-        e.dataTransfer.setData("text/plain", entry.id);
-        e.dataTransfer.effectAllowed = "move";
-      }
-      card.classList.add("is-dragging");
-    });
-    card.addEventListener("dragend", () => {
-      card.classList.remove("is-dragging");
-    });
-    card.addEventListener("mousemove", (e) => {
-      const rect = card.getBoundingClientRect();
-      card.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
-      card.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
-    });
-    const folder = entry.folderId ? state.folders.find((f) => f.id === entry.folderId) : null;
+    const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+    if (!isMobile) {
+      card.setAttribute("draggable", "true");
+      card.addEventListener("dragstart", (e) => {
+        if (e.dataTransfer) {
+          e.dataTransfer.setData("text/plain", entry.id);
+          e.dataTransfer.effectAllowed = "move";
+        }
+        card.classList.add("is-dragging");
+      });
+      card.addEventListener("dragend", () => {
+        card.classList.remove("is-dragging");
+      });
+      card.addEventListener("mousemove", (e) => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
+        card.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
+      });
+    }
+    const folder = entry.folderId ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find((f) => f.id === entry.folderId)) || null : null;
     const iconSrc = entry.icon || entry.iconUrl || "";
     card.innerHTML = `
     <div class="icon-card-header">
@@ -5516,7 +5577,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       </button>
     </div>
     <div class="icon-card-frame">
-      ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-size:20px;\\'>\u{1F310}</span>'">` : '<span style="font-size:20px;">\u{1F310}</span>'}
+      ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<span style=\\'font-size:20px;\\'>\u{1F310}</span>'">` : '<span style="font-size:20px;">\u{1F310}</span>'}
     </div>
     <div class="icon-card-name" title="${escapeHtml(entry.name)}">
       ${folder ? `<span class="icon-card-folder-dot" style="background: ${escapeHtml(folder.color || "var(--accent)")};" title="Folder: ${escapeHtml(folder.name)}"></span>` : ""}
@@ -5525,33 +5586,32 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   `;
     card.addEventListener("click", (e) => {
       const target = e.target;
-      if (target?.closest(".icon-card-fav") || target?.closest(".edit-btn") || target?.closest(".delete-btn")) return;
-      visitEntry(entry.id, render);
-    });
-    const favBtn = card.querySelector(".icon-card-fav");
-    if (favBtn) {
-      favBtn.addEventListener("click", (e) => {
+      if (!target) return;
+      if (target.closest(".icon-card-fav")) {
         e.stopPropagation();
         toggleFavorite(entry.id, render);
-      });
-    }
-    const editBtn = card.querySelector(".edit-btn");
-    if (editBtn) {
-      editBtn.addEventListener("click", (e) => {
+        return;
+      }
+      if (target.closest(".edit-btn")) {
         e.stopPropagation();
         openModal(entry.id);
-      });
-    }
-    const deleteBtn = card.querySelector(".delete-btn");
-    if (deleteBtn) {
-      deleteBtn.addEventListener("click", (e) => {
+        return;
+      }
+      if (target.closest(".delete-btn")) {
         e.stopPropagation();
         deleteEntry(entry.id, render);
-      });
-    }
+        return;
+      }
+      visitEntry(entry.id, render);
+    });
     return card;
   }
   function renderCardsOnly() {
+    if (pendingRenderRafId !== null && typeof window !== "undefined" && typeof window.cancelAnimationFrame === "function") {
+      window.cancelAnimationFrame(pendingRenderRafId);
+      pendingRenderRafId = null;
+    }
+    const renderToken = ++currentRenderToken;
     const filtered = getFilteredEntries();
     const statsText = document.getElementById("statsText");
     const activeCatFilterBanner = document.getElementById("activeCatFilterBanner");
@@ -5601,11 +5661,22 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       emptyState.style.display = "block";
       return;
     }
-    grid.style.display = state.currentViewMode === "table" ? "flex" : "grid";
-    grid.className = "grid view-" + state.currentViewMode;
+    const mode = state.currentViewMode;
+    grid.style.display = mode === "table" ? "flex" : "grid";
+    grid.className = "grid view-" + mode;
     emptyState.style.display = "none";
     grid.innerHTML = "";
-    if (state.currentViewMode === "table") {
+    const folderMap = /* @__PURE__ */ new Map();
+    for (const f of state.folders) {
+      folderMap.set(f.id, f);
+    }
+    const renderItem = (entry) => {
+      if (mode === "table") return renderTableRow(entry, folderMap);
+      if (mode === "icons") return renderIconCard(entry, folderMap);
+      return renderCard(entry, folderMap);
+    };
+    const firstFragment = document.createDocumentFragment();
+    if (mode === "table") {
       const headerRow = document.createElement("div");
       headerRow.className = "table-header-row";
       headerRow.innerHTML = `
@@ -5617,18 +5688,37 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       <span class="th-date">Added</span>
       <span class="th-actions" style="text-align: right;">Actions</span>
     `;
-      grid.appendChild(headerRow);
-      filtered.forEach((entry) => {
-        grid.appendChild(renderTableRow(entry));
-      });
-    } else if (state.currentViewMode === "icons") {
-      filtered.forEach((entry) => {
-        grid.appendChild(renderIconCard(entry));
-      });
-    } else {
-      filtered.forEach((entry) => {
-        grid.appendChild(renderCard(entry));
-      });
+      firstFragment.appendChild(headerRow);
+    }
+    const INITIAL_BATCH = mode === "icons" ? 36 : 18;
+    const CHUNK_SIZE = mode === "icons" ? 60 : 32;
+    const initialEnd = Math.min(filtered.length, INITIAL_BATCH);
+    for (let i = 0; i < initialEnd; i++) {
+      firstFragment.appendChild(renderItem(filtered[i]));
+    }
+    grid.appendChild(firstFragment);
+    if (initialEnd < filtered.length) {
+      let cursor = initialEnd;
+      const renderNextChunk = () => {
+        if (renderToken !== currentRenderToken) return;
+        const frag = document.createDocumentFragment();
+        const end = Math.min(filtered.length, cursor + CHUNK_SIZE);
+        for (let i = cursor; i < end; i++) {
+          frag.appendChild(renderItem(filtered[i]));
+        }
+        grid.appendChild(frag);
+        cursor = end;
+        if (cursor < filtered.length && typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+          pendingRenderRafId = window.requestAnimationFrame(renderNextChunk);
+        } else {
+          pendingRenderRafId = null;
+        }
+      };
+      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+        pendingRenderRafId = window.requestAnimationFrame(renderNextChunk);
+      } else {
+        renderNextChunk();
+      }
     }
   }
   function render() {
@@ -5636,7 +5726,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     populateCategories(renderCardsOnly);
     renderCardsOnly();
     if (state.isInsightsOpen) {
-      renderInsightsDashboard(render);
+      renderInsightsDashboard(void 0, void 0, render);
     }
   }
 
@@ -9282,6 +9372,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           catFilterList.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.checked = true);
         }
         updateCatFilterLabel();
+        updateMobileCategoryTrackActiveState();
         renderCardsOnly();
       });
     }
@@ -9299,6 +9390,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           catFilterList.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.checked = false);
         }
         updateCatFilterLabel();
+        updateMobileCategoryTrackActiveState();
         renderCardsOnly();
       });
     }
@@ -9308,6 +9400,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         localStorage.setItem(FILTER_MODE_KEY, "union");
         updateModeToggleUI();
         updateCatFilterLabel();
+        updateMobileCategoryTrackActiveState();
         renderCardsOnly();
       });
     }
@@ -9317,6 +9410,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         localStorage.setItem(FILTER_MODE_KEY, "intersect");
         updateModeToggleUI();
         updateCatFilterLabel();
+        updateMobileCategoryTrackActiveState();
         renderCardsOnly();
       });
     }
@@ -9361,8 +9455,9 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         catFilterList.querySelectorAll('input[type="checkbox"]').forEach((cb) => cb.checked = false);
       }
       updateCatFilterLabel();
+      updateMobileCategoryTrackActiveState();
       renderCardsOnly();
-      if (state.isInsightsOpen) renderInsightsDashboard(render);
+      if (state.isInsightsOpen) renderInsightsDashboard(void 0, void 0, render);
       showToast("Cleared category filter");
     });
   }
@@ -9844,18 +9939,26 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     });
   }
   function resetToAllBookmarks() {
+    const hadSearch = Boolean(searchInput && searchInput.value);
+    const hadCats = state.selectedFilterCategories.size > 0;
+    const hadFolder = state.activeFolderId !== "all";
     if (searchInput) searchInput.value = "";
     if (searchClearBtn) searchClearBtn.style.display = "none";
     state.selectedFilterCategories.clear();
-    const catCheckboxes = document.querySelectorAll(".cat-filter-checkbox");
-    catCheckboxes.forEach((cb) => {
-      cb.checked = false;
-    });
+    if (catFilterList) {
+      catFilterList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        cb.checked = false;
+      });
+    }
     const catSearch = document.getElementById("catFilterSearchInput");
     if (catSearch) catSearch.value = "";
     updateCatFilterLabel();
-    setActiveFolder("all", render);
-    render();
+    updateMobileCategoryTrackActiveState();
+    if (hadSearch || hadCats || hadFolder) {
+      state.activeFolderId = "all";
+      renderFoldersSidebar(render);
+      renderCardsOnly();
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   if (headerLogo) {
@@ -9939,7 +10042,11 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       closeMobileFoldersDrawer();
       updateMobileBottomNavActiveTab("favorites");
       if (state.isInsightsOpen) handleToggleInsights(false);
-      setActiveFolder("favorites", render);
+      if (state.activeFolderId !== "favorites") {
+        state.activeFolderId = "favorites";
+        renderFoldersSidebar(render);
+        renderCardsOnly();
+      }
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }

@@ -1,5 +1,5 @@
 // Service Worker for App Directory PWA
-const CACHE_NAME = 'app-directory-fa2b8231-4c1ea9bb';
+const CACHE_NAME = 'app-directory-4eead025-77ac4686';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

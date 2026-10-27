@@ -1,4 +1,4 @@
-import type { BookmarkEntry, ViewLayoutMode } from '../../types';
+import type { BookmarkEntry, Folder, ViewLayoutMode } from '../../types';
 import { state } from '../../core/state';
 import { VIEW_LAYOUT_KEY } from '../../core/constants';
 import { escapeHtml, timeAgo, formatDateFull, getDomain } from '../../utils/dom';
@@ -10,8 +10,15 @@ import { refreshEntryIcon, acceptPendingIcon, dismissPendingIcon } from '../icon
 import { getFilteredEntries } from './filter-sort';
 import { openModal, deleteEntry, toggleFavorite, visitEntry } from './crud';
 
+let pendingRenderRafId: number | null = null;
+let currentRenderToken = 0;
+
 export function setViewMode(mode: ViewLayoutMode): void {
   if (!['cards', 'table', 'icons'].includes(mode)) mode = 'cards';
+  if (state.currentViewMode === mode) {
+    const grid = document.getElementById('grid');
+    if (grid && grid.children.length > 0) return;
+  }
   state.currentViewMode = mode;
   localStorage.setItem(VIEW_LAYOUT_KEY, mode);
 
@@ -26,38 +33,40 @@ export function setViewMode(mode: ViewLayoutMode): void {
   renderCardsOnly();
 }
 
-export function renderCard(entry: BookmarkEntry): HTMLElement {
+export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>): HTMLElement {
   const card = document.createElement('div');
   card.className = 'card';
   card.setAttribute('data-id', entry.id);
-  card.setAttribute('draggable', 'true');
 
-  // Drag and Drop into Folders
-  card.addEventListener('dragstart', (e: DragEvent) => {
-    if (e.dataTransfer) {
-      e.dataTransfer.setData('text/plain', entry.id);
-      e.dataTransfer.effectAllowed = 'move';
-    }
-    card.classList.add('is-dragging');
-  });
-  card.addEventListener('dragend', () => {
-    card.classList.remove('is-dragging');
-  });
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  if (!isMobile) {
+    card.setAttribute('draggable', 'true');
+    card.addEventListener('dragstart', (e: DragEvent) => {
+      if (e.dataTransfer) {
+        e.dataTransfer.setData('text/plain', entry.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }
+      card.classList.add('is-dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+    });
+    card.addEventListener('mousemove', (e: MouseEvent) => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+      card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    });
+  }
 
   const pendingIcon = state.pendingIcons.get(entry.id);
   if (pendingIcon) {
     card.classList.add('has-pending-icon');
   }
 
-  // Bento Ambient Spotlight Glow cursor tracker
-  card.addEventListener('mousemove', (e: MouseEvent) => {
-    const rect = card.getBoundingClientRect();
-    card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-    card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-  });
-
   const domain = getDomain(entry.url);
-  const folder = entry.folderId ? state.folders.find(f => f.id === entry.folderId) : null;
+  const folder = entry.folderId
+    ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find(f => f.id === entry.folderId)) || null
+    : null;
   const iconSrc = entry.icon || (entry as any).iconUrl || '';
 
   card.innerHTML = `
@@ -67,7 +76,7 @@ export function renderCard(entry: BookmarkEntry): HTMLElement {
     <div class="card-top">
       <div class="card-icon" title="Current icon">
         ${iconSrc
-          ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
+          ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">`
           : '<span class="icon-fallback">🌐</span>'
         }
       </div>
@@ -86,7 +95,7 @@ export function renderCard(entry: BookmarkEntry): HTMLElement {
           <span class="pending-badge">New Icon</span>
           <div class="pending-preview-row">
             <div class="card-icon new-icon-preview" title="New icon preview">
-              <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
+              <img src="${escapeHtml(pendingIcon)}" alt="" decoding="async" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
             </div>
             <button type="button" class="btn-accept accept-icon-btn" title="Accept new icon">✓ Accept</button>
             <button type="button" class="btn btn-ghost dismiss-icon-btn" title="Dismiss new icon">✕</button>
@@ -128,108 +137,85 @@ export function renderCard(entry: BookmarkEntry): HTMLElement {
     </div>
   `;
 
-  // Click card → visit
+  // Single delegated click listener for all card actions
   card.addEventListener('click', (e: MouseEvent) => {
     const target = e.target as HTMLElement | null;
-    if (target?.closest('.folder-tag')) {
+    if (!target) return;
+
+    if (target.closest('.folder-tag')) {
       e.stopPropagation();
       if (folder) setActiveFolder(folder.id, render);
       return;
     }
-    if (target?.closest('.card-favorite') ||
-        target?.closest('.refresh-btn') ||
-        target?.closest('.edit-btn') ||
-        target?.closest('.delete-btn') ||
-        target?.closest('.card-open-btn') ||
-        target?.closest('.card-pending-icon-box')) return;
-    visitEntry(entry.id, render);
-  });
-
-  // Open button
-  const cardOpenBtn = card.querySelector('.card-open-btn');
-  if (cardOpenBtn) {
-    cardOpenBtn.addEventListener('click', (e: Event) => {
-      e.stopPropagation();
-      visitEntry(entry.id, render);
-    });
-  }
-
-  // Favorite toggle
-  const favBtn = card.querySelector('.card-favorite');
-  if (favBtn) {
-    favBtn.addEventListener('click', (e: Event) => {
+    if (target.closest('.card-favorite')) {
       e.stopPropagation();
       toggleFavorite(entry.id, render);
-    });
-  }
-
-  // Refresh icon
-  const refreshBtn = card.querySelector('.refresh-btn') as HTMLElement | null;
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', (e: Event) => {
+      return;
+    }
+    const refreshBtn = target.closest('.refresh-btn') as HTMLElement | null;
+    if (refreshBtn) {
       e.stopPropagation();
       refreshEntryIcon(entry.id, refreshBtn, render);
-    });
-  }
-
-  // Accept / Dismiss pending icon
-  if (pendingIcon) {
-    const acceptBtn = card.querySelector('.accept-icon-btn');
-    if (acceptBtn) {
-      acceptBtn.addEventListener('click', (e: Event) => {
-        e.stopPropagation();
-        acceptPendingIcon(entry.id, render);
-      });
+      return;
     }
-    const dismissBtn = card.querySelector('.dismiss-icon-btn');
-    if (dismissBtn) {
-      dismissBtn.addEventListener('click', (e: Event) => {
-        e.stopPropagation();
-        dismissPendingIcon(entry.id, render);
-      });
-    }
-  }
-
-  // Edit
-  const editBtn = card.querySelector('.edit-btn');
-  if (editBtn) {
-    editBtn.addEventListener('click', (e: Event) => {
+    if (target.closest('.edit-btn')) {
       e.stopPropagation();
       openModal(entry.id);
-    });
-  }
-
-  // Delete
-  const deleteBtn = card.querySelector('.delete-btn');
-  if (deleteBtn) {
-    deleteBtn.addEventListener('click', (e: Event) => {
+      return;
+    }
+    if (target.closest('.delete-btn')) {
       e.stopPropagation();
       deleteEntry(entry.id, render);
-    });
-  }
+      return;
+    }
+    if (target.closest('.card-open-btn')) {
+      e.stopPropagation();
+      visitEntry(entry.id, render);
+      return;
+    }
+    if (pendingIcon) {
+      if (target.closest('.accept-icon-btn')) {
+        e.stopPropagation();
+        acceptPendingIcon(entry.id, render);
+        return;
+      }
+      if (target.closest('.dismiss-icon-btn')) {
+        e.stopPropagation();
+        dismissPendingIcon(entry.id, render);
+        return;
+      }
+      if (target.closest('.card-pending-icon-box')) return;
+    }
+    visitEntry(entry.id, render);
+  });
 
   return card;
 }
 
-export function renderTableRow(entry: BookmarkEntry): HTMLElement {
+export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Folder>): HTMLElement {
   const row = document.createElement('div');
   row.className = 'table-row';
   row.setAttribute('data-id', entry.id);
-  row.setAttribute('draggable', 'true');
 
-  row.addEventListener('dragstart', (e: DragEvent) => {
-    if (e.dataTransfer) {
-      e.dataTransfer.setData('text/plain', entry.id);
-      e.dataTransfer.effectAllowed = 'move';
-    }
-    row.classList.add('is-dragging');
-  });
-  row.addEventListener('dragend', () => {
-    row.classList.remove('is-dragging');
-  });
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  if (!isMobile) {
+    row.setAttribute('draggable', 'true');
+    row.addEventListener('dragstart', (e: DragEvent) => {
+      if (e.dataTransfer) {
+        e.dataTransfer.setData('text/plain', entry.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }
+      row.classList.add('is-dragging');
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('is-dragging');
+    });
+  }
 
   const domain = getDomain(entry.url);
-  const folder = entry.folderId ? state.folders.find(f => f.id === entry.folderId) : null;
+  const folder = entry.folderId
+    ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find(f => f.id === entry.folderId)) || null
+    : null;
   const iconSrc = entry.icon || (entry as any).iconUrl || '';
   const pendingIcon = state.pendingIcons.get(entry.id);
   if (pendingIcon) {
@@ -245,7 +231,7 @@ export function renderTableRow(entry: BookmarkEntry): HTMLElement {
     <div class="table-cell-icon">
       <div class="table-icon-frame" title="${escapeHtml(entry.name)}">
         ${iconSrc
-          ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-size:12px;\\'>🌐</span>'">`
+          ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<span style=\\'font-size:12px;\\'>🌐</span>'">`
           : '<span style="font-size:12px;">🌐</span>'
         }
       </div>
@@ -265,7 +251,7 @@ export function renderTableRow(entry: BookmarkEntry): HTMLElement {
         <div class="table-pending-pill" title="New icon proposed">
           <span class="pending-badge">New Icon</span>
           <div class="table-new-icon-preview" title="New icon preview">
-            <img src="${escapeHtml(pendingIcon)}" alt="" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
+            <img src="${escapeHtml(pendingIcon)}" alt="" decoding="async" onerror="this.parentElement.innerHTML='<span class=\\'icon-fallback\\'>🌐</span>'">
           </div>
           <button type="button" class="btn-accept accept-icon-btn table-accept-btn" title="Accept new icon">✓ Accept</button>
           <button type="button" class="btn btn-ghost dismiss-icon-btn table-dismiss-btn" title="Dismiss new icon">✕</button>
@@ -289,104 +275,83 @@ export function renderTableRow(entry: BookmarkEntry): HTMLElement {
     </div>
   `;
 
-  // Click row → visit
   row.addEventListener('click', (e: MouseEvent) => {
     const target = e.target as HTMLElement | null;
-    if (target?.closest('.folder-tag')) {
+    if (!target) return;
+
+    if (target.closest('.folder-tag')) {
       e.stopPropagation();
       if (folder) setActiveFolder(folder.id, render);
       return;
     }
-    if (target?.closest('.table-fav-btn') ||
-        target?.closest('.refresh-btn') ||
-        target?.closest('.edit-btn') ||
-        target?.closest('.delete-btn') ||
-        target?.closest('.table-pending-pill')) return;
-    visitEntry(entry.id, render);
-  });
-
-  // Favorite toggle
-  const favBtn = row.querySelector('.table-fav-btn');
-  if (favBtn) {
-    favBtn.addEventListener('click', (e: Event) => {
+    if (target.closest('.table-fav-btn')) {
       e.stopPropagation();
       toggleFavorite(entry.id, render);
-    });
-  }
-
-  // Refresh icon
-  const refreshBtn = row.querySelector('.refresh-btn') as HTMLElement | null;
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', (e: Event) => {
+      return;
+    }
+    const refreshBtn = target.closest('.refresh-btn') as HTMLElement | null;
+    if (refreshBtn) {
       e.stopPropagation();
       refreshEntryIcon(entry.id, refreshBtn, render);
-    });
-  }
-
-  // Accept / Dismiss pending icon
-  if (pendingIcon) {
-    const acceptBtn = row.querySelector('.accept-icon-btn');
-    if (acceptBtn) {
-      acceptBtn.addEventListener('click', (e: Event) => {
-        e.stopPropagation();
-        acceptPendingIcon(entry.id, render);
-      });
+      return;
     }
-    const dismissBtn = row.querySelector('.dismiss-icon-btn');
-    if (dismissBtn) {
-      dismissBtn.addEventListener('click', (e: Event) => {
-        e.stopPropagation();
-        dismissPendingIcon(entry.id, render);
-      });
-    }
-  }
-
-  // Edit
-  const editBtn = row.querySelector('.edit-btn');
-  if (editBtn) {
-    editBtn.addEventListener('click', (e: Event) => {
+    if (target.closest('.edit-btn')) {
       e.stopPropagation();
       openModal(entry.id);
-    });
-  }
-
-  // Delete
-  const deleteBtn = row.querySelector('.delete-btn');
-  if (deleteBtn) {
-    deleteBtn.addEventListener('click', (e: Event) => {
+      return;
+    }
+    if (target.closest('.delete-btn')) {
       e.stopPropagation();
       deleteEntry(entry.id, render);
-    });
-  }
+      return;
+    }
+    if (pendingIcon) {
+      if (target.closest('.accept-icon-btn')) {
+        e.stopPropagation();
+        acceptPendingIcon(entry.id, render);
+        return;
+      }
+      if (target.closest('.dismiss-icon-btn')) {
+        e.stopPropagation();
+        dismissPendingIcon(entry.id, render);
+        return;
+      }
+      if (target.closest('.table-pending-pill')) return;
+    }
+    visitEntry(entry.id, render);
+  });
 
   return row;
 }
 
-export function renderIconCard(entry: BookmarkEntry): HTMLElement {
+export function renderIconCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>): HTMLElement {
   const card = document.createElement('div');
   card.className = 'icon-card';
   card.setAttribute('data-id', entry.id);
-  card.setAttribute('draggable', 'true');
 
-  card.addEventListener('dragstart', (e: DragEvent) => {
-    if (e.dataTransfer) {
-      e.dataTransfer.setData('text/plain', entry.id);
-      e.dataTransfer.effectAllowed = 'move';
-    }
-    card.classList.add('is-dragging');
-  });
-  card.addEventListener('dragend', () => {
-    card.classList.remove('is-dragging');
-  });
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  if (!isMobile) {
+    card.setAttribute('draggable', 'true');
+    card.addEventListener('dragstart', (e: DragEvent) => {
+      if (e.dataTransfer) {
+        e.dataTransfer.setData('text/plain', entry.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }
+      card.classList.add('is-dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('is-dragging');
+    });
+    card.addEventListener('mousemove', (e: MouseEvent) => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+      card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    });
+  }
 
-  // Ambient Spotlight cursor tracker
-  card.addEventListener('mousemove', (e: MouseEvent) => {
-    const rect = card.getBoundingClientRect();
-    card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-    card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-  });
-
-  const folder = entry.folderId ? state.folders.find(f => f.id === entry.folderId) : null;
+  const folder = entry.folderId
+    ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find(f => f.id === entry.folderId)) || null
+    : null;
   const iconSrc = entry.icon || (entry as any).iconUrl || '';
 
   card.innerHTML = `
@@ -401,7 +366,7 @@ export function renderIconCard(entry: BookmarkEntry): HTMLElement {
     </div>
     <div class="icon-card-frame">
       ${iconSrc
-        ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<span style=\\'font-size:20px;\\'>🌐</span>'">`
+        ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<span style=\\'font-size:20px;\\'>🌐</span>'">`
         : '<span style="font-size:20px;">🌐</span>'
       }
     </div>
@@ -411,46 +376,38 @@ export function renderIconCard(entry: BookmarkEntry): HTMLElement {
     </div>
   `;
 
-  // Click card → visit
   card.addEventListener('click', (e: MouseEvent) => {
     const target = e.target as HTMLElement | null;
-    if (target?.closest('.icon-card-fav') ||
-        target?.closest('.edit-btn') ||
-        target?.closest('.delete-btn')) return;
-    visitEntry(entry.id, render);
-  });
+    if (!target) return;
 
-  // Favorite toggle
-  const favBtn = card.querySelector('.icon-card-fav');
-  if (favBtn) {
-    favBtn.addEventListener('click', (e: Event) => {
+    if (target.closest('.icon-card-fav')) {
       e.stopPropagation();
       toggleFavorite(entry.id, render);
-    });
-  }
-
-  // Edit
-  const editBtn = card.querySelector('.edit-btn');
-  if (editBtn) {
-    editBtn.addEventListener('click', (e: Event) => {
+      return;
+    }
+    if (target.closest('.edit-btn')) {
       e.stopPropagation();
       openModal(entry.id);
-    });
-  }
-
-  // Delete
-  const deleteBtn = card.querySelector('.delete-btn');
-  if (deleteBtn) {
-    deleteBtn.addEventListener('click', (e: Event) => {
+      return;
+    }
+    if (target.closest('.delete-btn')) {
       e.stopPropagation();
       deleteEntry(entry.id, render);
-    });
-  }
+      return;
+    }
+    visitEntry(entry.id, render);
+  });
 
   return card;
 }
 
 export function renderCardsOnly(): void {
+  if (pendingRenderRafId !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+    window.cancelAnimationFrame(pendingRenderRafId);
+    pendingRenderRafId = null;
+  }
+  const renderToken = ++currentRenderToken;
+
   const filtered = getFilteredEntries();
   const statsText = document.getElementById('statsText');
   const activeCatFilterBanner = document.getElementById('activeCatFilterBanner');
@@ -513,13 +470,26 @@ export function renderCardsOnly(): void {
     return;
   }
 
-  grid.style.display = state.currentViewMode === 'table' ? 'flex' : 'grid';
-  grid.className = 'grid view-' + state.currentViewMode;
+  const mode = state.currentViewMode;
+  grid.style.display = mode === 'table' ? 'flex' : 'grid';
+  grid.className = 'grid view-' + mode;
   emptyState.style.display = 'none';
 
   grid.innerHTML = '';
 
-  if (state.currentViewMode === 'table') {
+  const folderMap = new Map<string, Folder>();
+  for (const f of state.folders) {
+    folderMap.set(f.id, f);
+  }
+
+  const renderItem = (entry: BookmarkEntry): HTMLElement => {
+    if (mode === 'table') return renderTableRow(entry, folderMap);
+    if (mode === 'icons') return renderIconCard(entry, folderMap);
+    return renderCard(entry, folderMap);
+  };
+
+  const firstFragment = document.createDocumentFragment();
+  if (mode === 'table') {
     const headerRow = document.createElement('div');
     headerRow.className = 'table-header-row';
     headerRow.innerHTML = `
@@ -531,19 +501,41 @@ export function renderCardsOnly(): void {
       <span class="th-date">Added</span>
       <span class="th-actions" style="text-align: right;">Actions</span>
     `;
-    grid.appendChild(headerRow);
-    filtered.forEach(entry => {
-      grid.appendChild(renderTableRow(entry));
-    });
-  } else if (state.currentViewMode === 'icons') {
-    filtered.forEach(entry => {
-      grid.appendChild(renderIconCard(entry));
-    });
-  } else {
-    // Default: Bento cards
-    filtered.forEach(entry => {
-      grid.appendChild(renderCard(entry));
-    });
+    firstFragment.appendChild(headerRow);
+  }
+
+  const INITIAL_BATCH = mode === 'icons' ? 36 : 18;
+  const CHUNK_SIZE = mode === 'icons' ? 60 : 32;
+  const initialEnd = Math.min(filtered.length, INITIAL_BATCH);
+
+  for (let i = 0; i < initialEnd; i++) {
+    firstFragment.appendChild(renderItem(filtered[i]));
+  }
+  grid.appendChild(firstFragment);
+
+  if (initialEnd < filtered.length) {
+    let cursor = initialEnd;
+    const renderNextChunk = () => {
+      if (renderToken !== currentRenderToken) return;
+      const frag = document.createDocumentFragment();
+      const end = Math.min(filtered.length, cursor + CHUNK_SIZE);
+      for (let i = cursor; i < end; i++) {
+        frag.appendChild(renderItem(filtered[i]));
+      }
+      grid.appendChild(frag);
+      cursor = end;
+      if (cursor < filtered.length && typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        pendingRenderRafId = window.requestAnimationFrame(renderNextChunk);
+      } else {
+        pendingRenderRafId = null;
+      }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      pendingRenderRafId = window.requestAnimationFrame(renderNextChunk);
+    } else {
+      renderNextChunk();
+    }
   }
 }
 
@@ -552,6 +544,6 @@ export function render(): void {
   populateCategories(renderCardsOnly);
   renderCardsOnly();
   if (state.isInsightsOpen) {
-    renderInsightsDashboard(render);
+    renderInsightsDashboard(undefined, undefined, render);
   }
 }

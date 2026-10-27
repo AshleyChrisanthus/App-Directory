@@ -2,6 +2,18 @@ import type { BookmarkEntry } from '../../types';
 import { state } from '../../core/state';
 import { getAllCategories } from '../categories/manager';
 
+const tsCache = new Map<string, number>();
+
+function getTimestamp(iso?: string | null): number {
+  if (!iso) return 0;
+  const cached = tsCache.get(iso);
+  if (cached !== undefined) return cached;
+  const parsed = Date.parse(iso);
+  const val = Number.isNaN(parsed) ? 0 : parsed;
+  tsCache.set(iso, val);
+  return val;
+}
+
 export function getFilteredEntries(): BookmarkEntry[] {
   const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
   const sortSelect = document.getElementById('sortSelect') as HTMLSelectElement | null;
@@ -74,14 +86,14 @@ export function getFilteredEntries(): BookmarkEntry[] {
     }
 
     if (sortField === 'lastVisited') {
-      valA = a.lastVisited ? new Date(a.lastVisited).getTime() : 0;
-      valB = b.lastVisited ? new Date(b.lastVisited).getTime() : 0;
+      valA = getTimestamp(a.lastVisited);
+      valB = getTimestamp(b.lastVisited);
       return sortDir === 'desc' ? valB - valA : valA - valB;
     }
 
     // dateAdded (default)
-    valA = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
-    valB = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
+    valA = getTimestamp(a.dateAdded);
+    valB = getTimestamp(b.dateAdded);
     return sortDir === 'desc' ? valB - valA : valA - valB;
   });
 
