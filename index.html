@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=41914611">
+  <link rel="stylesheet" href="style.css?v=e7ef9bfa">
 </head>
 <body>
   <!-- Top Navigation Wrapper (Smart Reveal on Hover/Scroll) -->
@@ -210,6 +210,13 @@
   <div class="app-layout" id="appLayout">
     <!-- Folders & Collections Sidebar -->
     <aside class="folders-sidebar" id="foldersSidebar">
+      <div class="mobile-sidebar-header">
+        <div class="mobile-sidebar-title-wrap">
+          <span class="mobile-sidebar-icon">📁</span>
+          <span class="mobile-sidebar-title">Folders & Collections</span>
+        </div>
+        <button type="button" class="btn btn-icon mobile-sidebar-close-btn" id="mobileSidebarCloseBtn" title="Close Folders" aria-label="Close Folders">✕</button>
+      </div>
       <div class="sidebar-section">
         <div class="sidebar-nav-list" id="sidebarQuickViews">
           <button type="button" class="sidebar-nav-item active" data-folder-id="all">
@@ -247,6 +254,7 @@
         </div>
       </div>
     </aside>
+    <div class="mobile-sidebar-backdrop" id="mobileSidebarBackdrop"></div>
 
     <!-- Main Content Area -->
     <div class="main-content-area">
@@ -1134,6 +1142,12 @@
         <path d="M6 10h10"/>
       </svg>
       <span class="mobile-nav-label">Directory</span>
+    </button>
+    <button type="button" class="mobile-nav-tab" data-tab="folders" id="navTabFolders" title="Folders & Collections">
+      <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span class="mobile-nav-label">Folders</span>
     </button>
     <button type="button" class="mobile-nav-tab" data-tab="favorites" id="navTabFavorites" title="Starred Favorites">
       <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

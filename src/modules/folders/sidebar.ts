@@ -3,26 +3,68 @@ import { SIDEBAR_STATE_KEY } from '../../core/constants';
 import { state } from '../../core/state';
 import { getLatestStoredEntries, saveEntries, saveFolders } from '../../core/storage';
 import { escapeHtml, showToast } from '../../utils/dom';
+import { openFolderModal } from './modal';
 
 export function initSidebar(): void {
   const foldersSidebar = document.getElementById('foldersSidebar');
-  const isCollapsed = localStorage.getItem(SIDEBAR_STATE_KEY) === 'true';
+  const backdrop = document.getElementById('mobileSidebarBackdrop');
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  const isCollapsed = isMobile ? true : localStorage.getItem(SIDEBAR_STATE_KEY) === 'true';
   if (foldersSidebar) {
     foldersSidebar.classList.toggle('collapsed', isCollapsed);
+  }
+  if (backdrop) {
+    backdrop.classList.remove('active');
+  }
+}
+
+export function openMobileFoldersDrawer(): void {
+  const foldersSidebar = document.getElementById('foldersSidebar');
+  const backdrop = document.getElementById('mobileSidebarBackdrop');
+  const navTabFolders = document.getElementById('navTabFolders');
+  if (!foldersSidebar) return;
+  foldersSidebar.classList.remove('collapsed');
+  if (backdrop) backdrop.classList.add('active');
+  if (navTabFolders) navTabFolders.classList.add('is-active');
+}
+
+export function closeMobileFoldersDrawer(): void {
+  const foldersSidebar = document.getElementById('foldersSidebar');
+  const backdrop = document.getElementById('mobileSidebarBackdrop');
+  const navTabFolders = document.getElementById('navTabFolders');
+  if (!foldersSidebar) return;
+  foldersSidebar.classList.add('collapsed');
+  if (backdrop) backdrop.classList.remove('active');
+  if (navTabFolders && !(state.activeFolderId && state.activeFolderId.startsWith('f-'))) {
+    navTabFolders.classList.remove('is-active');
   }
 }
 
 export function toggleSidebar(): void {
   const foldersSidebar = document.getElementById('foldersSidebar');
+  const backdrop = document.getElementById('mobileSidebarBackdrop');
   if (!foldersSidebar) return;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+  if (isMobile) {
+    if (foldersSidebar.classList.contains('collapsed')) {
+      openMobileFoldersDrawer();
+    } else {
+      closeMobileFoldersDrawer();
+    }
+    return;
+  }
   foldersSidebar.classList.toggle('collapsed');
   const isCollapsed = foldersSidebar.classList.contains('collapsed');
   localStorage.setItem(SIDEBAR_STATE_KEY, String(isCollapsed));
+  if (backdrop) backdrop.classList.toggle('active', !isCollapsed && isMobile);
 }
 
 export function setActiveFolder(folderId: ActiveFolderId, onFolderChanged?: () => void): void {
   state.activeFolderId = folderId;
   renderFoldersSidebar(onFolderChanged);
+  if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+    closeMobileFoldersDrawer();
+  }
   if (onFolderChanged) onFolderChanged();
 }
 
@@ -231,6 +273,7 @@ export function renderFoldersSidebar(
       editBtn.addEventListener('click', e => {
         e.stopPropagation();
         if (onEditFolder) onEditFolder(folder.id);
+        else openFolderModal(folder.id);
       });
     }
 

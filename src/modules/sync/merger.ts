@@ -107,11 +107,34 @@ export function mergeSyncPayload(
   // 4. Check if anything actually changed from local
   const hasEntriesChanged =
     mergedEntries.length !== localEntries.length ||
-    mergedEntries.some((e, i) => localEntries[i]?.id !== e.id || localEntries[i]?.name !== e.name);
+    mergedEntries.some((e, i) => {
+      const loc = localEntries[i];
+      if (!loc) return true;
+      return (
+        loc.id !== e.id ||
+        loc.name !== e.name ||
+        loc.url !== e.url ||
+        loc.folderId !== e.folderId ||
+        loc.isFavorite !== e.isFavorite ||
+        loc.description !== e.description ||
+        (loc as any).dateModified !== (e as any).dateModified ||
+        JSON.stringify(loc.categories || []) !== JSON.stringify(e.categories || [])
+      );
+    });
 
   const hasFoldersChanged =
     mergedFolders.length !== localFolders.length ||
-    mergedFolders.some((f, i) => localFolders[i]?.id !== f.id || localFolders[i]?.name !== f.name);
+    mergedFolders.some((f, i) => {
+      const loc = localFolders[i];
+      if (!loc) return true;
+      return (
+        loc.id !== f.id ||
+        loc.name !== f.name ||
+        loc.icon !== f.icon ||
+        loc.color !== f.color ||
+        (loc as any).dateModified !== (f as any).dateModified
+      );
+    });
 
   const hasTombstonesChanged = mergedTombstones.length !== localTombstones.length;
 

@@ -2271,24 +2271,894 @@
     return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
   }
 
+  // src/utils/emoji-library.ts
+  var EMOJI_CATEGORIES = [
+    {
+      id: "smileys",
+      name: "Smileys & People",
+      icon: "\u{1F600}",
+      emojis: [
+        { e: "\u{1F600}", k: "grinning happy smile face" },
+        { e: "\u{1F603}", k: "smiley happy joy" },
+        { e: "\u{1F604}", k: "smile laugh happy" },
+        { e: "\u{1F601}", k: "beam grin smile" },
+        { e: "\u{1F606}", k: "laughing lol haha" },
+        { e: "\u{1F605}", k: "sweat smile relief" },
+        { e: "\u{1F602}", k: "joy laugh cry tears lol" },
+        { e: "\u{1F923}", k: "rofl rolling laugh lol" },
+        { e: "\u{1F60A}", k: "blush smile warm happy" },
+        { e: "\u{1F607}", k: "angel innocent halo" },
+        { e: "\u{1F642}", k: "slight smile happy" },
+        { e: "\u{1F643}", k: "upside down silly" },
+        { e: "\u{1F609}", k: "wink flirt" },
+        { e: "\u{1F60C}", k: "relieved calm peace" },
+        { e: "\u{1F60D}", k: "heart eyes love crush" },
+        { e: "\u{1F970}", k: "smiling hearts love affection" },
+        { e: "\u{1F618}", k: "kiss blow love" },
+        { e: "\u{1F60B}", k: "yum delicious food tasty" },
+        { e: "\u{1F61B}", k: "tongue silly joke" },
+        { e: "\u{1F61C}", k: "wink tongue crazy" },
+        { e: "\u{1F92A}", k: "zany goofy wild" },
+        { e: "\u{1F60E}", k: "sunglasses cool boss" },
+        { e: "\u{1F913}", k: "nerd glasses smart tech geek" },
+        { e: "\u{1F9D0}", k: "monocle inspect curious examine" },
+        { e: "\u{1F973}", k: "party celebrate hat horn" },
+        { e: "\u{1F60F}", k: "smirk sly" },
+        { e: "\u{1F916}", k: "robot ai bot tech machine" },
+        { e: "\u{1F47B}", k: "ghost spooky halloween boo" },
+        { e: "\u{1F480}", k: "skull dead death rip" },
+        { e: "\u{1F47D}", k: "alien ufo space extraterrestrial" },
+        { e: "\u{1F920}", k: "cowboy hat western" },
+        { e: "\u{1F91D}", k: "handshake deal partner agree business" },
+        { e: "\u{1F44D}", k: "thumbs up like approve good yes" },
+        { e: "\u{1F64C}", k: "hands raised celebrate praise yay" },
+        { e: "\u{1F44F}", k: "clap applause bravo congrats" },
+        { e: "\u{1F525}", k: "fire hot lit trending popular" },
+        { e: "\u2728", k: "sparkles clean magic shine star" },
+        { e: "\u2B50", k: "star favorite rating bookmark" },
+        { e: "\u{1F4A1}", k: "lightbulb idea smart think innovation" },
+        { e: "\u{1F9E0}", k: "brain mind think knowledge smart learn" },
+        { e: "\u2764\uFE0F", k: "heart love like red" },
+        { e: "\u{1F496}", k: "sparkle heart love pink" },
+        { e: "\u{1F4AF}", k: "100 hundred perfect score grade" }
+      ]
+    },
+    {
+      id: "nature",
+      name: "Animals & Nature",
+      icon: "\u{1F332}",
+      emojis: [
+        { e: "\u{1F436}", k: "dog puppy pet canine" },
+        { e: "\u{1F431}", k: "cat kitten feline pet" },
+        { e: "\u{1F42D}", k: "mouse rodent" },
+        { e: "\u{1F439}", k: "hamster pet" },
+        { e: "\u{1F430}", k: "rabbit bunny pet" },
+        { e: "\u{1F98A}", k: "fox animal wild" },
+        { e: "\u{1F43B}", k: "bear animal" },
+        { e: "\u{1F43C}", k: "panda animal cute" },
+        { e: "\u{1F428}", k: "koala australia animal" },
+        { e: "\u{1F42F}", k: "tiger animal wild cat" },
+        { e: "\u{1F981}", k: "lion king beast animal" },
+        { e: "\u{1F42E}", k: "cow cattle farm" },
+        { e: "\u{1F437}", k: "pig pork farm" },
+        { e: "\u{1F438}", k: "frog toad nature" },
+        { e: "\u{1F435}", k: "monkey ape animal" },
+        { e: "\u{1F414}", k: "chicken hen farm bird" },
+        { e: "\u{1F427}", k: "penguin bird arctic linux" },
+        { e: "\u{1F426}", k: "bird tweet twitter fly" },
+        { e: "\u{1F986}", k: "duck bird quack" },
+        { e: "\u{1F985}", k: "eagle bird raptor prey" },
+        { e: "\u{1F989}", k: "owl bird night wisdom" },
+        { e: "\u{1F987}", k: "bat night vampire" },
+        { e: "\u{1F43A}", k: "wolf animal pack" },
+        { e: "\u{1F984}", k: "unicorn magic startup fantasy" },
+        { e: "\u{1F41D}", k: "bee honey insect bug buzz" },
+        { e: "\u{1F41B}", k: "bug caterpillar debug code insect" },
+        { e: "\u{1F98B}", k: "butterfly insect pretty wings" },
+        { e: "\u{1F577}\uFE0F", k: "spider web insect crawl" },
+        { e: "\u{1F422}", k: "turtle tortoise slow reptile" },
+        { e: "\u{1F40D}", k: "snake python code reptile" },
+        { e: "\u{1F419}", k: "octopus tentacle sea github" },
+        { e: "\u{1F42C}", k: "dolphin sea marine ocean" },
+        { e: "\u{1F433}", k: "whale ocean docker container" },
+        { e: "\u{1F988}", k: "shark fish ocean danger" },
+        { e: "\u{1F332}", k: "evergreen tree forest nature pine" },
+        { e: "\u{1F333}", k: "tree nature forest green" },
+        { e: "\u{1F334}", k: "palm tree beach tropical vacation" },
+        { e: "\u{1F331}", k: "seedling sprout plant grow spring" },
+        { e: "\u{1F33F}", k: "herb plant leaf nature organic" },
+        { e: "\u{1F340}", k: "four leaf clover luck lucky irish" },
+        { e: "\u{1F338}", k: "cherry blossom flower sakura spring" },
+        { e: "\u{1F33B}", k: "sunflower flower bright sun" },
+        { e: "\u{1F33A}", k: "hibiscus flower tropical" },
+        { e: "\u{1F341}", k: "maple leaf autumn fall canada" },
+        { e: "\u{1F344}", k: "mushroom fungus mario nature" }
+      ]
+    },
+    {
+      id: "food",
+      name: "Food & Drink",
+      icon: "\u2615",
+      emojis: [
+        { e: "\u{1F34F}", k: "green apple fruit food" },
+        { e: "\u{1F34E}", k: "red apple fruit tech food" },
+        { e: "\u{1F34C}", k: "banana fruit monkey yellow" },
+        { e: "\u{1F349}", k: "watermelon fruit summer sweet" },
+        { e: "\u{1F347}", k: "grapes fruit wine purple" },
+        { e: "\u{1F353}", k: "strawberry berry fruit red" },
+        { e: "\u{1F352}", k: "cherries fruit cherry" },
+        { e: "\u{1F351}", k: "peach fruit" },
+        { e: "\u{1F34D}", k: "pineapple fruit tropical" },
+        { e: "\u{1F951}", k: "avocado vegetable food healthy" },
+        { e: "\u{1F336}\uFE0F", k: "hot pepper chili spicy" },
+        { e: "\u{1F33D}", k: "corn maize vegetable" },
+        { e: "\u{1F950}", k: "croissant bread bakery french breakfast" },
+        { e: "\u{1F35E}", k: "bread loaf bakery" },
+        { e: "\u{1F9C0}", k: "cheese cheddar food swiss" },
+        { e: "\u{1F373}", k: "cooking egg breakfast fry pan" },
+        { e: "\u{1F953}", k: "bacon meat breakfast food" },
+        { e: "\u{1F969}", k: "meat steak cut beef" },
+        { e: "\u{1F357}", k: "poultry leg chicken drumstick food" },
+        { e: "\u{1F354}", k: "hamburger burger fast food" },
+        { e: "\u{1F35F}", k: "french fries chips fast food" },
+        { e: "\u{1F355}", k: "pizza slice cheese italian food" },
+        { e: "\u{1F96A}", k: "sandwich sub lunch food" },
+        { e: "\u{1F32E}", k: "taco mexican food" },
+        { e: "\u{1F957}", k: "salad green healthy diet" },
+        { e: "\u{1F35D}", k: "spaghetti pasta noodle italian" },
+        { e: "\u{1F35C}", k: "ramen noodle bowl soup" },
+        { e: "\u{1F363}", k: "sushi japanese fish food" },
+        { e: "\u{1F366}", k: "ice cream soft serve dessert sweet" },
+        { e: "\u{1F369}", k: "doughnut donut sweet pastry" },
+        { e: "\u{1F36A}", k: "cookie biscuit sweet chocolate chip" },
+        { e: "\u{1F382}", k: "birthday cake celebration party dessert" },
+        { e: "\u{1F36B}", k: "chocolate bar sweet candy" },
+        { e: "\u{1F37F}", k: "popcorn movie cinema snack" },
+        { e: "\u2615", k: "coffee cafe espresso hot drink tea caffeine" },
+        { e: "\u{1F375}", k: "tea green matcha hot drink" },
+        { e: "\u{1F9CB}", k: "boba bubble tea milk drink" },
+        { e: "\u{1F37A}", k: "beer drink alcohol pub pint" },
+        { e: "\u{1F37B}", k: "cheers beers pub drink toast" },
+        { e: "\u{1F377}", k: "wine glass red alcohol drink" },
+        { e: "\u{1F378}", k: "cocktail martini drink bar" }
+      ]
+    },
+    {
+      id: "activities",
+      name: "Activities & Sports",
+      icon: "\u{1F3AE}",
+      emojis: [
+        { e: "\u26BD", k: "soccer ball football sport" },
+        { e: "\u{1F3C0}", k: "basketball ball sport nba" },
+        { e: "\u{1F3C8}", k: "american football nfl sport" },
+        { e: "\u26BE", k: "baseball ball sport mlb" },
+        { e: "\u{1F3BE}", k: "tennis ball sport court" },
+        { e: "\u{1F3D0}", k: "volleyball ball sport beach" },
+        { e: "\u{1F3D3}", k: "ping pong table tennis paddle" },
+        { e: "\u{1F3F8}", k: "badminton racket shuttlecock sport" },
+        { e: "\u{1F94A}", k: "boxing glove fight punch sport" },
+        { e: "\u{1F3AF}", k: "bullseye target goal direct hit accurate" },
+        { e: "\u{1F3AE}", k: "video game controller gaming play playstation xbox" },
+        { e: "\u{1F579}\uFE0F", k: "joystick arcade retro game controller" },
+        { e: "\u{1F3B2}", k: "dice game board roll chance" },
+        { e: "\u{1F9E9}", k: "jigsaw puzzle piece problem solve fit" },
+        { e: "\u{1F3A8}", k: "artist palette design art painting draw color creative" },
+        { e: "\u{1F3AD}", k: "theater masks drama acting stage" },
+        { e: "\u{1F3AA}", k: "circus tent event show" },
+        { e: "\u{1F39F}\uFE0F", k: "ticket admission event entry" },
+        { e: "\u{1F3C6}", k: "trophy champion win prize award first" },
+        { e: "\u{1F947}", k: "first place medal gold winner" },
+        { e: "\u{1F948}", k: "second place medal silver winner" },
+        { e: "\u{1F949}", k: "third place medal bronze winner" },
+        { e: "\u{1F3C5}", k: "sports medal military award" }
+      ]
+    },
+    {
+      id: "travel",
+      name: "Travel & Places",
+      icon: "\u{1F680}",
+      emojis: [
+        { e: "\u{1F697}", k: "car automobile vehicle drive auto" },
+        { e: "\u{1F3CE}\uFE0F", k: "racing car race speed f1 fast" },
+        { e: "\u{1F693}", k: "police car law patrol cop" },
+        { e: "\u{1F691}", k: "ambulance emergency medical hospital" },
+        { e: "\u{1F692}", k: "fire engine truck emergency rescue" },
+        { e: "\u{1F6F5}", k: "scooter motorcycle moped vespa" },
+        { e: "\u{1F6B2}", k: "bicycle bike cycle pedal ride" },
+        { e: "\u2708\uFE0F", k: "airplane flight airport travel fly" },
+        { e: "\u{1F6EB}", k: "airplane departure takeoff flight" },
+        { e: "\u{1F6EC}", k: "airplane landing arrival flight" },
+        { e: "\u{1F680}", k: "rocket launch startup space ship speed fast blast" },
+        { e: "\u{1F6F8}", k: "ufo flying saucer alien space sci-fi" },
+        { e: "\u{1F681}", k: "helicopter chopper fly travel" },
+        { e: "\u26F5", k: "sailboat boat yacht water ocean" },
+        { e: "\u{1F6A2}", k: "ship boat cruise ocean vessel" },
+        { e: "\u2693", k: "anchor boat marine sea navy" },
+        { e: "\u{1F3E0}", k: "house home building residence living personal" },
+        { e: "\u{1F3E1}", k: "house garden home building" },
+        { e: "\u{1F3E2}", k: "office building company business work agency" },
+        { e: "\u{1F3E5}", k: "hospital medical doctor clinic health" },
+        { e: "\u{1F3E6}", k: "bank finance building money credit" },
+        { e: "\u{1F3E8}", k: "hotel building stay travel vacation" },
+        { e: "\u{1F3EB}", k: "school building education study student" },
+        { e: "\u{1F3F0}", k: "castle palace fairy tale fantasy royal" },
+        { e: "\u{1F5FA}\uFE0F", k: "world map geography travel atlas explore" },
+        { e: "\u{1F9ED}", k: "compass navigate direction explore discover" },
+        { e: "\u26F0\uFE0F", k: "mountain nature climb peak hike" },
+        { e: "\u{1F30B}", k: "volcano mountain lava erupt" },
+        { e: "\u{1F3D6}\uFE0F", k: "beach umbrella sand ocean vacation sea" }
+      ]
+    },
+    {
+      id: "objects",
+      name: "Objects & Tech",
+      icon: "\u{1F4BB}",
+      emojis: [
+        { e: "\u{1F4C1}", k: "file folder directory organize files archive collection" },
+        { e: "\u{1F4C2}", k: "open folder files docs directory" },
+        { e: "\u{1F5C2}\uFE0F", k: "card index dividers organize directory" },
+        { e: "\u{1F4BC}", k: "briefcase work job business portfolio career bag" },
+        { e: "\u{1F4BB}", k: "laptop computer code tech developer macbook pc" },
+        { e: "\u{1F5A5}\uFE0F", k: "desktop computer monitor display pc workstation" },
+        { e: "\u2328\uFE0F", k: "keyboard type code key input" },
+        { e: "\u{1F5B1}\uFE0F", k: "computer mouse click pointer tech" },
+        { e: "\u{1F4F1}", k: "mobile phone smartphone iphone android app" },
+        { e: "\u260E\uFE0F", k: "telephone phone call contact support" },
+        { e: "\u{1F50B}", k: "battery charge power energy level" },
+        { e: "\u{1F50C}", k: "electric plug power connect socket adapter" },
+        { e: "\u{1F4A1}", k: "lightbulb idea smart think innovation creative" },
+        { e: "\u{1F4DA}", k: "books reading education library study school docs documentation" },
+        { e: "\u{1F4D6}", k: "open book reading literature novel" },
+        { e: "\u{1F516}", k: "bookmark favorite tag mark save" },
+        { e: "\u{1F3F7}\uFE0F", k: "label price tag category mark" },
+        { e: "\u{1F4B0}", k: "money bag dollar rich cash wealth investment bank" },
+        { e: "\u{1FA99}", k: "coin currency money gold cash crypto" },
+        { e: "\u{1F4B5}", k: "dollar bill cash money green currency" },
+        { e: "\u{1F4B3}", k: "credit card payment purchase visa mastercard buy pay" },
+        { e: "\u{1F48E}", k: "gem stone diamond crystal jewel valuable" },
+        { e: "\u2696\uFE0F", k: "balance scale law justice legal court" },
+        { e: "\u{1F9F0}", k: "toolbox tools toolkit repair fix utilities maintenance" },
+        { e: "\u{1F6E0}\uFE0F", k: "hammer wrench tools repair settings build dev devops" },
+        { e: "\u{1F527}", k: "wrench tool spanner fix configure" },
+        { e: "\u{1F528}", k: "hammer tool build construction strike" },
+        { e: "\u2699\uFE0F", k: "gear settings options configuration preferences system" },
+        { e: "\u{1F6E1}\uFE0F", k: "shield protect defense security antivirus guard safe" },
+        { e: "\u{1F512}", k: "lock closed private secure password secret encrypted" },
+        { e: "\u{1F513}", k: "unlock open access public released" },
+        { e: "\u{1F511}", k: "key password access secret auth api unlock login" },
+        { e: "\u{1F5DD}\uFE0F", k: "old key secret antique access unlock" },
+        { e: "\u{1F52C}", k: "microscope science research lab study biology chemistry analyze" },
+        { e: "\u{1F52D}", k: "telescope astronomy space star look explore view" },
+        { e: "\u{1F9EA}", k: "test tube chemistry science experiment flask lab" },
+        { e: "\u{1F48A}", k: "pill medicine pharmacy drug prescription health" },
+        { e: "\u{1F4E6}", k: "package box delivery shipping parcel amazon storage" },
+        { e: "\u{1F4C5}", k: "calendar date schedule event appointment" },
+        { e: "\u{1F4CA}", k: "bar chart graph stats metrics analytics insights dashboard" },
+        { e: "\u{1F4C8}", k: "chart increasing trend growth metrics stock up" },
+        { e: "\u{1F4C9}", k: "chart decreasing loss down drop decline" },
+        { e: "\u{1F4CB}", k: "clipboard copy paste task list checklist notes plan" },
+        { e: "\u{1F4CC}", k: "pushpin pin map location sticky note notice" },
+        { e: "\u{1F4CE}", k: "paperclip attach attachment file link" },
+        { e: "\u2702\uFE0F", k: "scissors cut snip tool craft edit" },
+        { e: "\u{1F5D1}\uFE0F", k: "wastebasket trash bin delete remove recycle" }
+      ]
+    },
+    {
+      id: "symbols",
+      name: "Symbols & Flags",
+      icon: "\u26A1",
+      emojis: [
+        { e: "\u26A1", k: "high voltage lightning bolt power fast energy flash zap speed" },
+        { e: "\u2728", k: "sparkles clean magic shine star ai new" },
+        { e: "\u2B50", k: "star favorite rating bookmark yellow" },
+        { e: "\u{1F31F}", k: "glowing star shine bright sparkle special" },
+        { e: "\u{1F4A5}", k: "boom collision explosion bang blast" },
+        { e: "\u{1F4AB}", k: "dizzy star trail spark" },
+        { e: "\u2764\uFE0F", k: "red heart love like romance favorite" },
+        { e: "\u{1F499}", k: "blue heart love like" },
+        { e: "\u{1F49A}", k: "green heart nature love" },
+        { e: "\u{1F49C}", k: "purple heart love" },
+        { e: "\u{1F5A4}", k: "black heart dark love" },
+        { e: "\u{1F90D}", k: "white heart pure love" },
+        { e: "\u{1F494}", k: "broken heart sad breakup sorrow" },
+        { e: "\u2705", k: "check mark green verified done complete ok pass task" },
+        { e: "\u274C", k: "cross mark red cancel no wrong fail error bad" },
+        { e: "\u26A0\uFE0F", k: "warning alert caution hazard attention broken" },
+        { e: "\u{1F6AB}", k: "no entry forbidden banned stop proscribed" },
+        { e: "\u{1F6D1}", k: "stop sign red octagonal halt pause" },
+        { e: "\u{1F4AF}", k: "100 hundred perfect score rank full" },
+        { e: "\u{1F514}", k: "bell notification alert alarm sound ring" },
+        { e: "\u{1F515}", k: "bell with slash mute silent quiet no notifications" },
+        { e: "\u{1F3B5}", k: "musical note song sound audio melody tune" },
+        { e: "\u{1F3B6}", k: "musical notes audio soundtrack music playlist" },
+        { e: "\u{1F310}", k: "globe with meridians world internet web online network domain" },
+        { e: "\u267B\uFE0F", k: "recycling symbol green environment sustainable reuse" },
+        { e: "\u{1F6A9}", k: "triangular flag post mark goal priority milestone" },
+        { e: "\u{1F3C1}", k: "chequered flag finish race complete win" }
+      ]
+    }
+  ];
+
+  // src/modules/folders/emoji-picker.ts
+  var DEFAULT_RECENT_EMOJIS = ["\u{1F4C1}", "\u{1F4BC}", "\u{1F3E0}", "\u{1F52C}", "\u{1F6E0}\uFE0F", "\u{1F3A8}", "\u26A1", "\u{1F4DA}"];
+  var activeEmojiCategoryId = "all";
+  function getRecentEmojis() {
+    try {
+      const stored = localStorage.getItem("appDirectory_recentEmojis");
+      if (stored) {
+        const arr = JSON.parse(stored);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      }
+    } catch {
+    }
+    return DEFAULT_RECENT_EMOJIS;
+  }
+  function saveRecentEmoji(emoji) {
+    if (!emoji) return;
+    let list = getRecentEmojis();
+    list = [emoji, ...list.filter((e) => e !== emoji)].slice(0, 16);
+    try {
+      localStorage.setItem("appDirectory_recentEmojis", JSON.stringify(list));
+    } catch {
+    }
+    renderFolderEmojiQuickRow();
+  }
+  function selectFolderEmoji(emoji) {
+    if (!emoji) return;
+    const folderIconInput2 = document.getElementById("folderIconInput");
+    const folderIconDisplay2 = document.getElementById("folderIconDisplay");
+    if (folderIconInput2) folderIconInput2.value = emoji;
+    if (folderIconDisplay2) folderIconDisplay2.textContent = emoji;
+    saveRecentEmoji(emoji);
+    closeEmojiPicker();
+  }
+  function renderFolderEmojiQuickRow() {
+    const folderEmojiQuickRow = document.getElementById("folderEmojiQuickRow");
+    if (!folderEmojiQuickRow) return;
+    folderEmojiQuickRow.innerHTML = "";
+    const recents = getRecentEmojis().slice(0, 6);
+    recents.forEach((em) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "emoji-quick-chip";
+      btn.textContent = em;
+      btn.title = `Select ${em}`;
+      btn.addEventListener("click", () => selectFolderEmoji(em));
+      folderEmojiQuickRow.appendChild(btn);
+    });
+    const moreBtn = document.createElement("button");
+    moreBtn.type = "button";
+    moreBtn.className = "emoji-more-btn";
+    moreBtn.innerHTML = "<span>\u{1F600} More</span>";
+    moreBtn.title = "Browse all categorized emojis";
+    moreBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleEmojiPicker();
+    });
+    folderEmojiQuickRow.appendChild(moreBtn);
+  }
+  function updateActiveCategoryTab() {
+    const emojiCategoryTabs = document.getElementById("emojiCategoryTabs");
+    if (!emojiCategoryTabs) return;
+    const tabs = emojiCategoryTabs.querySelectorAll(".emoji-category-tab");
+    tabs.forEach((t) => {
+      if (t.getAttribute("data-cat") === activeEmojiCategoryId) {
+        t.classList.add("is-active");
+      } else {
+        t.classList.remove("is-active");
+      }
+    });
+  }
+  function renderEmojiCategoryTabs() {
+    const emojiCategoryTabs = document.getElementById("emojiCategoryTabs");
+    const emojiSearchInput2 = document.getElementById("emojiSearchInput");
+    if (!emojiCategoryTabs) return;
+    if (emojiCategoryTabs.children.length === 0) {
+      const allTab = document.createElement("button");
+      allTab.type = "button";
+      allTab.className = "emoji-category-tab is-active";
+      allTab.setAttribute("data-cat", "all");
+      allTab.textContent = "\u{1F31F}";
+      allTab.title = "All Emojis";
+      allTab.addEventListener("click", (e) => {
+        e.stopPropagation();
+        activeEmojiCategoryId = "all";
+        updateActiveCategoryTab();
+        renderEmojiGrid("all", emojiSearchInput2 ? emojiSearchInput2.value : "");
+      });
+      emojiCategoryTabs.appendChild(allTab);
+      const recentTab = document.createElement("button");
+      recentTab.type = "button";
+      recentTab.className = "emoji-category-tab";
+      recentTab.setAttribute("data-cat", "recent");
+      recentTab.textContent = "\u{1F552}";
+      recentTab.title = "Recent Emojis";
+      recentTab.addEventListener("click", (e) => {
+        e.stopPropagation();
+        activeEmojiCategoryId = "recent";
+        updateActiveCategoryTab();
+        renderEmojiGrid("recent", emojiSearchInput2 ? emojiSearchInput2.value : "");
+      });
+      emojiCategoryTabs.appendChild(recentTab);
+      EMOJI_CATEGORIES.forEach((cat) => {
+        const tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = "emoji-category-tab";
+        tab.setAttribute("data-cat", cat.id);
+        tab.textContent = cat.icon;
+        tab.title = cat.name;
+        tab.addEventListener("click", (e) => {
+          e.stopPropagation();
+          activeEmojiCategoryId = cat.id;
+          updateActiveCategoryTab();
+          renderEmojiGrid(cat.id, emojiSearchInput2 ? emojiSearchInput2.value : "");
+        });
+        emojiCategoryTabs.appendChild(tab);
+      });
+    }
+    updateActiveCategoryTab();
+  }
+  function renderEmojiGrid(categoryId = "all", searchQuery = "") {
+    const emojiGridContainer = document.getElementById("emojiGridContainer");
+    if (!emojiGridContainer) return;
+    emojiGridContainer.innerHTML = "";
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      const matches = [];
+      const seen = /* @__PURE__ */ new Set();
+      EMOJI_CATEGORIES.forEach((cat) => {
+        cat.emojis.forEach((item) => {
+          if (!seen.has(item.e) && (item.e.includes(q) || item.k.toLowerCase().includes(q))) {
+            seen.add(item.e);
+            matches.push(item);
+          }
+        });
+      });
+      if (matches.length === 0) {
+        emojiGridContainer.innerHTML = `<div class="emoji-no-results">No emojis found matching "<strong>${escapeHtml(
+          searchQuery
+        )}</strong>"</div>`;
+        return;
+      }
+      const sec = document.createElement("div");
+      sec.className = "emoji-category-section";
+      sec.innerHTML = `<div class="emoji-category-title">Search Results (${matches.length})</div>`;
+      const grid = document.createElement("div");
+      grid.className = "emoji-grid";
+      matches.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "emoji-item-btn";
+        btn.textContent = item.e;
+        btn.title = item.k;
+        btn.addEventListener("click", () => selectFolderEmoji(item.e));
+        grid.appendChild(btn);
+      });
+      sec.appendChild(grid);
+      emojiGridContainer.appendChild(sec);
+      return;
+    }
+    if (categoryId === "recent") {
+      const recents = getRecentEmojis();
+      const sec = document.createElement("div");
+      sec.className = "emoji-category-section";
+      sec.innerHTML = `<div class="emoji-category-title">\u{1F552} Recently Used</div>`;
+      const grid = document.createElement("div");
+      grid.className = "emoji-grid";
+      recents.forEach((em) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "emoji-item-btn";
+        btn.textContent = em;
+        btn.addEventListener("click", () => selectFolderEmoji(em));
+        grid.appendChild(btn);
+      });
+      sec.appendChild(grid);
+      emojiGridContainer.appendChild(sec);
+      return;
+    }
+    const categoriesToRender = categoryId === "all" ? EMOJI_CATEGORIES : EMOJI_CATEGORIES.filter((c) => c.id === categoryId);
+    if (categoryId === "all") {
+      const recents = getRecentEmojis();
+      if (recents.length > 0) {
+        const recSec = document.createElement("div");
+        recSec.className = "emoji-category-section";
+        recSec.innerHTML = `<div class="emoji-category-title">\u{1F552} Recent</div>`;
+        const recGrid = document.createElement("div");
+        recGrid.className = "emoji-grid";
+        recents.slice(0, 16).forEach((em) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "emoji-item-btn";
+          btn.textContent = em;
+          btn.addEventListener("click", () => selectFolderEmoji(em));
+          recGrid.appendChild(btn);
+        });
+        recSec.appendChild(recGrid);
+        emojiGridContainer.appendChild(recSec);
+      }
+    }
+    categoriesToRender.forEach((cat) => {
+      const sec = document.createElement("div");
+      sec.className = "emoji-category-section";
+      sec.innerHTML = `<div class="emoji-category-title">${cat.icon} ${cat.name}</div>`;
+      const grid = document.createElement("div");
+      grid.className = "emoji-grid";
+      cat.emojis.forEach((item) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "emoji-item-btn";
+        btn.textContent = item.e;
+        btn.title = item.k;
+        btn.addEventListener("click", () => selectFolderEmoji(item.e));
+        grid.appendChild(btn);
+      });
+      sec.appendChild(grid);
+      emojiGridContainer.appendChild(sec);
+    });
+  }
+  function openEmojiPicker() {
+    const emojiPickerPopover2 = document.getElementById("emojiPickerPopover");
+    const emojiSearchInput2 = document.getElementById("emojiSearchInput");
+    const emojiSearchClear2 = document.getElementById("emojiSearchClear");
+    const osShortcutKey = document.getElementById("osShortcutKey");
+    if (!emojiPickerPopover2) return;
+    activeEmojiCategoryId = "all";
+    if (emojiSearchInput2) emojiSearchInput2.value = "";
+    if (emojiSearchClear2) emojiSearchClear2.style.display = "none";
+    renderEmojiCategoryTabs();
+    renderEmojiGrid("all", "");
+    emojiPickerPopover2.style.display = "flex";
+    if (osShortcutKey) {
+      const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform || "");
+      osShortcutKey.textContent = isMac ? "Cmd + Ctrl + Space" : "Win + .";
+    }
+    setTimeout(() => {
+      if (emojiSearchInput2) emojiSearchInput2.focus();
+    }, 60);
+  }
+  function closeEmojiPicker() {
+    const emojiPickerPopover2 = document.getElementById("emojiPickerPopover");
+    if (emojiPickerPopover2) {
+      emojiPickerPopover2.style.display = "none";
+    }
+  }
+  function toggleEmojiPicker() {
+    const emojiPickerPopover2 = document.getElementById("emojiPickerPopover");
+    if (!emojiPickerPopover2) return;
+    if (emojiPickerPopover2.style.display === "none" || !emojiPickerPopover2.style.display) {
+      openEmojiPicker();
+    } else {
+      closeEmojiPicker();
+    }
+  }
+
+  // src/modules/folders/modal.ts
+  var inlineFolderCallback = null;
+  function openFolderModal(folderId = null, onCreatedCallback = null) {
+    state.editingFolderId = folderId;
+    inlineFolderCallback = typeof onCreatedCallback === "function" ? onCreatedCallback : null;
+    closeEmojiPicker();
+    const folderModalTitle = document.getElementById("folderModalTitle");
+    const folderNameInput = document.getElementById("folderNameInput");
+    const folderIconInput2 = document.getElementById("folderIconInput");
+    const folderColorInput = document.getElementById("folderColorInput");
+    const folderIconDisplay2 = document.getElementById("folderIconDisplay");
+    const folderModalBackdrop2 = document.getElementById("folderModalBackdrop");
+    if (folderId) {
+      const folder = state.folders.find((f) => f.id === folderId);
+      if (folder) {
+        if (folderModalTitle) folderModalTitle.textContent = "Edit Folder";
+        if (folderNameInput) folderNameInput.value = folder.name || "";
+        if (folderIconInput2) folderIconInput2.value = folder.icon || "\u{1F4C1}";
+        if (folderColorInput) folderColorInput.value = folder.color || "#0a84ff";
+        if (folderIconDisplay2) folderIconDisplay2.textContent = folder.icon || "\u{1F4C1}";
+      }
+    } else {
+      if (folderModalTitle) folderModalTitle.textContent = "New Folder";
+      if (folderNameInput) folderNameInput.value = "";
+      if (folderIconInput2) folderIconInput2.value = "\u{1F4C1}";
+      if (folderColorInput) folderColorInput.value = "#0a84ff";
+      if (folderIconDisplay2) folderIconDisplay2.textContent = "\u{1F4C1}";
+    }
+    renderFolderEmojiQuickRow();
+    if (folderModalBackdrop2) {
+      folderModalBackdrop2.classList.add("active");
+    }
+    document.body.style.overflow = "hidden";
+    if (folderNameInput) {
+      setTimeout(() => folderNameInput.focus(), 60);
+    }
+  }
+  function closeFolderModal() {
+    closeEmojiPicker();
+    const folderModalBackdrop2 = document.getElementById("folderModalBackdrop");
+    if (folderModalBackdrop2) {
+      folderModalBackdrop2.classList.remove("active");
+    }
+    const modalBackdrop2 = document.getElementById("modalBackdrop");
+    const isMainModalActive = modalBackdrop2 && modalBackdrop2.classList.contains("active");
+    if (!isMainModalActive) {
+      document.body.style.overflow = "";
+    }
+    inlineFolderCallback = null;
+  }
+  function saveFolderForm(e, onFolderUpdated) {
+    e.preventDefault();
+    const folderNameInput = document.getElementById("folderNameInput");
+    const folderIconInput2 = document.getElementById("folderIconInput");
+    const folderColorInput = document.getElementById("folderColorInput");
+    if (!folderNameInput) return;
+    const name = folderNameInput.value.trim();
+    if (!name) {
+      folderNameInput.focus();
+      return;
+    }
+    const icon = folderIconInput2 && folderIconInput2.value.trim() || "\u{1F4C1}";
+    const color = folderColorInput && folderColorInput.value || "#0a84ff";
+    let createdFolderId = null;
+    if (state.editingFolderId) {
+      const folder = state.folders.find((f) => f.id === state.editingFolderId);
+      if (folder) {
+        folder.name = name;
+        folder.icon = icon;
+        folder.color = color;
+        folder.dateModified = (/* @__PURE__ */ new Date()).toISOString();
+        showToast(`Updated folder "${name}"`);
+      }
+    } else {
+      const newFolder = {
+        id: `f-${Date.now()}`,
+        name,
+        icon,
+        color,
+        dateAdded: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      state.folders.push(newFolder);
+      createdFolderId = newFolder.id;
+      showToast(`Created folder "${name}" \u{1F4C1}`);
+    }
+    saveFolders();
+    const cb = inlineFolderCallback;
+    closeFolderModal();
+    renderFoldersSidebar(onFolderUpdated);
+    if (onFolderUpdated) onFolderUpdated();
+    if (createdFolderId && typeof cb === "function") {
+      cb(createdFolderId);
+    }
+  }
+  var selectedBookmarksToMove = /* @__PURE__ */ new Set();
+  var addBmSearchQuery = "";
+  var addBmSourceFilter = "all";
+  function openAddBookmarksModal(onSuccess) {
+    let folder = state.folders.find((f) => f.id === state.activeFolderId);
+    if (!folder) {
+      if (state.folders.length > 0) {
+        setActiveFolder(state.folders[0].id, onSuccess);
+        folder = state.folders.find((f) => f.id === state.activeFolderId);
+      } else {
+        openFolderModal(null, (newFolderId) => {
+          setActiveFolder(newFolderId, onSuccess);
+          openAddBookmarksModal(onSuccess);
+        });
+        return;
+      }
+    }
+    if (!folder) return;
+    selectedBookmarksToMove.clear();
+    addBmSearchQuery = "";
+    addBmSourceFilter = "all";
+    const addBmSearchInput2 = document.getElementById("addBmSearchInput");
+    const addBmSearchClear2 = document.getElementById("addBmSearchClear");
+    const addBookmarksModalIcon = document.getElementById("addBookmarksModalIcon");
+    const addBookmarksModalTitle = document.getElementById("addBookmarksModalTitle");
+    const addBmFilterPills2 = document.getElementById("addBmFilterPills");
+    const addBookmarksModalBackdrop2 = document.getElementById("addBookmarksModalBackdrop");
+    if (addBmSearchInput2) addBmSearchInput2.value = "";
+    if (addBmSearchClear2) addBmSearchClear2.style.display = "none";
+    if (addBookmarksModalIcon) addBookmarksModalIcon.textContent = folder.icon || "\u{1F4C1}";
+    if (addBookmarksModalTitle) addBookmarksModalTitle.textContent = `Add Bookmarks to "${folder.name}"`;
+    if (addBmFilterPills2) {
+      addBmFilterPills2.querySelectorAll(".pill-filter-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.getAttribute("data-source") === "all");
+      });
+    }
+    renderAddBookmarksList();
+    if (addBookmarksModalBackdrop2) {
+      addBookmarksModalBackdrop2.classList.add("active");
+      document.body.style.overflow = "hidden";
+      setTimeout(() => {
+        if (addBmSearchInput2) addBmSearchInput2.focus();
+      }, 60);
+    }
+  }
+  function closeAddBookmarksModal() {
+    const addBookmarksModalBackdrop2 = document.getElementById("addBookmarksModalBackdrop");
+    if (addBookmarksModalBackdrop2) {
+      addBookmarksModalBackdrop2.classList.remove("active");
+    }
+    document.body.style.overflow = "";
+  }
+  function renderAddBookmarksList() {
+    const addBmListContainer = document.getElementById("addBmListContainer");
+    const addBmSubmitBtn = document.getElementById("addBmSubmitBtn");
+    if (!addBmListContainer) return;
+    const currentFolder = state.folders.find((f) => f.id === state.activeFolderId);
+    if (!currentFolder) return;
+    let candidates = state.entries.filter((e) => e.folderId !== currentFolder.id);
+    if (addBmSourceFilter === "unorganized") {
+      candidates = candidates.filter((e) => !e.folderId);
+    } else if (addBmSourceFilter === "other") {
+      candidates = candidates.filter((e) => !!e.folderId);
+    }
+    const q = addBmSearchQuery.trim().toLowerCase();
+    if (q) {
+      candidates = candidates.filter(
+        (e) => e.name.toLowerCase().includes(q) || e.url.toLowerCase().includes(q) || e.description && e.description.toLowerCase().includes(q)
+      );
+    }
+    candidates.sort((a, b) => a.name.localeCompare(b.name));
+    addBmListContainer.innerHTML = "";
+    if (candidates.length === 0) {
+      addBmListContainer.innerHTML = `<div class="add-bm-empty">No available bookmarks found.</div>`;
+      updateAddBmSubmitBtn(0);
+      return;
+    }
+    candidates.forEach((entry) => {
+      const isSelected = selectedBookmarksToMove.has(entry.id);
+      const item = document.createElement("div");
+      item.className = `add-bm-item ${isSelected ? "selected" : ""}`;
+      item.setAttribute("data-id", entry.id);
+      const iconUrl = entry.iconUrl || entry.icon || getFaviconUrl(entry.url);
+      const existingFolder = state.folders.find((f) => f.id === entry.folderId);
+      const folderBadge = existingFolder ? `<span class="add-bm-folder-badge">${existingFolder.icon || "\u{1F4C1}"} ${escapeHtml(existingFolder.name)}</span>` : `<span class="add-bm-folder-badge unorg">Unorganized</span>`;
+      item.innerHTML = `
+      <input type="checkbox" class="add-bm-checkbox" ${isSelected ? "checked" : ""}>
+      <img class="add-bm-icon" src="${escapeHtml(iconUrl)}" alt="" onerror="this.src='https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(entry.url)}&size=64'">
+      <div class="add-bm-info">
+        <div class="add-bm-name">${escapeHtml(entry.name)}</div>
+        <div class="add-bm-url">${escapeHtml(entry.url)}</div>
+      </div>
+      ${folderBadge}
+    `;
+      item.addEventListener("click", (e) => {
+        const cb = item.querySelector(".add-bm-checkbox");
+        if (e.target !== cb && cb) {
+          cb.checked = !cb.checked;
+        }
+        if (cb && cb.checked) {
+          selectedBookmarksToMove.add(entry.id);
+          item.classList.add("selected");
+        } else {
+          selectedBookmarksToMove.delete(entry.id);
+          item.classList.remove("selected");
+        }
+        updateAddBmSubmitBtn();
+      });
+      addBmListContainer.appendChild(item);
+    });
+    updateAddBmSubmitBtn(candidates.length);
+  }
+  function updateAddBmSubmitBtn(totalAvailable = -1) {
+    const addBmSubmitBtn = document.getElementById("addBmSubmitBtn");
+    const addBmSelectedCount = document.getElementById("addBmSelectedCount");
+    const addBmTotalCount = document.getElementById("addBmTotalCount");
+    const count = selectedBookmarksToMove.size;
+    if (addBmSelectedCount) addBmSelectedCount.textContent = String(count);
+    if (addBmTotalCount && totalAvailable >= 0) addBmTotalCount.textContent = String(totalAvailable);
+    if (!addBmSubmitBtn) return;
+    addBmSubmitBtn.disabled = count === 0;
+    addBmSubmitBtn.textContent = `Add Selected (${count})`;
+  }
+  function commitAddBookmarksToFolder(onSuccess) {
+    const folder = state.folders.find((f) => f.id === state.activeFolderId);
+    if (!folder) return;
+    const count = selectedBookmarksToMove.size;
+    if (count === 0) return;
+    const diskList = getLatestStoredEntries();
+    diskList.forEach((entry) => {
+      if (selectedBookmarksToMove.has(entry.id)) {
+        entry.folderId = folder.id;
+        entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
+      }
+    });
+    saveEntries(diskList);
+    closeAddBookmarksModal();
+    renderFoldersSidebar(onSuccess);
+    if (onSuccess) onSuccess();
+    showToast(`Added ${count} bookmark${count !== 1 ? "s" : ""} to "${folder.name}" \u{1F4C1}`);
+  }
+  var confirmMoveBookmarksToFolder = commitAddBookmarksToFolder;
+  function setAddBmSearchQuery(q) {
+    addBmSearchQuery = q;
+  }
+  function setAddBmSourceFilter(source) {
+    addBmSourceFilter = source;
+  }
+  function getFilteredBookmarksToMove() {
+    const currentFolder = state.folders.find((f) => f.id === state.activeFolderId);
+    if (!currentFolder) return [];
+    let candidates = state.entries.filter((e) => e.folderId !== currentFolder.id);
+    if (addBmSourceFilter === "unorganized") {
+      candidates = candidates.filter((e) => !e.folderId);
+    } else if (addBmSourceFilter === "other") {
+      candidates = candidates.filter((e) => !!e.folderId);
+    }
+    const q = addBmSearchQuery.trim().toLowerCase();
+    if (q) {
+      candidates = candidates.filter(
+        (e) => e.name.toLowerCase().includes(q) || e.url.toLowerCase().includes(q) || e.description && e.description.toLowerCase().includes(q)
+      );
+    }
+    return candidates;
+  }
+  function selectAllBookmarksToMove() {
+    const available = getFilteredBookmarksToMove();
+    available.forEach((e) => selectedBookmarksToMove.add(e.id));
+    renderAddBookmarksList();
+  }
+  function deselectAllBookmarksToMove() {
+    selectedBookmarksToMove.clear();
+    renderAddBookmarksList();
+  }
+
   // src/modules/folders/sidebar.ts
   function initSidebar() {
     const foldersSidebar = document.getElementById("foldersSidebar");
-    const isCollapsed = localStorage.getItem(SIDEBAR_STATE_KEY) === "true";
+    const backdrop = document.getElementById("mobileSidebarBackdrop");
+    const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+    const isCollapsed = isMobile ? true : localStorage.getItem(SIDEBAR_STATE_KEY) === "true";
     if (foldersSidebar) {
       foldersSidebar.classList.toggle("collapsed", isCollapsed);
+    }
+    if (backdrop) {
+      backdrop.classList.remove("active");
+    }
+  }
+  function openMobileFoldersDrawer() {
+    const foldersSidebar = document.getElementById("foldersSidebar");
+    const backdrop = document.getElementById("mobileSidebarBackdrop");
+    const navTabFolders2 = document.getElementById("navTabFolders");
+    if (!foldersSidebar) return;
+    foldersSidebar.classList.remove("collapsed");
+    if (backdrop) backdrop.classList.add("active");
+    if (navTabFolders2) navTabFolders2.classList.add("is-active");
+  }
+  function closeMobileFoldersDrawer() {
+    const foldersSidebar = document.getElementById("foldersSidebar");
+    const backdrop = document.getElementById("mobileSidebarBackdrop");
+    const navTabFolders2 = document.getElementById("navTabFolders");
+    if (!foldersSidebar) return;
+    foldersSidebar.classList.add("collapsed");
+    if (backdrop) backdrop.classList.remove("active");
+    if (navTabFolders2 && !(state.activeFolderId && state.activeFolderId.startsWith("f-"))) {
+      navTabFolders2.classList.remove("is-active");
     }
   }
   function toggleSidebar() {
     const foldersSidebar = document.getElementById("foldersSidebar");
+    const backdrop = document.getElementById("mobileSidebarBackdrop");
     if (!foldersSidebar) return;
+    const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
+    if (isMobile) {
+      if (foldersSidebar.classList.contains("collapsed")) {
+        openMobileFoldersDrawer();
+      } else {
+        closeMobileFoldersDrawer();
+      }
+      return;
+    }
     foldersSidebar.classList.toggle("collapsed");
     const isCollapsed = foldersSidebar.classList.contains("collapsed");
     localStorage.setItem(SIDEBAR_STATE_KEY, String(isCollapsed));
+    if (backdrop) backdrop.classList.toggle("active", !isCollapsed && isMobile);
   }
   function setActiveFolder(folderId, onFolderChanged) {
     state.activeFolderId = folderId;
     renderFoldersSidebar(onFolderChanged);
+    if (typeof window !== "undefined" && window.innerWidth <= 768) {
+      closeMobileFoldersDrawer();
+    }
     if (onFolderChanged) onFolderChanged();
   }
   function updateActiveFolderBanner(onFolderChanged) {
@@ -2470,6 +3340,7 @@
         editBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           if (onEditFolder) onEditFolder(folder.id);
+          else openFolderModal(folder.id);
         });
       }
       const delBtn = item.querySelector(".delete-folder-action");
@@ -4952,837 +5823,6 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     });
   }
 
-  // src/utils/emoji-library.ts
-  var EMOJI_CATEGORIES = [
-    {
-      id: "smileys",
-      name: "Smileys & People",
-      icon: "\u{1F600}",
-      emojis: [
-        { e: "\u{1F600}", k: "grinning happy smile face" },
-        { e: "\u{1F603}", k: "smiley happy joy" },
-        { e: "\u{1F604}", k: "smile laugh happy" },
-        { e: "\u{1F601}", k: "beam grin smile" },
-        { e: "\u{1F606}", k: "laughing lol haha" },
-        { e: "\u{1F605}", k: "sweat smile relief" },
-        { e: "\u{1F602}", k: "joy laugh cry tears lol" },
-        { e: "\u{1F923}", k: "rofl rolling laugh lol" },
-        { e: "\u{1F60A}", k: "blush smile warm happy" },
-        { e: "\u{1F607}", k: "angel innocent halo" },
-        { e: "\u{1F642}", k: "slight smile happy" },
-        { e: "\u{1F643}", k: "upside down silly" },
-        { e: "\u{1F609}", k: "wink flirt" },
-        { e: "\u{1F60C}", k: "relieved calm peace" },
-        { e: "\u{1F60D}", k: "heart eyes love crush" },
-        { e: "\u{1F970}", k: "smiling hearts love affection" },
-        { e: "\u{1F618}", k: "kiss blow love" },
-        { e: "\u{1F60B}", k: "yum delicious food tasty" },
-        { e: "\u{1F61B}", k: "tongue silly joke" },
-        { e: "\u{1F61C}", k: "wink tongue crazy" },
-        { e: "\u{1F92A}", k: "zany goofy wild" },
-        { e: "\u{1F60E}", k: "sunglasses cool boss" },
-        { e: "\u{1F913}", k: "nerd glasses smart tech geek" },
-        { e: "\u{1F9D0}", k: "monocle inspect curious examine" },
-        { e: "\u{1F973}", k: "party celebrate hat horn" },
-        { e: "\u{1F60F}", k: "smirk sly" },
-        { e: "\u{1F916}", k: "robot ai bot tech machine" },
-        { e: "\u{1F47B}", k: "ghost spooky halloween boo" },
-        { e: "\u{1F480}", k: "skull dead death rip" },
-        { e: "\u{1F47D}", k: "alien ufo space extraterrestrial" },
-        { e: "\u{1F920}", k: "cowboy hat western" },
-        { e: "\u{1F91D}", k: "handshake deal partner agree business" },
-        { e: "\u{1F44D}", k: "thumbs up like approve good yes" },
-        { e: "\u{1F64C}", k: "hands raised celebrate praise yay" },
-        { e: "\u{1F44F}", k: "clap applause bravo congrats" },
-        { e: "\u{1F525}", k: "fire hot lit trending popular" },
-        { e: "\u2728", k: "sparkles clean magic shine star" },
-        { e: "\u2B50", k: "star favorite rating bookmark" },
-        { e: "\u{1F4A1}", k: "lightbulb idea smart think innovation" },
-        { e: "\u{1F9E0}", k: "brain mind think knowledge smart learn" },
-        { e: "\u2764\uFE0F", k: "heart love like red" },
-        { e: "\u{1F496}", k: "sparkle heart love pink" },
-        { e: "\u{1F4AF}", k: "100 hundred perfect score grade" }
-      ]
-    },
-    {
-      id: "nature",
-      name: "Animals & Nature",
-      icon: "\u{1F332}",
-      emojis: [
-        { e: "\u{1F436}", k: "dog puppy pet canine" },
-        { e: "\u{1F431}", k: "cat kitten feline pet" },
-        { e: "\u{1F42D}", k: "mouse rodent" },
-        { e: "\u{1F439}", k: "hamster pet" },
-        { e: "\u{1F430}", k: "rabbit bunny pet" },
-        { e: "\u{1F98A}", k: "fox animal wild" },
-        { e: "\u{1F43B}", k: "bear animal" },
-        { e: "\u{1F43C}", k: "panda animal cute" },
-        { e: "\u{1F428}", k: "koala australia animal" },
-        { e: "\u{1F42F}", k: "tiger animal wild cat" },
-        { e: "\u{1F981}", k: "lion king beast animal" },
-        { e: "\u{1F42E}", k: "cow cattle farm" },
-        { e: "\u{1F437}", k: "pig pork farm" },
-        { e: "\u{1F438}", k: "frog toad nature" },
-        { e: "\u{1F435}", k: "monkey ape animal" },
-        { e: "\u{1F414}", k: "chicken hen farm bird" },
-        { e: "\u{1F427}", k: "penguin bird arctic linux" },
-        { e: "\u{1F426}", k: "bird tweet twitter fly" },
-        { e: "\u{1F986}", k: "duck bird quack" },
-        { e: "\u{1F985}", k: "eagle bird raptor prey" },
-        { e: "\u{1F989}", k: "owl bird night wisdom" },
-        { e: "\u{1F987}", k: "bat night vampire" },
-        { e: "\u{1F43A}", k: "wolf animal pack" },
-        { e: "\u{1F984}", k: "unicorn magic startup fantasy" },
-        { e: "\u{1F41D}", k: "bee honey insect bug buzz" },
-        { e: "\u{1F41B}", k: "bug caterpillar debug code insect" },
-        { e: "\u{1F98B}", k: "butterfly insect pretty wings" },
-        { e: "\u{1F577}\uFE0F", k: "spider web insect crawl" },
-        { e: "\u{1F422}", k: "turtle tortoise slow reptile" },
-        { e: "\u{1F40D}", k: "snake python code reptile" },
-        { e: "\u{1F419}", k: "octopus tentacle sea github" },
-        { e: "\u{1F42C}", k: "dolphin sea marine ocean" },
-        { e: "\u{1F433}", k: "whale ocean docker container" },
-        { e: "\u{1F988}", k: "shark fish ocean danger" },
-        { e: "\u{1F332}", k: "evergreen tree forest nature pine" },
-        { e: "\u{1F333}", k: "tree nature forest green" },
-        { e: "\u{1F334}", k: "palm tree beach tropical vacation" },
-        { e: "\u{1F331}", k: "seedling sprout plant grow spring" },
-        { e: "\u{1F33F}", k: "herb plant leaf nature organic" },
-        { e: "\u{1F340}", k: "four leaf clover luck lucky irish" },
-        { e: "\u{1F338}", k: "cherry blossom flower sakura spring" },
-        { e: "\u{1F33B}", k: "sunflower flower bright sun" },
-        { e: "\u{1F33A}", k: "hibiscus flower tropical" },
-        { e: "\u{1F341}", k: "maple leaf autumn fall canada" },
-        { e: "\u{1F344}", k: "mushroom fungus mario nature" }
-      ]
-    },
-    {
-      id: "food",
-      name: "Food & Drink",
-      icon: "\u2615",
-      emojis: [
-        { e: "\u{1F34F}", k: "green apple fruit food" },
-        { e: "\u{1F34E}", k: "red apple fruit tech food" },
-        { e: "\u{1F34C}", k: "banana fruit monkey yellow" },
-        { e: "\u{1F349}", k: "watermelon fruit summer sweet" },
-        { e: "\u{1F347}", k: "grapes fruit wine purple" },
-        { e: "\u{1F353}", k: "strawberry berry fruit red" },
-        { e: "\u{1F352}", k: "cherries fruit cherry" },
-        { e: "\u{1F351}", k: "peach fruit" },
-        { e: "\u{1F34D}", k: "pineapple fruit tropical" },
-        { e: "\u{1F951}", k: "avocado vegetable food healthy" },
-        { e: "\u{1F336}\uFE0F", k: "hot pepper chili spicy" },
-        { e: "\u{1F33D}", k: "corn maize vegetable" },
-        { e: "\u{1F950}", k: "croissant bread bakery french breakfast" },
-        { e: "\u{1F35E}", k: "bread loaf bakery" },
-        { e: "\u{1F9C0}", k: "cheese cheddar food swiss" },
-        { e: "\u{1F373}", k: "cooking egg breakfast fry pan" },
-        { e: "\u{1F953}", k: "bacon meat breakfast food" },
-        { e: "\u{1F969}", k: "meat steak cut beef" },
-        { e: "\u{1F357}", k: "poultry leg chicken drumstick food" },
-        { e: "\u{1F354}", k: "hamburger burger fast food" },
-        { e: "\u{1F35F}", k: "french fries chips fast food" },
-        { e: "\u{1F355}", k: "pizza slice cheese italian food" },
-        { e: "\u{1F96A}", k: "sandwich sub lunch food" },
-        { e: "\u{1F32E}", k: "taco mexican food" },
-        { e: "\u{1F957}", k: "salad green healthy diet" },
-        { e: "\u{1F35D}", k: "spaghetti pasta noodle italian" },
-        { e: "\u{1F35C}", k: "ramen noodle bowl soup" },
-        { e: "\u{1F363}", k: "sushi japanese fish food" },
-        { e: "\u{1F366}", k: "ice cream soft serve dessert sweet" },
-        { e: "\u{1F369}", k: "doughnut donut sweet pastry" },
-        { e: "\u{1F36A}", k: "cookie biscuit sweet chocolate chip" },
-        { e: "\u{1F382}", k: "birthday cake celebration party dessert" },
-        { e: "\u{1F36B}", k: "chocolate bar sweet candy" },
-        { e: "\u{1F37F}", k: "popcorn movie cinema snack" },
-        { e: "\u2615", k: "coffee cafe espresso hot drink tea caffeine" },
-        { e: "\u{1F375}", k: "tea green matcha hot drink" },
-        { e: "\u{1F9CB}", k: "boba bubble tea milk drink" },
-        { e: "\u{1F37A}", k: "beer drink alcohol pub pint" },
-        { e: "\u{1F37B}", k: "cheers beers pub drink toast" },
-        { e: "\u{1F377}", k: "wine glass red alcohol drink" },
-        { e: "\u{1F378}", k: "cocktail martini drink bar" }
-      ]
-    },
-    {
-      id: "activities",
-      name: "Activities & Sports",
-      icon: "\u{1F3AE}",
-      emojis: [
-        { e: "\u26BD", k: "soccer ball football sport" },
-        { e: "\u{1F3C0}", k: "basketball ball sport nba" },
-        { e: "\u{1F3C8}", k: "american football nfl sport" },
-        { e: "\u26BE", k: "baseball ball sport mlb" },
-        { e: "\u{1F3BE}", k: "tennis ball sport court" },
-        { e: "\u{1F3D0}", k: "volleyball ball sport beach" },
-        { e: "\u{1F3D3}", k: "ping pong table tennis paddle" },
-        { e: "\u{1F3F8}", k: "badminton racket shuttlecock sport" },
-        { e: "\u{1F94A}", k: "boxing glove fight punch sport" },
-        { e: "\u{1F3AF}", k: "bullseye target goal direct hit accurate" },
-        { e: "\u{1F3AE}", k: "video game controller gaming play playstation xbox" },
-        { e: "\u{1F579}\uFE0F", k: "joystick arcade retro game controller" },
-        { e: "\u{1F3B2}", k: "dice game board roll chance" },
-        { e: "\u{1F9E9}", k: "jigsaw puzzle piece problem solve fit" },
-        { e: "\u{1F3A8}", k: "artist palette design art painting draw color creative" },
-        { e: "\u{1F3AD}", k: "theater masks drama acting stage" },
-        { e: "\u{1F3AA}", k: "circus tent event show" },
-        { e: "\u{1F39F}\uFE0F", k: "ticket admission event entry" },
-        { e: "\u{1F3C6}", k: "trophy champion win prize award first" },
-        { e: "\u{1F947}", k: "first place medal gold winner" },
-        { e: "\u{1F948}", k: "second place medal silver winner" },
-        { e: "\u{1F949}", k: "third place medal bronze winner" },
-        { e: "\u{1F3C5}", k: "sports medal military award" }
-      ]
-    },
-    {
-      id: "travel",
-      name: "Travel & Places",
-      icon: "\u{1F680}",
-      emojis: [
-        { e: "\u{1F697}", k: "car automobile vehicle drive auto" },
-        { e: "\u{1F3CE}\uFE0F", k: "racing car race speed f1 fast" },
-        { e: "\u{1F693}", k: "police car law patrol cop" },
-        { e: "\u{1F691}", k: "ambulance emergency medical hospital" },
-        { e: "\u{1F692}", k: "fire engine truck emergency rescue" },
-        { e: "\u{1F6F5}", k: "scooter motorcycle moped vespa" },
-        { e: "\u{1F6B2}", k: "bicycle bike cycle pedal ride" },
-        { e: "\u2708\uFE0F", k: "airplane flight airport travel fly" },
-        { e: "\u{1F6EB}", k: "airplane departure takeoff flight" },
-        { e: "\u{1F6EC}", k: "airplane landing arrival flight" },
-        { e: "\u{1F680}", k: "rocket launch startup space ship speed fast blast" },
-        { e: "\u{1F6F8}", k: "ufo flying saucer alien space sci-fi" },
-        { e: "\u{1F681}", k: "helicopter chopper fly travel" },
-        { e: "\u26F5", k: "sailboat boat yacht water ocean" },
-        { e: "\u{1F6A2}", k: "ship boat cruise ocean vessel" },
-        { e: "\u2693", k: "anchor boat marine sea navy" },
-        { e: "\u{1F3E0}", k: "house home building residence living personal" },
-        { e: "\u{1F3E1}", k: "house garden home building" },
-        { e: "\u{1F3E2}", k: "office building company business work agency" },
-        { e: "\u{1F3E5}", k: "hospital medical doctor clinic health" },
-        { e: "\u{1F3E6}", k: "bank finance building money credit" },
-        { e: "\u{1F3E8}", k: "hotel building stay travel vacation" },
-        { e: "\u{1F3EB}", k: "school building education study student" },
-        { e: "\u{1F3F0}", k: "castle palace fairy tale fantasy royal" },
-        { e: "\u{1F5FA}\uFE0F", k: "world map geography travel atlas explore" },
-        { e: "\u{1F9ED}", k: "compass navigate direction explore discover" },
-        { e: "\u26F0\uFE0F", k: "mountain nature climb peak hike" },
-        { e: "\u{1F30B}", k: "volcano mountain lava erupt" },
-        { e: "\u{1F3D6}\uFE0F", k: "beach umbrella sand ocean vacation sea" }
-      ]
-    },
-    {
-      id: "objects",
-      name: "Objects & Tech",
-      icon: "\u{1F4BB}",
-      emojis: [
-        { e: "\u{1F4C1}", k: "file folder directory organize files archive collection" },
-        { e: "\u{1F4C2}", k: "open folder files docs directory" },
-        { e: "\u{1F5C2}\uFE0F", k: "card index dividers organize directory" },
-        { e: "\u{1F4BC}", k: "briefcase work job business portfolio career bag" },
-        { e: "\u{1F4BB}", k: "laptop computer code tech developer macbook pc" },
-        { e: "\u{1F5A5}\uFE0F", k: "desktop computer monitor display pc workstation" },
-        { e: "\u2328\uFE0F", k: "keyboard type code key input" },
-        { e: "\u{1F5B1}\uFE0F", k: "computer mouse click pointer tech" },
-        { e: "\u{1F4F1}", k: "mobile phone smartphone iphone android app" },
-        { e: "\u260E\uFE0F", k: "telephone phone call contact support" },
-        { e: "\u{1F50B}", k: "battery charge power energy level" },
-        { e: "\u{1F50C}", k: "electric plug power connect socket adapter" },
-        { e: "\u{1F4A1}", k: "lightbulb idea smart think innovation creative" },
-        { e: "\u{1F4DA}", k: "books reading education library study school docs documentation" },
-        { e: "\u{1F4D6}", k: "open book reading literature novel" },
-        { e: "\u{1F516}", k: "bookmark favorite tag mark save" },
-        { e: "\u{1F3F7}\uFE0F", k: "label price tag category mark" },
-        { e: "\u{1F4B0}", k: "money bag dollar rich cash wealth investment bank" },
-        { e: "\u{1FA99}", k: "coin currency money gold cash crypto" },
-        { e: "\u{1F4B5}", k: "dollar bill cash money green currency" },
-        { e: "\u{1F4B3}", k: "credit card payment purchase visa mastercard buy pay" },
-        { e: "\u{1F48E}", k: "gem stone diamond crystal jewel valuable" },
-        { e: "\u2696\uFE0F", k: "balance scale law justice legal court" },
-        { e: "\u{1F9F0}", k: "toolbox tools toolkit repair fix utilities maintenance" },
-        { e: "\u{1F6E0}\uFE0F", k: "hammer wrench tools repair settings build dev devops" },
-        { e: "\u{1F527}", k: "wrench tool spanner fix configure" },
-        { e: "\u{1F528}", k: "hammer tool build construction strike" },
-        { e: "\u2699\uFE0F", k: "gear settings options configuration preferences system" },
-        { e: "\u{1F6E1}\uFE0F", k: "shield protect defense security antivirus guard safe" },
-        { e: "\u{1F512}", k: "lock closed private secure password secret encrypted" },
-        { e: "\u{1F513}", k: "unlock open access public released" },
-        { e: "\u{1F511}", k: "key password access secret auth api unlock login" },
-        { e: "\u{1F5DD}\uFE0F", k: "old key secret antique access unlock" },
-        { e: "\u{1F52C}", k: "microscope science research lab study biology chemistry analyze" },
-        { e: "\u{1F52D}", k: "telescope astronomy space star look explore view" },
-        { e: "\u{1F9EA}", k: "test tube chemistry science experiment flask lab" },
-        { e: "\u{1F48A}", k: "pill medicine pharmacy drug prescription health" },
-        { e: "\u{1F4E6}", k: "package box delivery shipping parcel amazon storage" },
-        { e: "\u{1F4C5}", k: "calendar date schedule event appointment" },
-        { e: "\u{1F4CA}", k: "bar chart graph stats metrics analytics insights dashboard" },
-        { e: "\u{1F4C8}", k: "chart increasing trend growth metrics stock up" },
-        { e: "\u{1F4C9}", k: "chart decreasing loss down drop decline" },
-        { e: "\u{1F4CB}", k: "clipboard copy paste task list checklist notes plan" },
-        { e: "\u{1F4CC}", k: "pushpin pin map location sticky note notice" },
-        { e: "\u{1F4CE}", k: "paperclip attach attachment file link" },
-        { e: "\u2702\uFE0F", k: "scissors cut snip tool craft edit" },
-        { e: "\u{1F5D1}\uFE0F", k: "wastebasket trash bin delete remove recycle" }
-      ]
-    },
-    {
-      id: "symbols",
-      name: "Symbols & Flags",
-      icon: "\u26A1",
-      emojis: [
-        { e: "\u26A1", k: "high voltage lightning bolt power fast energy flash zap speed" },
-        { e: "\u2728", k: "sparkles clean magic shine star ai new" },
-        { e: "\u2B50", k: "star favorite rating bookmark yellow" },
-        { e: "\u{1F31F}", k: "glowing star shine bright sparkle special" },
-        { e: "\u{1F4A5}", k: "boom collision explosion bang blast" },
-        { e: "\u{1F4AB}", k: "dizzy star trail spark" },
-        { e: "\u2764\uFE0F", k: "red heart love like romance favorite" },
-        { e: "\u{1F499}", k: "blue heart love like" },
-        { e: "\u{1F49A}", k: "green heart nature love" },
-        { e: "\u{1F49C}", k: "purple heart love" },
-        { e: "\u{1F5A4}", k: "black heart dark love" },
-        { e: "\u{1F90D}", k: "white heart pure love" },
-        { e: "\u{1F494}", k: "broken heart sad breakup sorrow" },
-        { e: "\u2705", k: "check mark green verified done complete ok pass task" },
-        { e: "\u274C", k: "cross mark red cancel no wrong fail error bad" },
-        { e: "\u26A0\uFE0F", k: "warning alert caution hazard attention broken" },
-        { e: "\u{1F6AB}", k: "no entry forbidden banned stop proscribed" },
-        { e: "\u{1F6D1}", k: "stop sign red octagonal halt pause" },
-        { e: "\u{1F4AF}", k: "100 hundred perfect score rank full" },
-        { e: "\u{1F514}", k: "bell notification alert alarm sound ring" },
-        { e: "\u{1F515}", k: "bell with slash mute silent quiet no notifications" },
-        { e: "\u{1F3B5}", k: "musical note song sound audio melody tune" },
-        { e: "\u{1F3B6}", k: "musical notes audio soundtrack music playlist" },
-        { e: "\u{1F310}", k: "globe with meridians world internet web online network domain" },
-        { e: "\u267B\uFE0F", k: "recycling symbol green environment sustainable reuse" },
-        { e: "\u{1F6A9}", k: "triangular flag post mark goal priority milestone" },
-        { e: "\u{1F3C1}", k: "chequered flag finish race complete win" }
-      ]
-    }
-  ];
-
-  // src/modules/folders/emoji-picker.ts
-  var DEFAULT_RECENT_EMOJIS = ["\u{1F4C1}", "\u{1F4BC}", "\u{1F3E0}", "\u{1F52C}", "\u{1F6E0}\uFE0F", "\u{1F3A8}", "\u26A1", "\u{1F4DA}"];
-  var activeEmojiCategoryId = "all";
-  function getRecentEmojis() {
-    try {
-      const stored = localStorage.getItem("appDirectory_recentEmojis");
-      if (stored) {
-        const arr = JSON.parse(stored);
-        if (Array.isArray(arr) && arr.length > 0) return arr;
-      }
-    } catch {
-    }
-    return DEFAULT_RECENT_EMOJIS;
-  }
-  function saveRecentEmoji(emoji) {
-    if (!emoji) return;
-    let list = getRecentEmojis();
-    list = [emoji, ...list.filter((e) => e !== emoji)].slice(0, 16);
-    try {
-      localStorage.setItem("appDirectory_recentEmojis", JSON.stringify(list));
-    } catch {
-    }
-    renderFolderEmojiQuickRow();
-  }
-  function selectFolderEmoji(emoji) {
-    if (!emoji) return;
-    const folderIconInput2 = document.getElementById("folderIconInput");
-    const folderIconDisplay2 = document.getElementById("folderIconDisplay");
-    if (folderIconInput2) folderIconInput2.value = emoji;
-    if (folderIconDisplay2) folderIconDisplay2.textContent = emoji;
-    saveRecentEmoji(emoji);
-    closeEmojiPicker();
-  }
-  function renderFolderEmojiQuickRow() {
-    const folderEmojiQuickRow = document.getElementById("folderEmojiQuickRow");
-    if (!folderEmojiQuickRow) return;
-    folderEmojiQuickRow.innerHTML = "";
-    const recents = getRecentEmojis().slice(0, 6);
-    recents.forEach((em) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "emoji-quick-chip";
-      btn.textContent = em;
-      btn.title = `Select ${em}`;
-      btn.addEventListener("click", () => selectFolderEmoji(em));
-      folderEmojiQuickRow.appendChild(btn);
-    });
-    const moreBtn = document.createElement("button");
-    moreBtn.type = "button";
-    moreBtn.className = "emoji-more-btn";
-    moreBtn.innerHTML = "<span>\u{1F600} More</span>";
-    moreBtn.title = "Browse all categorized emojis";
-    moreBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggleEmojiPicker();
-    });
-    folderEmojiQuickRow.appendChild(moreBtn);
-  }
-  function updateActiveCategoryTab() {
-    const emojiCategoryTabs = document.getElementById("emojiCategoryTabs");
-    if (!emojiCategoryTabs) return;
-    const tabs = emojiCategoryTabs.querySelectorAll(".emoji-category-tab");
-    tabs.forEach((t) => {
-      if (t.getAttribute("data-cat") === activeEmojiCategoryId) {
-        t.classList.add("is-active");
-      } else {
-        t.classList.remove("is-active");
-      }
-    });
-  }
-  function renderEmojiCategoryTabs() {
-    const emojiCategoryTabs = document.getElementById("emojiCategoryTabs");
-    const emojiSearchInput2 = document.getElementById("emojiSearchInput");
-    if (!emojiCategoryTabs) return;
-    if (emojiCategoryTabs.children.length === 0) {
-      const allTab = document.createElement("button");
-      allTab.type = "button";
-      allTab.className = "emoji-category-tab is-active";
-      allTab.setAttribute("data-cat", "all");
-      allTab.textContent = "\u{1F31F}";
-      allTab.title = "All Emojis";
-      allTab.addEventListener("click", (e) => {
-        e.stopPropagation();
-        activeEmojiCategoryId = "all";
-        updateActiveCategoryTab();
-        renderEmojiGrid("all", emojiSearchInput2 ? emojiSearchInput2.value : "");
-      });
-      emojiCategoryTabs.appendChild(allTab);
-      const recentTab = document.createElement("button");
-      recentTab.type = "button";
-      recentTab.className = "emoji-category-tab";
-      recentTab.setAttribute("data-cat", "recent");
-      recentTab.textContent = "\u{1F552}";
-      recentTab.title = "Recent Emojis";
-      recentTab.addEventListener("click", (e) => {
-        e.stopPropagation();
-        activeEmojiCategoryId = "recent";
-        updateActiveCategoryTab();
-        renderEmojiGrid("recent", emojiSearchInput2 ? emojiSearchInput2.value : "");
-      });
-      emojiCategoryTabs.appendChild(recentTab);
-      EMOJI_CATEGORIES.forEach((cat) => {
-        const tab = document.createElement("button");
-        tab.type = "button";
-        tab.className = "emoji-category-tab";
-        tab.setAttribute("data-cat", cat.id);
-        tab.textContent = cat.icon;
-        tab.title = cat.name;
-        tab.addEventListener("click", (e) => {
-          e.stopPropagation();
-          activeEmojiCategoryId = cat.id;
-          updateActiveCategoryTab();
-          renderEmojiGrid(cat.id, emojiSearchInput2 ? emojiSearchInput2.value : "");
-        });
-        emojiCategoryTabs.appendChild(tab);
-      });
-    }
-    updateActiveCategoryTab();
-  }
-  function renderEmojiGrid(categoryId = "all", searchQuery = "") {
-    const emojiGridContainer = document.getElementById("emojiGridContainer");
-    if (!emojiGridContainer) return;
-    emojiGridContainer.innerHTML = "";
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      const matches = [];
-      const seen = /* @__PURE__ */ new Set();
-      EMOJI_CATEGORIES.forEach((cat) => {
-        cat.emojis.forEach((item) => {
-          if (!seen.has(item.e) && (item.e.includes(q) || item.k.toLowerCase().includes(q))) {
-            seen.add(item.e);
-            matches.push(item);
-          }
-        });
-      });
-      if (matches.length === 0) {
-        emojiGridContainer.innerHTML = `<div class="emoji-no-results">No emojis found matching "<strong>${escapeHtml(
-          searchQuery
-        )}</strong>"</div>`;
-        return;
-      }
-      const sec = document.createElement("div");
-      sec.className = "emoji-category-section";
-      sec.innerHTML = `<div class="emoji-category-title">Search Results (${matches.length})</div>`;
-      const grid = document.createElement("div");
-      grid.className = "emoji-grid";
-      matches.forEach((item) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "emoji-item-btn";
-        btn.textContent = item.e;
-        btn.title = item.k;
-        btn.addEventListener("click", () => selectFolderEmoji(item.e));
-        grid.appendChild(btn);
-      });
-      sec.appendChild(grid);
-      emojiGridContainer.appendChild(sec);
-      return;
-    }
-    if (categoryId === "recent") {
-      const recents = getRecentEmojis();
-      const sec = document.createElement("div");
-      sec.className = "emoji-category-section";
-      sec.innerHTML = `<div class="emoji-category-title">\u{1F552} Recently Used</div>`;
-      const grid = document.createElement("div");
-      grid.className = "emoji-grid";
-      recents.forEach((em) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "emoji-item-btn";
-        btn.textContent = em;
-        btn.addEventListener("click", () => selectFolderEmoji(em));
-        grid.appendChild(btn);
-      });
-      sec.appendChild(grid);
-      emojiGridContainer.appendChild(sec);
-      return;
-    }
-    const categoriesToRender = categoryId === "all" ? EMOJI_CATEGORIES : EMOJI_CATEGORIES.filter((c) => c.id === categoryId);
-    if (categoryId === "all") {
-      const recents = getRecentEmojis();
-      if (recents.length > 0) {
-        const recSec = document.createElement("div");
-        recSec.className = "emoji-category-section";
-        recSec.innerHTML = `<div class="emoji-category-title">\u{1F552} Recent</div>`;
-        const recGrid = document.createElement("div");
-        recGrid.className = "emoji-grid";
-        recents.slice(0, 16).forEach((em) => {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "emoji-item-btn";
-          btn.textContent = em;
-          btn.addEventListener("click", () => selectFolderEmoji(em));
-          recGrid.appendChild(btn);
-        });
-        recSec.appendChild(recGrid);
-        emojiGridContainer.appendChild(recSec);
-      }
-    }
-    categoriesToRender.forEach((cat) => {
-      const sec = document.createElement("div");
-      sec.className = "emoji-category-section";
-      sec.innerHTML = `<div class="emoji-category-title">${cat.icon} ${cat.name}</div>`;
-      const grid = document.createElement("div");
-      grid.className = "emoji-grid";
-      cat.emojis.forEach((item) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "emoji-item-btn";
-        btn.textContent = item.e;
-        btn.title = item.k;
-        btn.addEventListener("click", () => selectFolderEmoji(item.e));
-        grid.appendChild(btn);
-      });
-      sec.appendChild(grid);
-      emojiGridContainer.appendChild(sec);
-    });
-  }
-  function openEmojiPicker() {
-    const emojiPickerPopover2 = document.getElementById("emojiPickerPopover");
-    const emojiSearchInput2 = document.getElementById("emojiSearchInput");
-    const emojiSearchClear2 = document.getElementById("emojiSearchClear");
-    const osShortcutKey = document.getElementById("osShortcutKey");
-    if (!emojiPickerPopover2) return;
-    activeEmojiCategoryId = "all";
-    if (emojiSearchInput2) emojiSearchInput2.value = "";
-    if (emojiSearchClear2) emojiSearchClear2.style.display = "none";
-    renderEmojiCategoryTabs();
-    renderEmojiGrid("all", "");
-    emojiPickerPopover2.style.display = "flex";
-    if (osShortcutKey) {
-      const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform || "");
-      osShortcutKey.textContent = isMac ? "Cmd + Ctrl + Space" : "Win + .";
-    }
-    setTimeout(() => {
-      if (emojiSearchInput2) emojiSearchInput2.focus();
-    }, 60);
-  }
-  function closeEmojiPicker() {
-    const emojiPickerPopover2 = document.getElementById("emojiPickerPopover");
-    if (emojiPickerPopover2) {
-      emojiPickerPopover2.style.display = "none";
-    }
-  }
-  function toggleEmojiPicker() {
-    const emojiPickerPopover2 = document.getElementById("emojiPickerPopover");
-    if (!emojiPickerPopover2) return;
-    if (emojiPickerPopover2.style.display === "none" || !emojiPickerPopover2.style.display) {
-      openEmojiPicker();
-    } else {
-      closeEmojiPicker();
-    }
-  }
-
-  // src/modules/folders/modal.ts
-  var inlineFolderCallback = null;
-  function openFolderModal(folderId = null, onCreatedCallback = null) {
-    state.editingFolderId = folderId;
-    inlineFolderCallback = typeof onCreatedCallback === "function" ? onCreatedCallback : null;
-    closeEmojiPicker();
-    const folderModalTitle = document.getElementById("folderModalTitle");
-    const folderNameInput = document.getElementById("folderNameInput");
-    const folderIconInput2 = document.getElementById("folderIconInput");
-    const folderColorInput = document.getElementById("folderColorInput");
-    const folderIconDisplay2 = document.getElementById("folderIconDisplay");
-    const folderModalBackdrop2 = document.getElementById("folderModalBackdrop");
-    if (folderId) {
-      const folder = state.folders.find((f) => f.id === folderId);
-      if (folder) {
-        if (folderModalTitle) folderModalTitle.textContent = "Edit Folder";
-        if (folderNameInput) folderNameInput.value = folder.name || "";
-        if (folderIconInput2) folderIconInput2.value = folder.icon || "\u{1F4C1}";
-        if (folderColorInput) folderColorInput.value = folder.color || "#0a84ff";
-        if (folderIconDisplay2) folderIconDisplay2.textContent = folder.icon || "\u{1F4C1}";
-      }
-    } else {
-      if (folderModalTitle) folderModalTitle.textContent = "New Folder";
-      if (folderNameInput) folderNameInput.value = "";
-      if (folderIconInput2) folderIconInput2.value = "\u{1F4C1}";
-      if (folderColorInput) folderColorInput.value = "#0a84ff";
-      if (folderIconDisplay2) folderIconDisplay2.textContent = "\u{1F4C1}";
-    }
-    renderFolderEmojiQuickRow();
-    if (folderModalBackdrop2) {
-      folderModalBackdrop2.classList.add("active");
-    }
-    document.body.style.overflow = "hidden";
-    if (folderNameInput) {
-      setTimeout(() => folderNameInput.focus(), 60);
-    }
-  }
-  function closeFolderModal() {
-    closeEmojiPicker();
-    const folderModalBackdrop2 = document.getElementById("folderModalBackdrop");
-    if (folderModalBackdrop2) {
-      folderModalBackdrop2.classList.remove("active");
-    }
-    const modalBackdrop2 = document.getElementById("modalBackdrop");
-    const isMainModalActive = modalBackdrop2 && modalBackdrop2.classList.contains("active");
-    if (!isMainModalActive) {
-      document.body.style.overflow = "";
-    }
-    inlineFolderCallback = null;
-  }
-  function saveFolderForm(e, onFolderUpdated) {
-    e.preventDefault();
-    const folderNameInput = document.getElementById("folderNameInput");
-    const folderIconInput2 = document.getElementById("folderIconInput");
-    const folderColorInput = document.getElementById("folderColorInput");
-    if (!folderNameInput) return;
-    const name = folderNameInput.value.trim();
-    if (!name) {
-      folderNameInput.focus();
-      return;
-    }
-    const icon = folderIconInput2 && folderIconInput2.value.trim() || "\u{1F4C1}";
-    const color = folderColorInput && folderColorInput.value || "#0a84ff";
-    let createdFolderId = null;
-    if (state.editingFolderId) {
-      const folder = state.folders.find((f) => f.id === state.editingFolderId);
-      if (folder) {
-        folder.name = name;
-        folder.icon = icon;
-        folder.color = color;
-        folder.dateModified = (/* @__PURE__ */ new Date()).toISOString();
-        showToast(`Updated folder "${name}"`);
-      }
-    } else {
-      const newFolder = {
-        id: `f-${Date.now()}`,
-        name,
-        icon,
-        color,
-        dateAdded: (/* @__PURE__ */ new Date()).toISOString()
-      };
-      state.folders.push(newFolder);
-      createdFolderId = newFolder.id;
-      showToast(`Created folder "${name}" \u{1F4C1}`);
-    }
-    saveFolders();
-    const cb = inlineFolderCallback;
-    closeFolderModal();
-    renderFoldersSidebar(onFolderUpdated);
-    if (onFolderUpdated) onFolderUpdated();
-    if (createdFolderId && typeof cb === "function") {
-      cb(createdFolderId);
-    }
-  }
-  var selectedBookmarksToMove = /* @__PURE__ */ new Set();
-  var addBmSearchQuery = "";
-  var addBmSourceFilter = "all";
-  function openAddBookmarksModal(onSuccess) {
-    let folder = state.folders.find((f) => f.id === state.activeFolderId);
-    if (!folder) {
-      if (state.folders.length > 0) {
-        setActiveFolder(state.folders[0].id, onSuccess);
-        folder = state.folders.find((f) => f.id === state.activeFolderId);
-      } else {
-        openFolderModal(null, (newFolderId) => {
-          setActiveFolder(newFolderId, onSuccess);
-          openAddBookmarksModal(onSuccess);
-        });
-        return;
-      }
-    }
-    if (!folder) return;
-    selectedBookmarksToMove.clear();
-    addBmSearchQuery = "";
-    addBmSourceFilter = "all";
-    const addBmSearchInput2 = document.getElementById("addBmSearchInput");
-    const addBmSearchClear2 = document.getElementById("addBmSearchClear");
-    const addBookmarksModalIcon = document.getElementById("addBookmarksModalIcon");
-    const addBookmarksModalTitle = document.getElementById("addBookmarksModalTitle");
-    const addBmFilterPills2 = document.getElementById("addBmFilterPills");
-    const addBookmarksModalBackdrop2 = document.getElementById("addBookmarksModalBackdrop");
-    if (addBmSearchInput2) addBmSearchInput2.value = "";
-    if (addBmSearchClear2) addBmSearchClear2.style.display = "none";
-    if (addBookmarksModalIcon) addBookmarksModalIcon.textContent = folder.icon || "\u{1F4C1}";
-    if (addBookmarksModalTitle) addBookmarksModalTitle.textContent = `Add Bookmarks to "${folder.name}"`;
-    if (addBmFilterPills2) {
-      addBmFilterPills2.querySelectorAll(".pill-filter-btn").forEach((btn) => {
-        btn.classList.toggle("active", btn.getAttribute("data-source") === "all");
-      });
-    }
-    renderAddBookmarksList();
-    if (addBookmarksModalBackdrop2) {
-      addBookmarksModalBackdrop2.classList.add("active");
-      document.body.style.overflow = "hidden";
-      setTimeout(() => {
-        if (addBmSearchInput2) addBmSearchInput2.focus();
-      }, 60);
-    }
-  }
-  function closeAddBookmarksModal() {
-    const addBookmarksModalBackdrop2 = document.getElementById("addBookmarksModalBackdrop");
-    if (addBookmarksModalBackdrop2) {
-      addBookmarksModalBackdrop2.classList.remove("active");
-    }
-    document.body.style.overflow = "";
-  }
-  function renderAddBookmarksList() {
-    const addBmListContainer = document.getElementById("addBmListContainer");
-    const addBmSubmitBtn = document.getElementById("addBmSubmitBtn");
-    if (!addBmListContainer) return;
-    const currentFolder = state.folders.find((f) => f.id === state.activeFolderId);
-    if (!currentFolder) return;
-    let candidates = state.entries.filter((e) => e.folderId !== currentFolder.id);
-    if (addBmSourceFilter === "unorganized") {
-      candidates = candidates.filter((e) => !e.folderId);
-    } else if (addBmSourceFilter === "other") {
-      candidates = candidates.filter((e) => !!e.folderId);
-    }
-    const q = addBmSearchQuery.trim().toLowerCase();
-    if (q) {
-      candidates = candidates.filter(
-        (e) => e.name.toLowerCase().includes(q) || e.url.toLowerCase().includes(q) || e.description && e.description.toLowerCase().includes(q)
-      );
-    }
-    candidates.sort((a, b) => a.name.localeCompare(b.name));
-    addBmListContainer.innerHTML = "";
-    if (candidates.length === 0) {
-      addBmListContainer.innerHTML = `<div class="add-bm-empty">No available bookmarks found.</div>`;
-      updateAddBmSubmitBtn(0);
-      return;
-    }
-    candidates.forEach((entry) => {
-      const isSelected = selectedBookmarksToMove.has(entry.id);
-      const item = document.createElement("div");
-      item.className = `add-bm-item ${isSelected ? "selected" : ""}`;
-      item.setAttribute("data-id", entry.id);
-      const iconUrl = entry.iconUrl || entry.icon || getFaviconUrl(entry.url);
-      const existingFolder = state.folders.find((f) => f.id === entry.folderId);
-      const folderBadge = existingFolder ? `<span class="add-bm-folder-badge">${existingFolder.icon || "\u{1F4C1}"} ${escapeHtml(existingFolder.name)}</span>` : `<span class="add-bm-folder-badge unorg">Unorganized</span>`;
-      item.innerHTML = `
-      <input type="checkbox" class="add-bm-checkbox" ${isSelected ? "checked" : ""}>
-      <img class="add-bm-icon" src="${escapeHtml(iconUrl)}" alt="" onerror="this.src='https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(entry.url)}&size=64'">
-      <div class="add-bm-info">
-        <div class="add-bm-name">${escapeHtml(entry.name)}</div>
-        <div class="add-bm-url">${escapeHtml(entry.url)}</div>
-      </div>
-      ${folderBadge}
-    `;
-      item.addEventListener("click", (e) => {
-        const cb = item.querySelector(".add-bm-checkbox");
-        if (e.target !== cb && cb) {
-          cb.checked = !cb.checked;
-        }
-        if (cb && cb.checked) {
-          selectedBookmarksToMove.add(entry.id);
-          item.classList.add("selected");
-        } else {
-          selectedBookmarksToMove.delete(entry.id);
-          item.classList.remove("selected");
-        }
-        updateAddBmSubmitBtn();
-      });
-      addBmListContainer.appendChild(item);
-    });
-    updateAddBmSubmitBtn(candidates.length);
-  }
-  function updateAddBmSubmitBtn(totalAvailable = -1) {
-    const addBmSubmitBtn = document.getElementById("addBmSubmitBtn");
-    const addBmSelectedCount = document.getElementById("addBmSelectedCount");
-    const addBmTotalCount = document.getElementById("addBmTotalCount");
-    const count = selectedBookmarksToMove.size;
-    if (addBmSelectedCount) addBmSelectedCount.textContent = String(count);
-    if (addBmTotalCount && totalAvailable >= 0) addBmTotalCount.textContent = String(totalAvailable);
-    if (!addBmSubmitBtn) return;
-    addBmSubmitBtn.disabled = count === 0;
-    addBmSubmitBtn.textContent = `Add Selected (${count})`;
-  }
-  function commitAddBookmarksToFolder(onSuccess) {
-    const folder = state.folders.find((f) => f.id === state.activeFolderId);
-    if (!folder) return;
-    const count = selectedBookmarksToMove.size;
-    if (count === 0) return;
-    const diskList = getLatestStoredEntries();
-    diskList.forEach((entry) => {
-      if (selectedBookmarksToMove.has(entry.id)) {
-        entry.folderId = folder.id;
-        entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
-      }
-    });
-    saveEntries(diskList);
-    closeAddBookmarksModal();
-    renderFoldersSidebar(onSuccess);
-    if (onSuccess) onSuccess();
-    showToast(`Added ${count} bookmark${count !== 1 ? "s" : ""} to "${folder.name}" \u{1F4C1}`);
-  }
-  var confirmMoveBookmarksToFolder = commitAddBookmarksToFolder;
-  function setAddBmSearchQuery(q) {
-    addBmSearchQuery = q;
-  }
-  function setAddBmSourceFilter(source) {
-    addBmSourceFilter = source;
-  }
-  function getFilteredBookmarksToMove() {
-    const currentFolder = state.folders.find((f) => f.id === state.activeFolderId);
-    if (!currentFolder) return [];
-    let candidates = state.entries.filter((e) => e.folderId !== currentFolder.id);
-    if (addBmSourceFilter === "unorganized") {
-      candidates = candidates.filter((e) => !e.folderId);
-    } else if (addBmSourceFilter === "other") {
-      candidates = candidates.filter((e) => !!e.folderId);
-    }
-    const q = addBmSearchQuery.trim().toLowerCase();
-    if (q) {
-      candidates = candidates.filter(
-        (e) => e.name.toLowerCase().includes(q) || e.url.toLowerCase().includes(q) || e.description && e.description.toLowerCase().includes(q)
-      );
-    }
-    return candidates;
-  }
-  function selectAllBookmarksToMove() {
-    const available = getFilteredBookmarksToMove();
-    available.forEach((e) => selectedBookmarksToMove.add(e.id));
-    renderAddBookmarksList();
-  }
-  function deselectAllBookmarksToMove() {
-    selectedBookmarksToMove.clear();
-    renderAddBookmarksList();
-  }
-
   // src/modules/health/checker.ts
   var isHealthScanning = false;
   var healthAbortRequested = false;
@@ -7748,8 +7788,16 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     for (const f of localFolders) processFolder(f);
     for (const f of remotePayload.folders || []) processFolder(f);
     const mergedFolders = Array.from(folderMap.values());
-    const hasEntriesChanged = mergedEntries.length !== localEntries.length || mergedEntries.some((e, i) => localEntries[i]?.id !== e.id || localEntries[i]?.name !== e.name);
-    const hasFoldersChanged = mergedFolders.length !== localFolders.length || mergedFolders.some((f, i) => localFolders[i]?.id !== f.id || localFolders[i]?.name !== f.name);
+    const hasEntriesChanged = mergedEntries.length !== localEntries.length || mergedEntries.some((e, i) => {
+      const loc = localEntries[i];
+      if (!loc) return true;
+      return loc.id !== e.id || loc.name !== e.name || loc.url !== e.url || loc.folderId !== e.folderId || loc.isFavorite !== e.isFavorite || loc.description !== e.description || loc.dateModified !== e.dateModified || JSON.stringify(loc.categories || []) !== JSON.stringify(e.categories || []);
+    });
+    const hasFoldersChanged = mergedFolders.length !== localFolders.length || mergedFolders.some((f, i) => {
+      const loc = localFolders[i];
+      if (!loc) return true;
+      return loc.id !== f.id || loc.name !== f.name || loc.icon !== f.icon || loc.color !== f.color || loc.dateModified !== f.dateModified;
+    });
     const hasTombstonesChanged = mergedTombstones.length !== localTombstones.length;
     return {
       mergedEntries,
@@ -9813,7 +9861,24 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   if (headerLogo) {
     headerLogo.addEventListener("click", (e) => {
       e.preventDefault();
+      const target = e.target;
+      if (window.innerWidth <= 768 && target?.closest(".logo-icon-box")) {
+        toggleSidebar();
+        return;
+      }
       resetToAllBookmarks();
+    });
+  }
+  var mobileSidebarCloseBtn = document.getElementById("mobileSidebarCloseBtn");
+  var mobileSidebarBackdrop = document.getElementById("mobileSidebarBackdrop");
+  if (mobileSidebarCloseBtn) {
+    mobileSidebarCloseBtn.addEventListener("click", () => {
+      closeMobileFoldersDrawer();
+    });
+  }
+  if (mobileSidebarBackdrop) {
+    mobileSidebarBackdrop.addEventListener("click", () => {
+      closeMobileFoldersDrawer();
     });
   }
   var mobileAddFab = document.getElementById("mobileAddFab");
@@ -9823,26 +9888,46 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     });
   }
   var navTabDirectory = document.getElementById("navTabDirectory");
+  var navTabFolders = document.getElementById("navTabFolders");
   var navTabFavorites = document.getElementById("navTabFavorites");
   var navTabInsights = document.getElementById("navTabInsights");
   var navTabSettings = document.getElementById("navTabSettings");
   function updateMobileBottomNavActiveTab(activeTab) {
-    const tabs = [navTabDirectory, navTabFavorites, navTabInsights, navTabSettings];
+    const tabs = [navTabDirectory, navTabFolders, navTabFavorites, navTabInsights, navTabSettings];
     tabs.forEach((tab) => tab?.classList.remove("is-active"));
     if (activeTab === "directory") navTabDirectory?.classList.add("is-active");
+    else if (activeTab === "folders") navTabFolders?.classList.add("is-active");
     else if (activeTab === "favorites") navTabFavorites?.classList.add("is-active");
     else if (activeTab === "insights") navTabInsights?.classList.add("is-active");
     else if (activeTab === "settings") navTabSettings?.classList.add("is-active");
   }
   if (navTabDirectory) {
     navTabDirectory.addEventListener("click", () => {
+      closeMobileFoldersDrawer();
       updateMobileBottomNavActiveTab("directory");
       if (state.isInsightsOpen) handleToggleInsights(false);
       resetToAllBookmarks();
     });
   }
+  if (navTabFolders) {
+    navTabFolders.addEventListener("click", () => {
+      const foldersSidebar = document.getElementById("foldersSidebar");
+      const isCollapsed = foldersSidebar?.classList.contains("collapsed");
+      if (isCollapsed) {
+        render();
+        openMobileFoldersDrawer();
+        updateMobileBottomNavActiveTab("folders");
+      } else {
+        closeMobileFoldersDrawer();
+        updateMobileBottomNavActiveTab(
+          state.activeFolderId === "favorites" ? "favorites" : state.activeFolderId && state.activeFolderId.startsWith("f-") ? "folders" : "directory"
+        );
+      }
+    });
+  }
   if (navTabFavorites) {
     navTabFavorites.addEventListener("click", () => {
+      closeMobileFoldersDrawer();
       updateMobileBottomNavActiveTab("favorites");
       if (state.isInsightsOpen) handleToggleInsights(false);
       setActiveFolder("favorites", render);
@@ -9851,6 +9936,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
   if (navTabInsights) {
     navTabInsights.addEventListener("click", () => {
+      closeMobileFoldersDrawer();
       const isNowOpen = !state.isInsightsOpen;
       handleToggleInsights(isNowOpen);
       if (isNowOpen) {
@@ -9862,6 +9948,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
   if (navTabSettings) {
     navTabSettings.addEventListener("click", () => {
+      closeMobileFoldersDrawer();
       updateMobileBottomNavActiveTab("settings");
       openSettingsModal("ai");
     });
@@ -9925,6 +10012,71 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       }
     }, { passive: true });
   }
+  function initMobileSwipeFolderGesture() {
+    const EDGE_BUFFER_PX = 28;
+    const MAX_OPEN_START_X = 180;
+    const SWIPE_OPEN_MIN_DX = 55;
+    const SWIPE_CLOSE_MIN_DX = -45;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isTrackingSwipe = false;
+    let gestureHandled = false;
+    document.addEventListener("touchstart", (e) => {
+      if (window.innerWidth > 768 || e.touches.length !== 1) {
+        isTrackingSwipe = false;
+        return;
+      }
+      const target = e.target;
+      if (target?.closest("#mobileCategoryTrack") || target?.closest("input, textarea, select") || document.querySelector(".modal-backdrop.active, .command-palette-backdrop.active")) {
+        isTrackingSwipe = false;
+        return;
+      }
+      const touch = e.touches[0];
+      const foldersSidebar = document.getElementById("foldersSidebar");
+      const isDrawerOpen = foldersSidebar && !foldersSidebar.classList.contains("collapsed");
+      if (!isDrawerOpen) {
+        if (touch.clientX < EDGE_BUFFER_PX || touch.clientX > MAX_OPEN_START_X) {
+          isTrackingSwipe = false;
+          return;
+        }
+      }
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      isTrackingSwipe = true;
+      gestureHandled = false;
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => {
+      if (!isTrackingSwipe || gestureHandled || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+      if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 25) {
+        isTrackingSwipe = false;
+        return;
+      }
+      const foldersSidebar = document.getElementById("foldersSidebar");
+      if (!foldersSidebar) return;
+      const isDrawerOpen = !foldersSidebar.classList.contains("collapsed");
+      if (!isDrawerOpen && deltaX >= SWIPE_OPEN_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+        gestureHandled = true;
+        isTrackingSwipe = false;
+        render();
+        openMobileFoldersDrawer();
+        updateMobileBottomNavActiveTab("folders");
+      } else if (isDrawerOpen && deltaX <= SWIPE_CLOSE_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+        gestureHandled = true;
+        isTrackingSwipe = false;
+        closeMobileFoldersDrawer();
+        updateMobileBottomNavActiveTab(
+          state.activeFolderId === "favorites" ? "favorites" : state.activeFolderId && state.activeFolderId.startsWith("f-") ? "folders" : "directory"
+        );
+      }
+    }, { passive: true });
+    document.addEventListener("touchend", () => {
+      isTrackingSwipe = false;
+      gestureHandled = false;
+    }, { passive: true });
+  }
   async function init() {
     initTheme();
     initSidebar();
@@ -9934,6 +10086,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     await initStorage();
     initTopNavReveal();
     initMobileScrollControls();
+    initMobileSwipeFolderGesture();
     initCommandPalette(paletteCallbacks);
     initSettingsModal();
     registerServiceWorker();

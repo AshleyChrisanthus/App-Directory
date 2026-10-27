@@ -54,6 +54,8 @@ import { openCatModal, closeCatModal, renderCatList } from './modules/categories
 import {
   initSidebar,
   toggleSidebar,
+  openMobileFoldersDrawer,
+  closeMobileFoldersDrawer,
   setActiveFolder,
   deleteFolder,
   populateFolderSelect
@@ -1198,7 +1200,26 @@ function resetToAllBookmarks(): void {
 if (headerLogo) {
   headerLogo.addEventListener('click', (e: Event) => {
     e.preventDefault();
+    const target = e.target as HTMLElement | null;
+    if (window.innerWidth <= 768 && target?.closest('.logo-icon-box')) {
+      toggleSidebar();
+      return;
+    }
     resetToAllBookmarks();
+  });
+}
+
+// Mobile Folders Drawer Close & Backdrop
+const mobileSidebarCloseBtn = document.getElementById('mobileSidebarCloseBtn');
+const mobileSidebarBackdrop = document.getElementById('mobileSidebarBackdrop');
+if (mobileSidebarCloseBtn) {
+  mobileSidebarCloseBtn.addEventListener('click', () => {
+    closeMobileFoldersDrawer();
+  });
+}
+if (mobileSidebarBackdrop) {
+  mobileSidebarBackdrop.addEventListener('click', () => {
+    closeMobileFoldersDrawer();
   });
 }
 
@@ -1212,14 +1233,16 @@ if (mobileAddFab) {
 
 // Mobile Fixed Bottom Navigation Tabs (Google Stitch Design)
 const navTabDirectory = document.getElementById('navTabDirectory');
+const navTabFolders = document.getElementById('navTabFolders');
 const navTabFavorites = document.getElementById('navTabFavorites');
 const navTabInsights = document.getElementById('navTabInsights');
 const navTabSettings = document.getElementById('navTabSettings');
 
-function updateMobileBottomNavActiveTab(activeTab: 'directory' | 'favorites' | 'insights' | 'settings'): void {
-  const tabs = [navTabDirectory, navTabFavorites, navTabInsights, navTabSettings];
+function updateMobileBottomNavActiveTab(activeTab: 'directory' | 'folders' | 'favorites' | 'insights' | 'settings'): void {
+  const tabs = [navTabDirectory, navTabFolders, navTabFavorites, navTabInsights, navTabSettings];
   tabs.forEach(tab => tab?.classList.remove('is-active'));
   if (activeTab === 'directory') navTabDirectory?.classList.add('is-active');
+  else if (activeTab === 'folders') navTabFolders?.classList.add('is-active');
   else if (activeTab === 'favorites') navTabFavorites?.classList.add('is-active');
   else if (activeTab === 'insights') navTabInsights?.classList.add('is-active');
   else if (activeTab === 'settings') navTabSettings?.classList.add('is-active');
@@ -1227,14 +1250,37 @@ function updateMobileBottomNavActiveTab(activeTab: 'directory' | 'favorites' | '
 
 if (navTabDirectory) {
   navTabDirectory.addEventListener('click', () => {
+    closeMobileFoldersDrawer();
     updateMobileBottomNavActiveTab('directory');
     if (state.isInsightsOpen) handleToggleInsights(false);
     resetToAllBookmarks();
   });
 }
 
+if (navTabFolders) {
+  navTabFolders.addEventListener('click', () => {
+    const foldersSidebar = document.getElementById('foldersSidebar');
+    const isCollapsed = foldersSidebar?.classList.contains('collapsed');
+    if (isCollapsed) {
+      render(); // Ensure latest synced folders & counts are rendered
+      openMobileFoldersDrawer();
+      updateMobileBottomNavActiveTab('folders');
+    } else {
+      closeMobileFoldersDrawer();
+      updateMobileBottomNavActiveTab(
+        state.activeFolderId === 'favorites'
+          ? 'favorites'
+          : state.activeFolderId && state.activeFolderId.startsWith('f-')
+            ? 'folders'
+            : 'directory'
+      );
+    }
+  });
+}
+
 if (navTabFavorites) {
   navTabFavorites.addEventListener('click', () => {
+    closeMobileFoldersDrawer();
     updateMobileBottomNavActiveTab('favorites');
     if (state.isInsightsOpen) handleToggleInsights(false);
     setActiveFolder('favorites', render);
@@ -1244,6 +1290,7 @@ if (navTabFavorites) {
 
 if (navTabInsights) {
   navTabInsights.addEventListener('click', () => {
+    closeMobileFoldersDrawer();
     const isNowOpen = !state.isInsightsOpen;
     handleToggleInsights(isNowOpen);
     if (isNowOpen) {
@@ -1256,6 +1303,7 @@ if (navTabInsights) {
 
 if (navTabSettings) {
   navTabSettings.addEventListener('click', () => {
+    closeMobileFoldersDrawer();
     updateMobileBottomNavActiveTab('settings');
     openSettingsModal('ai');
   });
@@ -1338,6 +1386,96 @@ function initMobileScrollControls(): void {
   }, { passive: true });
 }
 
+// Swipe right (with left-edge buffer) to reveal Folders drawer on mobile; swipe left to close
+function initMobileSwipeFolderGesture(): void {
+  const EDGE_BUFFER_PX = 28; // Avoid literal screen edge reserved for OS Back gesture
+  const MAX_OPEN_START_X = 180; // Buffered left-side zone for swipe-to-open
+  const SWIPE_OPEN_MIN_DX = 55;
+  const SWIPE_CLOSE_MIN_DX = -45;
+
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let isTrackingSwipe = false;
+  let gestureHandled = false;
+
+  document.addEventListener('touchstart', (e: TouchEvent) => {
+    if (window.innerWidth > 768 || e.touches.length !== 1) {
+      isTrackingSwipe = false;
+      return;
+    }
+
+    const target = e.target as HTMLElement | null;
+    // Ignore horizontal scrollable category track, inputs, or active modals
+    if (
+      target?.closest('#mobileCategoryTrack') ||
+      target?.closest('input, textarea, select') ||
+      document.querySelector('.modal-backdrop.active, .command-palette-backdrop.active')
+    ) {
+      isTrackingSwipe = false;
+      return;
+    }
+
+    const touch = e.touches[0];
+    const foldersSidebar = document.getElementById('foldersSidebar');
+    const isDrawerOpen = foldersSidebar && !foldersSidebar.classList.contains('collapsed');
+
+    if (!isDrawerOpen) {
+      // Require start X to be past the literal edge buffer (28px) and within the left zone (180px)
+      if (touch.clientX < EDGE_BUFFER_PX || touch.clientX > MAX_OPEN_START_X) {
+        isTrackingSwipe = false;
+        return;
+      }
+    }
+
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    isTrackingSwipe = true;
+    gestureHandled = false;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e: TouchEvent) => {
+    if (!isTrackingSwipe || gestureHandled || e.touches.length !== 1) return;
+
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
+
+    // If user is scrolling vertically, cancel horizontal swipe tracking
+    if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 25) {
+      isTrackingSwipe = false;
+      return;
+    }
+
+    const foldersSidebar = document.getElementById('foldersSidebar');
+    if (!foldersSidebar) return;
+    const isDrawerOpen = !foldersSidebar.classList.contains('collapsed');
+
+    if (!isDrawerOpen && deltaX >= SWIPE_OPEN_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+      gestureHandled = true;
+      isTrackingSwipe = false;
+      render();
+      openMobileFoldersDrawer();
+      updateMobileBottomNavActiveTab('folders');
+    } else if (isDrawerOpen && deltaX <= SWIPE_CLOSE_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+      gestureHandled = true;
+      isTrackingSwipe = false;
+      closeMobileFoldersDrawer();
+      updateMobileBottomNavActiveTab(
+        state.activeFolderId === 'favorites'
+          ? 'favorites'
+          : state.activeFolderId && state.activeFolderId.startsWith('f-')
+            ? 'folders'
+            : 'directory'
+      );
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', () => {
+    isTrackingSwipe = false;
+    gestureHandled = false;
+  }, { passive: true });
+}
+
 // ── Initialize App ───────────────────────────────────────
 async function init(): Promise<void> {
   initTheme();
@@ -1348,6 +1486,7 @@ async function init(): Promise<void> {
   await initStorage();
   initTopNavReveal();
   initMobileScrollControls();
+  initMobileSwipeFolderGesture();
   initCommandPalette(paletteCallbacks);
   initSettingsModal();
 
