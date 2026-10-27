@@ -26,7 +26,7 @@ function updateCacheBusting(rootDir = path.resolve(__dirname, '..')) {
   let hasChanges = false;
 
   // Replace style.css with style.css?v=<hash>
-  const styleRegex = /href=["']style\.css(?:\?v=[a-f0-9]+)?["']/i;
+  const styleRegex = /href=["']style\.css(?:\?v=[^"']+)?["']/i;
   const newStyleRef = `href="style.css?v=${styleHash}"`;
   const currentStyleMatch = indexContent.match(styleRegex);
 
@@ -39,7 +39,7 @@ function updateCacheBusting(rootDir = path.resolve(__dirname, '..')) {
   }
 
   // Replace app.js with app.js?v=<hash>
-  const appRegex = /src=["']app\.js(?:\?v=[a-f0-9]+)?["']/i;
+  const appRegex = /src=["']app\.js(?:\?v=[^"']+)?["']/i;
   const newAppRef = `src="app.js?v=${appHash}"`;
   const currentAppMatch = indexContent.match(appRegex);
 
@@ -49,6 +49,19 @@ function updateCacheBusting(rootDir = path.resolve(__dirname, '..')) {
     console.log(`[Cache-Bust] Updated app.js version -> ${appHash}`);
   } else {
     console.log(`[Cache-Bust] app.js unchanged (${appHash})`);
+  }
+
+  // Also update sw.js CACHE_NAME so service worker updates on deploy
+  const swPath = path.join(rootDir, 'sw.js');
+  if (fs.existsSync(swPath)) {
+    let swContent = fs.readFileSync(swPath, 'utf8');
+    const swCacheRegex = /const CACHE_NAME = ['"][^'"]+['"];/;
+    const newSwCache = `const CACHE_NAME = 'app-directory-${styleHash}-${appHash}';`;
+    if (swCacheRegex.test(swContent) && !swContent.includes(newSwCache)) {
+      swContent = swContent.replace(swCacheRegex, newSwCache);
+      fs.writeFileSync(swPath, swContent, 'utf8');
+      console.log(`[Cache-Bust] Updated sw.js CACHE_NAME -> app-directory-${styleHash}-${appHash}`);
+    }
   }
 
   if (hasChanges) {

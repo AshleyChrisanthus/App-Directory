@@ -1202,7 +1202,22 @@ if (headerLogo) {
     e.preventDefault();
     const target = e.target as HTMLElement | null;
     if (window.innerWidth <= 768 && target?.closest('.logo-icon-box')) {
-      toggleSidebar();
+      const foldersSidebar = document.getElementById('foldersSidebar');
+      const isCollapsed = foldersSidebar?.classList.contains('collapsed');
+      if (isCollapsed) {
+        render();
+        openMobileFoldersDrawer();
+        updateMobileBottomNavActiveTab('folders');
+      } else {
+        closeMobileFoldersDrawer();
+        updateMobileBottomNavActiveTab(
+          state.activeFolderId === 'favorites'
+            ? 'favorites'
+            : state.activeFolderId && state.activeFolderId.startsWith('f-')
+              ? 'folders'
+              : 'directory'
+        );
+      }
       return;
     }
     resetToAllBookmarks();

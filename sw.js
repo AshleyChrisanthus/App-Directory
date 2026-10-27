@@ -1,5 +1,5 @@
 // Service Worker for App Directory PWA
-const CACHE_NAME = 'app-directory-v1.1';
+const CACHE_NAME = 'app-directory-34bf7353-01c5407d';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -48,7 +48,13 @@ self.addEventListener('fetch', (event) => {
     // Navigation requests (including share target queries like /?share_url=...)
     if (req.mode === 'navigate') {
       event.respondWith(
-        fetch(req).catch(() => {
+        fetch(req).then((networkRes) => {
+          if (networkRes && networkRes.status === 200) {
+            const toCache = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', toCache));
+          }
+          return networkRes;
+        }).catch(() => {
           return caches.match('/index.html').then((cached) => {
             return cached || caches.match('/') || caches.match('./index.html');
           });
@@ -57,11 +63,26 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // Static asset requests (app.js, style.css, icons, etc.)
+    // Core app bundle & styles (app.js, style.css): Network-first with cache fallback
+    if (url.pathname.endsWith('/app.js') || url.pathname.endsWith('/style.css')) {
+      event.respondWith(
+        fetch(req).then((networkRes) => {
+          if (networkRes && networkRes.status === 200) {
+            const toCache = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, toCache));
+          }
+          return networkRes;
+        }).catch(() => {
+          return caches.match(req, { ignoreSearch: true });
+        })
+      );
+      return;
+    }
+
+    // Other static asset requests (icons, manifest, etc.)
     event.respondWith(
       caches.match(req).then((cached) => {
         if (cached) {
-          // Return cached asset and update cache in background (stale-while-revalidate)
           fetch(req).then((networkRes) => {
             if (networkRes && networkRes.status === 200) {
               caches.open(CACHE_NAME).then((cache) => cache.put(req, networkRes));
@@ -70,7 +91,6 @@ self.addEventListener('fetch', (event) => {
           return cached;
         }
 
-        // Fetch from network and cache
         return fetch(req).then((networkRes) => {
           if (!networkRes || networkRes.status !== 200 || networkRes.type !== 'basic') {
             return networkRes;
