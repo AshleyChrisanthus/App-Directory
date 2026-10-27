@@ -5269,6 +5269,8 @@ select:focus {
     display: flex;
     align-items: center;
     gap: 10px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .logo-icon-box {
@@ -5282,6 +5284,7 @@ select:focus {
     justify-content: center;
     font-size: 1.25rem;
     flex-shrink: 0;
+    touch-action: manipulation;
   }
 
   .logo-text-col {
@@ -5796,6 +5799,8 @@ select:focus {
     padding: 6px 4px;
     transition: color 0.18s ease;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-nav-tab .mobile-nav-icon {
@@ -5836,24 +5841,28 @@ select:focus {
     width: min(300px, 84vw);
     z-index: 990;
     background: var(--bg-secondary);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
     border-right: 1px solid var(--border);
     padding: calc(16px + env(safe-area-inset-top, 0px)) 14px calc(24px + env(safe-area-inset-bottom, 0px));
     box-shadow: 12px 0 36px rgba(0, 0, 0, 0.45);
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
     opacity: 1;
     overflow-y: auto;
-    transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
-    will-change: transform, opacity;
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+    contain: layout style paint;
   }
 
   .folders-sidebar.collapsed {
-    transform: translateX(-105%);
+    transform: translate3d(-105%, 0, 0);
     width: min(300px, 84vw);
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 14px;
-    opacity: 0;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 14px calc(24px + env(safe-area-inset-bottom, 0px));
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    opacity: 1;
     pointer-events: none;
+    box-shadow: none;
   }
 
   .mobile-sidebar-header {
@@ -5893,6 +5902,8 @@ select:focus {
     background: var(--bg-tertiary);
     color: var(--text-secondary);
     border: 1px solid var(--border-light);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-sidebar-backdrop {
@@ -5900,12 +5911,11 @@ select:focus {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
     z-index: 980;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.28s ease;
+    transition: opacity 0.2s ease;
+    will-change: opacity;
   }
 
   .mobile-sidebar-backdrop.active {

@@ -9866,7 +9866,6 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         const foldersSidebar = document.getElementById("foldersSidebar");
         const isCollapsed = foldersSidebar?.classList.contains("collapsed");
         if (isCollapsed) {
-          render();
           openMobileFoldersDrawer();
           updateMobileBottomNavActiveTab("folders");
         } else {
@@ -9925,7 +9924,6 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       const foldersSidebar = document.getElementById("foldersSidebar");
       const isCollapsed = foldersSidebar?.classList.contains("collapsed");
       if (isCollapsed) {
-        render();
         openMobileFoldersDrawer();
         updateMobileBottomNavActiveTab("folders");
       } else {
@@ -10026,8 +10024,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   function initMobileSwipeFolderGesture() {
     const EDGE_BUFFER_PX = 28;
     const MAX_OPEN_START_X = 180;
-    const SWIPE_OPEN_MIN_DX = 55;
-    const SWIPE_CLOSE_MIN_DX = -45;
+    const SWIPE_OPEN_MIN_DX = 36;
+    const SWIPE_CLOSE_MIN_DX = -36;
     let touchStartX = 0;
     let touchStartY = 0;
     let isTrackingSwipe = false;
@@ -10068,13 +10066,12 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       const foldersSidebar = document.getElementById("foldersSidebar");
       if (!foldersSidebar) return;
       const isDrawerOpen = !foldersSidebar.classList.contains("collapsed");
-      if (!isDrawerOpen && deltaX >= SWIPE_OPEN_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+      if (!isDrawerOpen && deltaX >= SWIPE_OPEN_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
         gestureHandled = true;
         isTrackingSwipe = false;
-        render();
         openMobileFoldersDrawer();
         updateMobileBottomNavActiveTab("folders");
-      } else if (isDrawerOpen && deltaX <= SWIPE_CLOSE_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+      } else if (isDrawerOpen && deltaX <= SWIPE_CLOSE_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
         gestureHandled = true;
         isTrackingSwipe = false;
         closeMobileFoldersDrawer();

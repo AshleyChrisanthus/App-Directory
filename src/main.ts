@@ -1205,7 +1205,6 @@ if (headerLogo) {
       const foldersSidebar = document.getElementById('foldersSidebar');
       const isCollapsed = foldersSidebar?.classList.contains('collapsed');
       if (isCollapsed) {
-        render();
         openMobileFoldersDrawer();
         updateMobileBottomNavActiveTab('folders');
       } else {
@@ -1277,7 +1276,6 @@ if (navTabFolders) {
     const foldersSidebar = document.getElementById('foldersSidebar');
     const isCollapsed = foldersSidebar?.classList.contains('collapsed');
     if (isCollapsed) {
-      render(); // Ensure latest synced folders & counts are rendered
       openMobileFoldersDrawer();
       updateMobileBottomNavActiveTab('folders');
     } else {
@@ -1405,8 +1403,8 @@ function initMobileScrollControls(): void {
 function initMobileSwipeFolderGesture(): void {
   const EDGE_BUFFER_PX = 28; // Avoid literal screen edge reserved for OS Back gesture
   const MAX_OPEN_START_X = 180; // Buffered left-side zone for swipe-to-open
-  const SWIPE_OPEN_MIN_DX = 55;
-  const SWIPE_CLOSE_MIN_DX = -45;
+  const SWIPE_OPEN_MIN_DX = 36;
+  const SWIPE_CLOSE_MIN_DX = -36;
 
   let touchStartX = 0;
   let touchStartY = 0;
@@ -1465,13 +1463,12 @@ function initMobileSwipeFolderGesture(): void {
     if (!foldersSidebar) return;
     const isDrawerOpen = !foldersSidebar.classList.contains('collapsed');
 
-    if (!isDrawerOpen && deltaX >= SWIPE_OPEN_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.4) {
+    if (!isDrawerOpen && deltaX >= SWIPE_OPEN_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
       gestureHandled = true;
       isTrackingSwipe = false;
-      render();
       openMobileFoldersDrawer();
       updateMobileBottomNavActiveTab('folders');
-    } else if (isDrawerOpen && deltaX <= SWIPE_CLOSE_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+    } else if (isDrawerOpen && deltaX <= SWIPE_CLOSE_MIN_DX && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
       gestureHandled = true;
       isTrackingSwipe = false;
       closeMobileFoldersDrawer();
