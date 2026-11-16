@@ -6985,7 +6985,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
             iconUrl: e.iconUrl || null,
             categories: e.categories || [],
             folderId: e.folderId || null,
-            dateAdded: e.dateAdded
+            dateAdded: e.dateAdded,
+            description: e.description || "",
+            visitCount: e.visitCount || 0,
+            isFavorite: !!e.isFavorite
           }))
         }, "*");
       } catch (_) {
@@ -7056,6 +7059,16 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
               type: "APP_DIRECTORY_INGEST_SUCCESS",
               entryIds: entries.map((e) => e.id).filter(Boolean)
             }, "*");
+          }
+        } else if (type === "APP_DIRECTORY_RECORD_VISIT" && (event.data.id || event.data.url)) {
+          const match = state.entries.find((e) => event.data.id && e.id === event.data.id || event.data.url && e.url === event.data.url);
+          if (match) {
+            match.visitCount = (match.visitCount || 0) + 1;
+            match.lastVisited = (/* @__PURE__ */ new Date()).toISOString();
+            await saveEntries(state.entries);
+            if (currentOnDataChanged) {
+              currentOnDataChanged();
+            }
           }
         }
       });

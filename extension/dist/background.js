@@ -195,6 +195,30 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       }
     }
   }
+  async function triggerPaletteOnActiveTab(tab) {
+    let targetTab = tab;
+    if (!targetTab || !targetTab.id) {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      targetTab = activeTab;
+    }
+    if (!targetTab || !targetTab.id || !targetTab.url) return;
+    if (targetTab.url.startsWith("chrome://") || targetTab.url.startsWith("edge://") || targetTab.url.startsWith("chrome-extension://") || targetTab.url.startsWith("about:")) {
+      return;
+    }
+    try {
+      await chrome.tabs.sendMessage(targetTab.id, { type: "TOGGLE_PALETTE_MODAL" });
+    } catch {
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: targetTab.id },
+          files: ["dist/content.js"]
+        });
+        await chrome.tabs.sendMessage(targetTab.id, { type: "TOGGLE_PALETTE_MODAL" });
+      } catch (err) {
+        console.warn("[AppDirectory Extension] Failed to inject content script:", err);
+      }
+    }
+  }
   var lastActionClickTime = 0;
   chrome.action.onClicked.addListener((tab) => {
     const now = Date.now();
@@ -209,6 +233,11 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       if (now - lastCommandTriggerTime < 400) return;
       lastCommandTriggerTime = now;
       triggerModalOnActiveTab();
+    } else if (command === "open-command-palette") {
+      const now = Date.now();
+      if (now - lastCommandTriggerTime < 400) return;
+      lastCommandTriggerTime = now;
+      triggerPaletteOnActiveTab();
     }
   });
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -388,7 +417,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
               iconUrl: entry.iconUrl || null,
               categories: entry.categories || [],
               folderId: entry.folderId || null,
-              dateAdded: entry.dateAdded
+              dateAdded: entry.dateAdded,
+              description: entry.description || "",
+              visitCount: entry.visitCount || 0,
+              isFavorite: !!entry.isFavorite
             };
             if (existingIdx !== -1) {
               entriesList[existingIdx] = cachedItem;
@@ -456,6 +488,66 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           }
         })();
         return true;
+      }
+      case "OPEN_BOOKMARK_URL": {
+        const url = typeof message.url === "string" ? message.url : "";
+        const mode = message.mode;
+        const id = typeof message.id === "string" ? message.id : "";
+        if (!url) {
+          sendResponse({ success: false, error: "No URL provided" });
+          return false;
+        }
+        chrome.storage.local.get([STORAGE_KEYS.CACHED_ENTRIES], (entRes) => {
+          const rawEntries = entRes[STORAGE_KEYS.CACHED_ENTRIES];
+          const entriesList = Array.isArray(rawEntries) ? [...rawEntries] : [];
+          const existingIdx = entriesList.findIndex((e) => id && e.id === id || e.url === url);
+          if (existingIdx !== -1) {
+            entriesList[existingIdx] = {
+              ...entriesList[existingIdx],
+              visitCount: (entriesList[existingIdx].visitCount || 0) + 1
+            };
+            chrome.storage.local.set({ [STORAGE_KEYS.CACHED_ENTRIES]: entriesList });
+          }
+        });
+        (async () => {
+          try {
+            const tabs = await chrome.tabs.query({});
+            const appDirTabs = tabs.filter((t) => isAppDirectoryTab(t.url, t.title));
+            for (const tab of appDirTabs) {
+              if (tab.id) {
+                chrome.tabs.sendMessage(tab.id, {
+                  type: "RECORD_BOOKMARK_VISIT",
+                  id,
+                  url
+                }).catch(() => {
+                });
+              }
+            }
+          } catch (_) {
+          }
+        })();
+        const senderTab = _sender.tab;
+        if (mode === "current") {
+          if (senderTab && typeof senderTab.id === "number") {
+            chrome.tabs.update(senderTab.id, { url });
+          } else {
+            chrome.tabs.create({ url, active: true });
+          }
+        } else if (mode === "new-tab") {
+          chrome.tabs.create({
+            url,
+            active: true,
+            index: senderTab ? senderTab.index + 1 : void 0
+          });
+        } else if (mode === "background-tab") {
+          chrome.tabs.create({
+            url,
+            active: false,
+            index: senderTab ? senderTab.index + 1 : void 0
+          });
+        }
+        sendResponse({ success: true });
+        return false;
       }
       default:
         return false;

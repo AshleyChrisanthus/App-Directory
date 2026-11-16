@@ -1,5 +1,6 @@
 import modalCss from './modal.css';
 import { extractPageContext } from './domExtractor';
+import { togglePaletteModal } from './paletteModal';
 import {
   ClassificationResult,
   ClassificationProgressEvent,
@@ -1061,10 +1062,11 @@ function escapeHtml(str: string): string {
   try {
     window.removeEventListener('keydown', handlePageShortcut, true);
     document.querySelectorAll('#app-directory-modal-host').forEach((node) => node.remove());
+    document.querySelectorAll('#app-directory-palette-host').forEach((node) => node.remove());
   } catch (_) {}
 };
 
-// Page-level keyboard shortcut listeners for Alt+A (Add), Alt+S (Save), Alt+B (Bookmark), or Alt+D
+// Page-level keyboard shortcut listeners for Alt+K (Palette) and Alt+A / Alt+S / Alt+B / Alt+D (Add Modal)
 function handlePageShortcut(e: KeyboardEvent): void {
   if (!isExtensionContextValid()) {
     if (typeof (window as any).__APP_DIRECTORY_CLEANUP__ === 'function') {
@@ -1073,7 +1075,17 @@ function handlePageShortcut(e: KeyboardEvent): void {
     return;
   }
 
+  // Only handle Alt combinations without Ctrl / Meta (leaves Ctrl+K / Cmd+K free for website-native search modals)
   if (!e.altKey || e.ctrlKey || e.metaKey) return;
+
+  // Alt+K: Toggle Command Palette for Saved Website Directory
+  const isK = e.code === 'KeyK' || e.key === 'k' || e.key === 'K';
+  if (isK) {
+    e.preventDefault();
+    e.stopPropagation();
+    togglePaletteModal();
+    return;
+  }
 
   const isA = e.code === 'KeyA' || e.key === 'a' || e.key === 'A';
   const isS = e.code === 'KeyS' || e.key === 's' || e.key === 'S';
@@ -1098,6 +1110,9 @@ try {
         if (!isExtensionContextValid()) return;
         if (message && message.type === 'TOGGLE_INJECTED_MODAL') {
           toggleModal();
+          sendResponse({ success: true });
+        } else if (message && message.type === 'TOGGLE_PALETTE_MODAL') {
+          togglePaletteModal();
           sendResponse({ success: true });
         }
       } catch (_) {}

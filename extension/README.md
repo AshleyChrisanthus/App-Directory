@@ -52,6 +52,22 @@ Because Chrome restricts extensions from interacting with local `file://` URLs b
 
 ---
 
+## ⚡ Quick Command Palette (`Alt + K`)
+
+Access your entire saved website directory from **any webpage** instantly without switching away:
+
+1. Press **`Alt + K`** on any webpage (keeps `Cmd/Ctrl + K` completely free for websites' own native search modals).
+2. Type to search across website titles, domains, descriptions, folders, and category tags with instant real-time filtering.
+3. **Three Open Choices Upon Selection:**
+   - **📄 Open in Current Tab** (`Enter` or `1`): Navigates the active tab to the chosen website.
+   - **↗️ Open in New Tab** (`Ctrl + Enter` or `2`): Opens in a new foreground tab and switches to it.
+   - **⧉ Open in New Background Tab** (`Shift + Enter` or `3`): Opens silently in a new background tab without leaving your current page. The palette stays open with a brief confirmation toast so you can continue searching or opening additional sites until you press `Esc` or click outside!
+4. **Mouse & Power Shortcuts:**
+   - Hovering over any website item reveals 3 discrete quick-action buttons (`📄`, `↗️`, `⧉`) to open in that mode with a single click.
+   - Press `Esc` or `Backspace` to back out of choices or dismiss the palette.
+
+---
+
 ## ✨ Automated AI Category Classification
 
 The Companion extension includes an automated **AI Website Taxonomy Classifier** powered by Google Gemini (Free Tier) and an optional Brave Search API fallback:

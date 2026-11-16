@@ -73,6 +73,13 @@
         "mac": "Alt+A"
       },
       "description": "Add current website to App Directory"
+    },
+    "open-command-palette": {
+      "suggested_key": {
+        "default": "Alt+K",
+        "mac": "Alt+K"
+      },
+      "description": "Open App Directory Command Palette"
     }
   }
 }

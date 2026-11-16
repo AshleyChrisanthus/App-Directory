@@ -130,6 +130,13 @@
           entry: message.entry
         }, "*");
         sendResponse({ success: true });
+      } else if (message && message.type === "RECORD_BOOKMARK_VISIT") {
+        window.postMessage({
+          type: "APP_DIRECTORY_RECORD_VISIT",
+          id: message.id,
+          url: message.url
+        }, "*");
+        sendResponse({ success: true });
       }
     } catch (_) {
     }

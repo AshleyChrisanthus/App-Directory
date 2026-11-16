@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // src/extension/modal.css
-  var modal_default = ":host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n  color: #f1f5f9;\n  font-size: 14px;\n  line-height: 1.5;\n  box-sizing: border-box;\n}\n\n*, *::before, *::after {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\n.ad-modal-backdrop {\n  position: fixed;\n  inset: 0;\n  background: rgba(10, 14, 23, 0.68);\n  backdrop-filter: blur(8px);\n  -webkit-backdrop-filter: blur(8px);\n  z-index: 2147483647;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  opacity: 0;\n  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  padding: 16px;\n}\n\n.ad-modal-backdrop.ad-visible {\n  opacity: 1;\n}\n\n.ad-modal-card {\n  width: 100%;\n  max-width: 480px;\n  background: rgba(22, 28, 42, 0.94);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  border-radius: 16px;\n  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);\n  overflow: hidden;\n  transform: scale(0.94) translateY(8px);\n  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;\n  display: flex;\n  flex-direction: column;\n}\n\n.ad-modal-backdrop.ad-visible .ad-modal-card {\n  transform: scale(1) translateY(0);\n}\n\n/* Header */\n.ad-modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-modal-title-group {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n\n.ad-app-icon {\n  width: 28px;\n  height: 28px;\n  border-radius: 7px;\n  background: linear-gradient(135deg, #0a84ff, #5e5ce6);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 15px;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-modal-title {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n  letter-spacing: -0.2px;\n}\n\n.ad-badge-local {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(52, 199, 89, 0.18);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.3);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-header-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-icon-btn, .ad-close-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 16px;\n  cursor: pointer;\n  width: 28px;\n  height: 28px;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-icon-btn:hover, .ad-close-btn:hover {\n  background: rgba(255, 255, 255, 0.08);\n  color: #ffffff;\n}\n\n/* Body Form */\n.ad-modal-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  max-height: 70vh;\n  overflow-y: auto;\n}\n\n.ad-field-row {\n  display: flex;\n  gap: 12px;\n  align-items: flex-start;\n}\n\n.ad-icon-preview-box {\n  width: 44px;\n  height: 44px;\n  border-radius: 10px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  overflow: hidden;\n  margin-top: 22px;\n}\n\n.ad-icon-preview-box img {\n  width: 26px;\n  height: 26px;\n  object-fit: contain;\n}\n\n.ad-form-group {\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n  flex: 1;\n}\n\n.ad-form-label {\n  font-size: 12px;\n  font-weight: 600;\n  color: #94a3b8;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.ad-input, .ad-select, .ad-textarea {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 8px 12px;\n  font-size: 13.5px;\n  color: #f8fafc;\n  outline: none;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease;\n  width: 100%;\n  font-family: inherit;\n}\n\n.ad-input:focus, .ad-select:focus, .ad-textarea:focus {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n  background: rgba(15, 23, 42, 0.85);\n}\n\n.ad-textarea {\n  resize: vertical;\n  min-height: 52px;\n}\n\n.ad-two-col {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 12px;\n}\n\n/* Category Tags */\n.ad-categories-field {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n\n.ad-tags-wrapper {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 6px 8px;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-height: 40px;\n}\n\n.ad-tags-wrapper:focus-within {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n}\n\n.ad-tag-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: rgba(10, 132, 255, 0.18);\n  border: 1px solid rgba(10, 132, 255, 0.35);\n  color: #60a5fa;\n  padding: 2px 7px;\n  border-radius: 5px;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.ad-tag-chip .ad-remove-tag {\n  cursor: pointer;\n  font-size: 13px;\n  opacity: 0.75;\n  transition: opacity 0.1s ease;\n  line-height: 1;\n}\n\n.ad-tag-chip .ad-remove-tag:hover {\n  opacity: 1;\n  color: #f87171;\n}\n\n.ad-tag-input {\n  border: none;\n  background: transparent;\n  color: #f8fafc;\n  font-size: 13px;\n  outline: none;\n  flex: 1;\n  min-width: 90px;\n  font-family: inherit;\n  padding: 2px 4px;\n}\n\n/* Category Suggestions Autocomplete Popup */\n.ad-suggestions-popup {\n  position: absolute;\n  top: 100%;\n  left: 0;\n  right: 0;\n  margin-top: 4px;\n  background: rgba(15, 23, 42, 0.96);\n  backdrop-filter: blur(20px);\n  -webkit-backdrop-filter: blur(20px);\n  border: 1px solid rgba(255, 255, 255, 0.16);\n  border-radius: 8px;\n  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);\n  max-height: 180px;\n  overflow-y: auto;\n  z-index: 50;\n  display: none;\n  flex-direction: column;\n  padding: 4px;\n}\n\n.ad-suggestions-popup.ad-show {\n  display: flex;\n}\n\n.ad-suggestion-item {\n  padding: 6px 10px;\n  font-size: 13px;\n  color: #cbd5e1;\n  cursor: pointer;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  transition: background 0.12s ease, color 0.12s ease;\n}\n\n.ad-suggestion-item:hover,\n.ad-suggestion-item.is-focused {\n  background: rgba(10, 132, 255, 0.25);\n  color: #ffffff;\n}\n\n.ad-suggestion-item .ad-suggest-tag-name {\n  font-weight: 500;\n}\n\n.ad-suggestion-item .ad-suggest-tag-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-suggestion-item:hover .ad-suggest-tag-hint,\n.ad-suggestion-item.is-focused .ad-suggest-tag-hint {\n  color: #93c5fd;\n}\n\n/* Favorite toggle */\n.ad-fav-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n}\n\n.ad-fav-star {\n  font-size: 16px;\n  color: #64748b;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n.ad-fav-toggle.active .ad-fav-star {\n  color: #ffb800;\n  transform: scale(1.15);\n}\n\n/* Footer */\n.ad-modal-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-shortcut-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-shortcut-hint kbd {\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.15);\n  border-radius: 4px;\n  padding: 1px 4px;\n  font-size: 10px;\n  color: #94a3b8;\n}\n\n.ad-btn-group {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-btn {\n  padding: 7px 14px;\n  border-radius: 8px;\n  font-size: 13px;\n  font-weight: 600;\n  cursor: pointer;\n  border: none;\n  transition: all 0.15s ease;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  font-family: inherit;\n}\n\n.ad-btn-secondary {\n  background: rgba(255, 255, 255, 0.07);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.1);\n}\n\n.ad-btn-secondary:hover {\n  background: rgba(255, 255, 255, 0.12);\n  color: #ffffff;\n}\n\n.ad-btn-primary {\n  background: #0a84ff;\n  color: #ffffff;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-btn-primary:hover {\n  background: #0070e0;\n  box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);\n  transform: translateY(-1px);\n}\n\n.ad-btn-primary:active {\n  transform: translateY(0);\n}\n\n/* Success Banner */\n.ad-success-overlay {\n  position: absolute;\n  inset: 0;\n  background: rgba(15, 23, 42, 0.95);\n  backdrop-filter: blur(12px);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  border-radius: 16px;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.2s ease;\n  z-index: 10;\n}\n\n.ad-success-overlay.ad-show {\n  opacity: 1;\n  pointer-events: auto;\n}\n\n.ad-success-icon {\n  width: 48px;\n  height: 48px;\n  border-radius: 50%;\n  background: rgba(52, 199, 89, 0.18);\n  border: 2px solid #34c759;\n  color: #34c759;\n  font-size: 24px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  animation: adPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);\n}\n\n.ad-success-text {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n}\n\n.ad-success-sub {\n  font-size: 12px;\n  color: #94a3b8;\n}\n\n@keyframes adPop {\n  0% { transform: scale(0.5); opacity: 0; }\n  70% { transform: scale(1.1); }\n  100% { transform: scale(1); opacity: 1; }\n}\n\n/* \u2500\u2500 Category Header & AI Classification Badges \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\n.ad-category-header-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 3px;\n}\n\n.ad-ai-status-group {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-classify-badge {\n  font-size: 11px;\n  font-weight: 600;\n  border-radius: 12px;\n  padding: 2px 8px;\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  letter-spacing: 0.2px;\n  user-select: none;\n  transition: all 0.2s ease;\n  max-width: 260px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.ad-classify-badge.ad-badge-dom {\n  background: rgba(52, 199, 89, 0.16);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-dom:hover {\n  background: rgba(52, 199, 89, 0.26);\n}\n\n.ad-classify-badge.ad-badge-fallback {\n  background: rgba(168, 85, 247, 0.16);\n  color: #c084fc;\n  border: 1px solid rgba(168, 85, 247, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-fallback:hover {\n  background: rgba(168, 85, 247, 0.26);\n}\n\n.ad-classify-badge.ad-badge-brave {\n  background: rgba(255, 159, 10, 0.16);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-brave:hover {\n  background: rgba(255, 159, 10, 0.26);\n}\n\n.ad-classify-badge.ad-badge-loading {\n  background: rgba(10, 132, 255, 0.15);\n  color: #60a5fa;\n  border: 1px solid rgba(10, 132, 255, 0.3);\n}\n\n.ad-classify-badge.ad-badge-setup {\n  background: rgba(255, 255, 255, 0.08);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-setup:hover {\n  background: rgba(255, 255, 255, 0.16);\n  color: #ffffff;\n}\n\n.ad-classify-badge.ad-badge-error {\n  background: rgba(255, 59, 48, 0.16);\n  color: #ff453a;\n  border: 1px solid rgba(255, 59, 48, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-duplicate {\n  background: rgba(255, 159, 10, 0.16);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-duplicate:hover {\n  background: rgba(255, 159, 10, 0.26);\n}\n\n.ad-reclassify-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 13px;\n  cursor: pointer;\n  width: 22px;\n  height: 22px;\n  border-radius: 4px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-reclassify-btn:hover {\n  background: rgba(255, 255, 255, 0.1);\n  color: #ffffff;\n}\n\n.ad-reclassify-btn.is-spinning {\n  animation: adSpin 0.75s linear infinite;\n}\n\n@keyframes adSpin {\n  100% { transform: rotate(360deg); }\n}\n\n.ad-spinner-dot {\n  display: inline-block;\n  width: 8px;\n  height: 8px;\n  border: 1.5px solid rgba(96, 165, 250, 0.3);\n  border-top-color: #60a5fa;\n  border-radius: 50%;\n  animation: adSpin 0.7s linear infinite;\n}\n\n/* AI Reasoning Card / Popover */\n.ad-reasoning-card {\n  margin-top: 4px;\n  padding: 6px 10px;\n  background: rgba(15, 23, 42, 0.85);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  border-left: 3px solid #0a84ff;\n  border-radius: 6px;\n  font-size: 11px;\n  color: #94a3b8;\n  line-height: 1.45;\n  display: none;\n}\n\n.ad-reasoning-card.ad-show {\n  display: block;\n}\n\n/* New Category Tag Chip highlight */\n.ad-tag-chip.ad-tag-chip-new {\n  background: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(255, 159, 10, 0.14));\n  border: 1px solid rgba(255, 214, 10, 0.55);\n  color: #ffd60a;\n  box-shadow: 0 0 10px rgba(255, 214, 10, 0.15);\n}\n\n.ad-tag-chip.ad-tag-chip-new .ad-remove-tag:hover {\n  color: #ff453a;\n}\n\n.ad-new-tags-notice {\n  font-size: 11px;\n  color: #ffd60a;\n  margin-top: 4px;\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-weight: 500;\n}\n\n/* Settings Drawer / View inside modal */\n.ad-settings-drawer {\n  position: absolute;\n  inset: 0;\n  background: rgba(18, 24, 38, 0.98);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border-radius: 16px;\n  z-index: 20;\n  display: flex;\n  flex-direction: column;\n  transform: translateX(100%);\n  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n}\n\n.ad-settings-drawer.ad-show {\n  transform: translateX(0);\n}\n\n.ad-settings-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n}\n\n.ad-settings-title {\n  font-size: 15px;\n  font-weight: 700;\n  color: #ffffff;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-settings-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  overflow-y: auto;\n  flex: 1;\n}\n\n.ad-settings-hint {\n  font-size: 12px;\n  color: #94a3b8;\n  line-height: 1.45;\n}\n\n.ad-settings-hint a {\n  color: #0a84ff;\n  text-decoration: none;\n}\n\n.ad-settings-hint a:hover {\n  text-decoration: underline;\n}\n\n.ad-checkbox-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n  margin-top: 4px;\n}\n\n.ad-checkbox-row input {\n  accent-color: #0a84ff;\n  width: 16px;\n  height: 16px;\n  cursor: pointer;\n}\n\n.ad-settings-footer {\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 10px;\n  background: rgba(255, 255, 255, 0.02);\n}\n\n/* Duplicate Suggestion Drawer (Slides in from the right) */\n.ad-duplicate-drawer {\n  position: absolute;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 100%;\n  background: rgba(18, 24, 38, 0.98);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border-radius: 16px;\n  z-index: 15;\n  display: flex;\n  flex-direction: column;\n  transform: translateX(100%);\n  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n  box-shadow: -8px 0 25px rgba(0, 0, 0, 0.4);\n}\n\n.ad-duplicate-drawer.ad-show {\n  transform: translateX(0);\n}\n\n.ad-duplicate-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 18px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 159, 10, 0.06);\n}\n\n.ad-duplicate-title {\n  font-size: 14px;\n  font-weight: 700;\n  color: #ff9f0a;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-duplicate-badge {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(255, 159, 10, 0.18);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-duplicate-body {\n  padding: 18px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  overflow-y: auto;\n  flex: 1;\n}\n\n.ad-duplicate-notice {\n  font-size: 12.5px;\n  line-height: 1.5;\n  color: #cbd5e1;\n}\n\n.ad-duplicate-card {\n  background: rgba(15, 23, 42, 0.7);\n  border: 1px solid rgba(255, 159, 10, 0.25);\n  border-radius: 10px;\n  padding: 14px;\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n\n.ad-duplicate-card-header {\n  display: flex;\n  align-items: flex-start;\n  gap: 10px;\n}\n\n.ad-duplicate-card-icon {\n  width: 32px;\n  height: 32px;\n  border-radius: 8px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  font-size: 16px;\n  overflow: hidden;\n}\n\n.ad-duplicate-card-icon img {\n  width: 20px;\n  height: 20px;\n  object-fit: contain;\n}\n\n.ad-duplicate-card-meta {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n  flex: 1;\n}\n\n.ad-duplicate-entry-title {\n  font-size: 13.5px;\n  font-weight: 600;\n  color: #f8fafc;\n  word-break: break-word;\n}\n\n.ad-duplicate-entry-url {\n  font-size: 11.5px;\n  color: #38bdf8;\n  text-decoration: none;\n  word-break: break-all;\n  line-height: 1.35;\n}\n\n.ad-duplicate-entry-url:hover {\n  text-decoration: underline;\n}\n\n.ad-duplicate-details {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  font-size: 11.5px;\n  color: #94a3b8;\n  padding-top: 8px;\n  border-top: 1px solid rgba(255, 255, 255, 0.06);\n}\n\n.ad-duplicate-detail-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.ad-duplicate-detail-label {\n  color: #64748b;\n  font-size: 11px;\n}\n\n.ad-duplicate-detail-value {\n  color: #e2e8f0;\n  font-weight: 500;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.ad-duplicate-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 4px;\n  margin-top: 2px;\n}\n\n.ad-duplicate-tag {\n  background: rgba(10, 132, 255, 0.14);\n  border: 1px solid rgba(10, 132, 255, 0.28);\n  color: #93c5fd;\n  padding: 1px 6px;\n  border-radius: 4px;\n  font-size: 10.5px;\n}\n\n.ad-duplicate-footer {\n  padding: 12px 18px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-duplicate-footer-hint {\n  font-size: 11px;\n  color: #94a3b8;\n  flex: 1;\n}\n\n.ad-duplicate-banner-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  padding: 3px 8px;\n  border-radius: 5px;\n  background: rgba(255, 159, 10, 0.14);\n  border: 1px solid rgba(255, 159, 10, 0.3);\n  color: #ff9f0a;\n  font-size: 11px;\n  font-weight: 600;\n  cursor: pointer;\n  transition: all 0.15s ease;\n}\n\n.ad-duplicate-banner-trigger:hover {\n  background: rgba(255, 159, 10, 0.22);\n  border-color: rgba(255, 159, 10, 0.5);\n  color: #ffb340;\n}\n\n";
+  var modal_default = ":host {\n  all: initial;\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n  color: #f1f5f9;\n  font-size: 14px;\n  line-height: 1.5;\n  box-sizing: border-box;\n}\n\n*, *::before, *::after {\n  box-sizing: border-box;\n  margin: 0;\n  padding: 0;\n}\n\n.ad-modal-backdrop {\n  position: fixed;\n  inset: 0;\n  background: rgba(10, 14, 23, 0.68);\n  backdrop-filter: blur(8px);\n  -webkit-backdrop-filter: blur(8px);\n  z-index: 2147483647;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  opacity: 0;\n  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);\n  padding: 16px;\n}\n\n.ad-modal-backdrop.ad-visible {\n  opacity: 1;\n}\n\n.ad-modal-card {\n  width: 100%;\n  max-width: 480px;\n  background: rgba(22, 28, 42, 0.94);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  border-radius: 16px;\n  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);\n  overflow: hidden;\n  transform: scale(0.94) translateY(8px);\n  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;\n  display: flex;\n  flex-direction: column;\n}\n\n.ad-modal-backdrop.ad-visible .ad-modal-card {\n  transform: scale(1) translateY(0);\n}\n\n/* Header */\n.ad-modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-modal-title-group {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n\n.ad-app-icon {\n  width: 28px;\n  height: 28px;\n  border-radius: 7px;\n  background: linear-gradient(135deg, #0a84ff, #5e5ce6);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 15px;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-modal-title {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n  letter-spacing: -0.2px;\n}\n\n.ad-badge-local {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(52, 199, 89, 0.18);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.3);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-header-actions {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-icon-btn, .ad-close-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 16px;\n  cursor: pointer;\n  width: 28px;\n  height: 28px;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-icon-btn:hover, .ad-close-btn:hover {\n  background: rgba(255, 255, 255, 0.08);\n  color: #ffffff;\n}\n\n/* Body Form */\n.ad-modal-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  max-height: 70vh;\n  overflow-y: auto;\n}\n\n.ad-field-row {\n  display: flex;\n  gap: 12px;\n  align-items: flex-start;\n}\n\n.ad-icon-preview-box {\n  width: 44px;\n  height: 44px;\n  border-radius: 10px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  overflow: hidden;\n  margin-top: 22px;\n}\n\n.ad-icon-preview-box img {\n  width: 26px;\n  height: 26px;\n  object-fit: contain;\n}\n\n.ad-form-group {\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n  flex: 1;\n}\n\n.ad-form-label {\n  font-size: 12px;\n  font-weight: 600;\n  color: #94a3b8;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.ad-input, .ad-select, .ad-textarea {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 8px 12px;\n  font-size: 13.5px;\n  color: #f8fafc;\n  outline: none;\n  transition: border-color 0.15s ease, box-shadow 0.15s ease;\n  width: 100%;\n  font-family: inherit;\n}\n\n.ad-input:focus, .ad-select:focus, .ad-textarea:focus {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n  background: rgba(15, 23, 42, 0.85);\n}\n\n.ad-textarea {\n  resize: vertical;\n  min-height: 52px;\n}\n\n.ad-two-col {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 12px;\n}\n\n/* Category Tags */\n.ad-categories-field {\n  position: relative;\n  display: flex;\n  flex-direction: column;\n  gap: 5px;\n}\n\n.ad-tags-wrapper {\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 8px;\n  padding: 6px 8px;\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 6px;\n  min-height: 40px;\n}\n\n.ad-tags-wrapper:focus-within {\n  border-color: #0a84ff;\n  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.25);\n}\n\n.ad-tag-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  background: rgba(10, 132, 255, 0.18);\n  border: 1px solid rgba(10, 132, 255, 0.35);\n  color: #60a5fa;\n  padding: 2px 7px;\n  border-radius: 5px;\n  font-size: 12px;\n  font-weight: 500;\n}\n\n.ad-tag-chip .ad-remove-tag {\n  cursor: pointer;\n  font-size: 13px;\n  opacity: 0.75;\n  transition: opacity 0.1s ease;\n  line-height: 1;\n}\n\n.ad-tag-chip .ad-remove-tag:hover {\n  opacity: 1;\n  color: #f87171;\n}\n\n.ad-tag-input {\n  border: none;\n  background: transparent;\n  color: #f8fafc;\n  font-size: 13px;\n  outline: none;\n  flex: 1;\n  min-width: 90px;\n  font-family: inherit;\n  padding: 2px 4px;\n}\n\n/* Category Suggestions Autocomplete Popup */\n.ad-suggestions-popup {\n  position: absolute;\n  top: 100%;\n  left: 0;\n  right: 0;\n  margin-top: 4px;\n  background: rgba(15, 23, 42, 0.96);\n  backdrop-filter: blur(20px);\n  -webkit-backdrop-filter: blur(20px);\n  border: 1px solid rgba(255, 255, 255, 0.16);\n  border-radius: 8px;\n  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);\n  max-height: 180px;\n  overflow-y: auto;\n  z-index: 50;\n  display: none;\n  flex-direction: column;\n  padding: 4px;\n}\n\n.ad-suggestions-popup.ad-show {\n  display: flex;\n}\n\n.ad-suggestion-item {\n  padding: 6px 10px;\n  font-size: 13px;\n  color: #cbd5e1;\n  cursor: pointer;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  transition: background 0.12s ease, color 0.12s ease;\n}\n\n.ad-suggestion-item:hover,\n.ad-suggestion-item.is-focused {\n  background: rgba(10, 132, 255, 0.25);\n  color: #ffffff;\n}\n\n.ad-suggestion-item .ad-suggest-tag-name {\n  font-weight: 500;\n}\n\n.ad-suggestion-item .ad-suggest-tag-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-suggestion-item:hover .ad-suggest-tag-hint,\n.ad-suggestion-item.is-focused .ad-suggest-tag-hint {\n  color: #93c5fd;\n}\n\n/* Favorite toggle */\n.ad-fav-toggle {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n}\n\n.ad-fav-star {\n  font-size: 16px;\n  color: #64748b;\n  transition: color 0.15s ease, transform 0.15s ease;\n}\n\n.ad-fav-toggle.active .ad-fav-star {\n  color: #ffb800;\n  transform: scale(1.15);\n}\n\n/* Footer */\n.ad-modal-footer {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-shortcut-hint {\n  font-size: 11px;\n  color: #64748b;\n}\n\n.ad-shortcut-hint kbd {\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.15);\n  border-radius: 4px;\n  padding: 1px 4px;\n  font-size: 10px;\n  color: #94a3b8;\n}\n\n.ad-btn-group {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-btn {\n  padding: 7px 14px;\n  border-radius: 8px;\n  font-size: 13px;\n  font-weight: 600;\n  cursor: pointer;\n  border: none;\n  transition: all 0.15s ease;\n  display: inline-flex;\n  align-items: center;\n  gap: 5px;\n  font-family: inherit;\n}\n\n.ad-btn-secondary {\n  background: rgba(255, 255, 255, 0.07);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.1);\n}\n\n.ad-btn-secondary:hover {\n  background: rgba(255, 255, 255, 0.12);\n  color: #ffffff;\n}\n\n.ad-btn-primary {\n  background: #0a84ff;\n  color: #ffffff;\n  box-shadow: 0 2px 8px rgba(10, 132, 255, 0.35);\n}\n\n.ad-btn-primary:hover {\n  background: #0070e0;\n  box-shadow: 0 3px 12px rgba(10, 132, 255, 0.5);\n  transform: translateY(-1px);\n}\n\n.ad-btn-primary:active {\n  transform: translateY(0);\n}\n\n/* Success Banner */\n.ad-success-overlay {\n  position: absolute;\n  inset: 0;\n  background: rgba(15, 23, 42, 0.95);\n  backdrop-filter: blur(12px);\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n  gap: 10px;\n  border-radius: 16px;\n  opacity: 0;\n  pointer-events: none;\n  transition: opacity 0.2s ease;\n  z-index: 10;\n}\n\n.ad-success-overlay.ad-show {\n  opacity: 1;\n  pointer-events: auto;\n}\n\n.ad-success-icon {\n  width: 48px;\n  height: 48px;\n  border-radius: 50%;\n  background: rgba(52, 199, 89, 0.18);\n  border: 2px solid #34c759;\n  color: #34c759;\n  font-size: 24px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  animation: adPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);\n}\n\n.ad-success-text {\n  font-size: 16px;\n  font-weight: 700;\n  color: #ffffff;\n}\n\n.ad-success-sub {\n  font-size: 12px;\n  color: #94a3b8;\n}\n\n@keyframes adPop {\n  0% { transform: scale(0.5); opacity: 0; }\n  70% { transform: scale(1.1); }\n  100% { transform: scale(1); opacity: 1; }\n}\n\n/* \u2500\u2500 Category Header & AI Classification Badges \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\n.ad-category-header-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 3px;\n}\n\n.ad-ai-status-group {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-classify-badge {\n  font-size: 11px;\n  font-weight: 600;\n  border-radius: 12px;\n  padding: 2px 8px;\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n  letter-spacing: 0.2px;\n  user-select: none;\n  transition: all 0.2s ease;\n  max-width: 260px;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.ad-classify-badge.ad-badge-dom {\n  background: rgba(52, 199, 89, 0.16);\n  color: #34c759;\n  border: 1px solid rgba(52, 199, 89, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-dom:hover {\n  background: rgba(52, 199, 89, 0.26);\n}\n\n.ad-classify-badge.ad-badge-fallback {\n  background: rgba(168, 85, 247, 0.16);\n  color: #c084fc;\n  border: 1px solid rgba(168, 85, 247, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-fallback:hover {\n  background: rgba(168, 85, 247, 0.26);\n}\n\n.ad-classify-badge.ad-badge-brave {\n  background: rgba(255, 159, 10, 0.16);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-brave:hover {\n  background: rgba(255, 159, 10, 0.26);\n}\n\n.ad-classify-badge.ad-badge-loading {\n  background: rgba(10, 132, 255, 0.15);\n  color: #60a5fa;\n  border: 1px solid rgba(10, 132, 255, 0.3);\n}\n\n.ad-classify-badge.ad-badge-setup {\n  background: rgba(255, 255, 255, 0.08);\n  color: #cbd5e1;\n  border: 1px solid rgba(255, 255, 255, 0.18);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-setup:hover {\n  background: rgba(255, 255, 255, 0.16);\n  color: #ffffff;\n}\n\n.ad-classify-badge.ad-badge-error {\n  background: rgba(255, 59, 48, 0.16);\n  color: #ff453a;\n  border: 1px solid rgba(255, 59, 48, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-duplicate {\n  background: rgba(255, 159, 10, 0.16);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  cursor: pointer;\n}\n\n.ad-classify-badge.ad-badge-duplicate:hover {\n  background: rgba(255, 159, 10, 0.26);\n}\n\n.ad-reclassify-btn {\n  background: transparent;\n  border: none;\n  color: #94a3b8;\n  font-size: 13px;\n  cursor: pointer;\n  width: 22px;\n  height: 22px;\n  border-radius: 4px;\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  transition: all 0.15s ease;\n}\n\n.ad-reclassify-btn:hover {\n  background: rgba(255, 255, 255, 0.1);\n  color: #ffffff;\n}\n\n.ad-reclassify-btn.is-spinning {\n  animation: adSpin 0.75s linear infinite;\n}\n\n@keyframes adSpin {\n  100% { transform: rotate(360deg); }\n}\n\n.ad-spinner-dot {\n  display: inline-block;\n  width: 8px;\n  height: 8px;\n  border: 1.5px solid rgba(96, 165, 250, 0.3);\n  border-top-color: #60a5fa;\n  border-radius: 50%;\n  animation: adSpin 0.7s linear infinite;\n}\n\n/* AI Reasoning Card / Popover */\n.ad-reasoning-card {\n  margin-top: 4px;\n  padding: 6px 10px;\n  background: rgba(15, 23, 42, 0.85);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  border-left: 3px solid #0a84ff;\n  border-radius: 6px;\n  font-size: 11px;\n  color: #94a3b8;\n  line-height: 1.45;\n  display: none;\n}\n\n.ad-reasoning-card.ad-show {\n  display: block;\n}\n\n/* New Category Tag Chip highlight */\n.ad-tag-chip.ad-tag-chip-new {\n  background: linear-gradient(135deg, rgba(255, 214, 10, 0.22), rgba(255, 159, 10, 0.14));\n  border: 1px solid rgba(255, 214, 10, 0.55);\n  color: #ffd60a;\n  box-shadow: 0 0 10px rgba(255, 214, 10, 0.15);\n}\n\n.ad-tag-chip.ad-tag-chip-new .ad-remove-tag:hover {\n  color: #ff453a;\n}\n\n.ad-new-tags-notice {\n  font-size: 11px;\n  color: #ffd60a;\n  margin-top: 4px;\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  font-weight: 500;\n}\n\n/* Settings Drawer / View inside modal */\n.ad-settings-drawer {\n  position: absolute;\n  inset: 0;\n  background: rgba(18, 24, 38, 0.98);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border-radius: 16px;\n  z-index: 20;\n  display: flex;\n  flex-direction: column;\n  transform: translateX(100%);\n  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n}\n\n.ad-settings-drawer.ad-show {\n  transform: translateX(0);\n}\n\n.ad-settings-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 16px 20px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n}\n\n.ad-settings-title {\n  font-size: 15px;\n  font-weight: 700;\n  color: #ffffff;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-settings-body {\n  padding: 20px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  overflow-y: auto;\n  flex: 1;\n}\n\n.ad-settings-hint {\n  font-size: 12px;\n  color: #94a3b8;\n  line-height: 1.45;\n}\n\n.ad-settings-hint a {\n  color: #0a84ff;\n  text-decoration: none;\n}\n\n.ad-settings-hint a:hover {\n  text-decoration: underline;\n}\n\n.ad-checkbox-row {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  cursor: pointer;\n  user-select: none;\n  font-size: 13px;\n  color: #cbd5e1;\n  margin-top: 4px;\n}\n\n.ad-checkbox-row input {\n  accent-color: #0a84ff;\n  width: 16px;\n  height: 16px;\n  cursor: pointer;\n}\n\n.ad-settings-footer {\n  padding: 14px 20px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: flex-end;\n  gap: 10px;\n  background: rgba(255, 255, 255, 0.02);\n}\n\n/* Duplicate Suggestion Drawer (Slides in from the right) */\n.ad-duplicate-drawer {\n  position: absolute;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  width: 100%;\n  background: rgba(18, 24, 38, 0.98);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border-radius: 16px;\n  z-index: 15;\n  display: flex;\n  flex-direction: column;\n  transform: translateX(100%);\n  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n  box-shadow: -8px 0 25px rgba(0, 0, 0, 0.4);\n}\n\n.ad-duplicate-drawer.ad-show {\n  transform: translateX(0);\n}\n\n.ad-duplicate-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 14px 18px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 159, 10, 0.06);\n}\n\n.ad-duplicate-title {\n  font-size: 14px;\n  font-weight: 700;\n  color: #ff9f0a;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-duplicate-badge {\n  font-size: 10px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  background: rgba(255, 159, 10, 0.18);\n  color: #ff9f0a;\n  border: 1px solid rgba(255, 159, 10, 0.35);\n  padding: 2px 6px;\n  border-radius: 4px;\n}\n\n.ad-duplicate-body {\n  padding: 18px;\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  overflow-y: auto;\n  flex: 1;\n}\n\n.ad-duplicate-notice {\n  font-size: 12.5px;\n  line-height: 1.5;\n  color: #cbd5e1;\n}\n\n.ad-duplicate-card {\n  background: rgba(15, 23, 42, 0.7);\n  border: 1px solid rgba(255, 159, 10, 0.25);\n  border-radius: 10px;\n  padding: 14px;\n  display: flex;\n  flex-direction: column;\n  gap: 10px;\n}\n\n.ad-duplicate-card-header {\n  display: flex;\n  align-items: flex-start;\n  gap: 10px;\n}\n\n.ad-duplicate-card-icon {\n  width: 32px;\n  height: 32px;\n  border-radius: 8px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  flex-shrink: 0;\n  font-size: 16px;\n  overflow: hidden;\n}\n\n.ad-duplicate-card-icon img {\n  width: 20px;\n  height: 20px;\n  object-fit: contain;\n}\n\n.ad-duplicate-card-meta {\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n  min-width: 0;\n  flex: 1;\n}\n\n.ad-duplicate-entry-title {\n  font-size: 13.5px;\n  font-weight: 600;\n  color: #f8fafc;\n  word-break: break-word;\n}\n\n.ad-duplicate-entry-url {\n  font-size: 11.5px;\n  color: #38bdf8;\n  text-decoration: none;\n  word-break: break-all;\n  line-height: 1.35;\n}\n\n.ad-duplicate-entry-url:hover {\n  text-decoration: underline;\n}\n\n.ad-duplicate-details {\n  display: flex;\n  flex-direction: column;\n  gap: 6px;\n  font-size: 11.5px;\n  color: #94a3b8;\n  padding-top: 8px;\n  border-top: 1px solid rgba(255, 255, 255, 0.06);\n}\n\n.ad-duplicate-detail-row {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 8px;\n}\n\n.ad-duplicate-detail-label {\n  color: #64748b;\n  font-size: 11px;\n}\n\n.ad-duplicate-detail-value {\n  color: #e2e8f0;\n  font-weight: 500;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.ad-duplicate-tags {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 4px;\n  margin-top: 2px;\n}\n\n.ad-duplicate-tag {\n  background: rgba(10, 132, 255, 0.14);\n  border: 1px solid rgba(10, 132, 255, 0.28);\n  color: #93c5fd;\n  padding: 1px 6px;\n  border-radius: 4px;\n  font-size: 10.5px;\n}\n\n.ad-duplicate-footer {\n  padding: 12px 18px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-duplicate-footer-hint {\n  font-size: 11px;\n  color: #94a3b8;\n  flex: 1;\n}\n\n.ad-duplicate-banner-trigger {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  padding: 3px 8px;\n  border-radius: 5px;\n  background: rgba(255, 159, 10, 0.14);\n  border: 1px solid rgba(255, 159, 10, 0.3);\n  color: #ff9f0a;\n  font-size: 11px;\n  font-weight: 600;\n  cursor: pointer;\n  transition: all 0.15s ease;\n}\n\n.ad-duplicate-banner-trigger:hover {\n  background: rgba(255, 159, 10, 0.22);\n  border-color: rgba(255, 159, 10, 0.5);\n  color: #ffb340;\n}\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   Command Palette Modal Styles (Alt+K)\n   \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n\n.ad-palette-card {\n  width: 100%;\n  max-width: 580px;\n  background: rgba(22, 28, 42, 0.94);\n  backdrop-filter: blur(24px);\n  -webkit-backdrop-filter: blur(24px);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  border-radius: 16px;\n  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);\n  overflow: hidden;\n  transform: scale(0.95) translateY(8px);\n  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;\n  display: flex;\n  flex-direction: column;\n}\n\n.ad-modal-backdrop.ad-visible .ad-palette-card {\n  transform: scale(1) translateY(0);\n}\n\n/* Search Bar */\n.ad-palette-search-bar {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  padding: 14px 18px;\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n}\n\n.ad-palette-search-icon {\n  font-size: 17px;\n  color: #94a3b8;\n  flex-shrink: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.ad-palette-input {\n  flex: 1;\n  background: transparent;\n  border: none;\n  outline: none;\n  color: #ffffff;\n  font-size: 15px;\n  font-family: inherit;\n}\n\n.ad-palette-input::placeholder {\n  color: #64748b;\n}\n\n.ad-palette-counter {\n  font-size: 11px;\n  font-weight: 600;\n  color: #94a3b8;\n  background: rgba(255, 255, 255, 0.08);\n  padding: 2px 8px;\n  border-radius: 12px;\n  white-space: nowrap;\n}\n\n.ad-palette-esc-badge {\n  font-size: 10px;\n  font-weight: 700;\n  padding: 3px 6px;\n  border-radius: 5px;\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  color: #94a3b8;\n  cursor: pointer;\n  transition: all 0.15s ease;\n}\n\n.ad-palette-esc-badge:hover {\n  background: rgba(255, 255, 255, 0.15);\n  color: #ffffff;\n}\n\n/* Results List */\n.ad-palette-results {\n  padding: 8px 10px;\n  max-height: 400px;\n  overflow-y: auto;\n  display: flex;\n  flex-direction: column;\n  gap: 3px;\n}\n\n.ad-palette-results::-webkit-scrollbar {\n  width: 6px;\n}\n\n.ad-palette-results::-webkit-scrollbar-thumb {\n  background: rgba(255, 255, 255, 0.15);\n  border-radius: 3px;\n}\n\n.ad-palette-section-title {\n  font-size: 11px;\n  font-weight: 700;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  color: #64748b;\n  padding: 8px 10px 4px 10px;\n}\n\n.ad-palette-empty {\n  padding: 36px 16px;\n  text-align: center;\n  color: #94a3b8;\n  font-size: 13.5px;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-palette-empty-icon {\n  font-size: 28px;\n  opacity: 0.7;\n}\n\n/* Result Row Item */\n.ad-palette-item {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  padding: 9px 12px;\n  border-radius: 10px;\n  cursor: pointer;\n  transition: all 0.12s ease;\n  border: 1px solid transparent;\n}\n\n.ad-palette-item:hover,\n.ad-palette-item.is-selected {\n  background: rgba(10, 132, 255, 0.15);\n  border-color: rgba(10, 132, 255, 0.35);\n}\n\n.ad-palette-item-icon {\n  width: 32px;\n  height: 32px;\n  border-radius: 8px;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.1);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 15px;\n  flex-shrink: 0;\n  overflow: hidden;\n}\n\n.ad-palette-item-icon img {\n  width: 20px;\n  height: 20px;\n  object-fit: contain;\n}\n\n.ad-palette-item-info {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n}\n\n.ad-palette-item-title-row {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n\n.ad-palette-item-title {\n  font-size: 13.5px;\n  font-weight: 600;\n  color: #f8fafc;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.ad-palette-fav-star {\n  color: #f59e0b;\n  font-size: 12px;\n  flex-shrink: 0;\n}\n\n.ad-palette-item-subtitle {\n  font-size: 12px;\n  color: #94a3b8;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.ad-palette-item-badges {\n  display: flex;\n  align-items: center;\n  gap: 5px;\n  flex-shrink: 0;\n}\n\n.ad-palette-tag {\n  font-size: 10.5px;\n  padding: 2px 6px;\n  border-radius: 4px;\n  background: rgba(255, 255, 255, 0.08);\n  color: #cbd5e1;\n}\n\n.ad-palette-folder-badge {\n  font-size: 10.5px;\n  padding: 2px 6px;\n  border-radius: 4px;\n  font-weight: 600;\n  display: flex;\n  align-items: center;\n  gap: 3px;\n  background: rgba(10, 132, 255, 0.18);\n  color: #0a84ff;\n  border: 1px solid rgba(10, 132, 255, 0.3);\n}\n\n/* Quick Action Buttons on hover/selected */\n.ad-palette-quick-actions {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n  opacity: 0;\n  transition: opacity 0.15s ease;\n  flex-shrink: 0;\n}\n\n.ad-palette-item:hover .ad-palette-quick-actions,\n.ad-palette-item.is-selected .ad-palette-quick-actions {\n  opacity: 1;\n}\n\n.ad-palette-quick-btn {\n  width: 26px;\n  height: 26px;\n  border-radius: 6px;\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  color: #cbd5e1;\n  font-size: 12px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  cursor: pointer;\n  transition: all 0.12s ease;\n}\n\n.ad-palette-quick-btn:hover {\n  background: #0a84ff;\n  color: #ffffff;\n  border-color: #0a84ff;\n  transform: scale(1.08);\n}\n\n/* Footer */\n.ad-palette-footer {\n  padding: 10px 18px;\n  border-top: 1px solid rgba(255, 255, 255, 0.08);\n  background: rgba(255, 255, 255, 0.02);\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  font-size: 11px;\n  color: #94a3b8;\n}\n\n.ad-palette-footer-shortcuts {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex-wrap: wrap;\n}\n\n.ad-palette-footer-shortcuts span {\n  display: inline-flex;\n  align-items: center;\n  gap: 4px;\n}\n\n/* \u2500\u2500 Action Chooser View \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */\n.ad-palette-action-view {\n  display: flex;\n  flex-direction: column;\n  padding: 18px 20px;\n  gap: 14px;\n}\n\n.ad-palette-action-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n}\n\n.ad-palette-back-btn {\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  color: #cbd5e1;\n  padding: 5px 10px;\n  border-radius: 6px;\n  font-size: 12px;\n  font-weight: 600;\n  cursor: pointer;\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  transition: all 0.15s ease;\n}\n\n.ad-palette-back-btn:hover {\n  background: rgba(255, 255, 255, 0.12);\n  color: #ffffff;\n}\n\n.ad-palette-target-info {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  padding: 12px 14px;\n  border-radius: 12px;\n  background: rgba(255, 255, 255, 0.03);\n  border: 1px solid rgba(255, 255, 255, 0.08);\n}\n\n.ad-palette-target-icon {\n  width: 38px;\n  height: 38px;\n  border-radius: 9px;\n  background: rgba(255, 255, 255, 0.08);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 18px;\n  flex-shrink: 0;\n  overflow: hidden;\n}\n\n.ad-palette-target-icon img {\n  width: 22px;\n  height: 22px;\n  object-fit: contain;\n}\n\n.ad-palette-target-meta {\n  flex: 1;\n  min-width: 0;\n}\n\n.ad-palette-target-title {\n  font-size: 14px;\n  font-weight: 700;\n  color: #ffffff;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.ad-palette-target-url {\n  font-size: 12px;\n  color: #60a5fa;\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n}\n\n.ad-palette-prompt {\n  font-size: 11px;\n  font-weight: 700;\n  color: #94a3b8;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n}\n\n.ad-palette-choices-list {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n}\n\n.ad-palette-choice-card {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  padding: 12px 16px;\n  border-radius: 12px;\n  background: rgba(15, 23, 42, 0.65);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  cursor: pointer;\n  transition: all 0.15s ease;\n}\n\n.ad-palette-choice-card:hover,\n.ad-palette-choice-card.is-selected {\n  background: rgba(10, 132, 255, 0.2);\n  border-color: rgba(10, 132, 255, 0.55);\n  box-shadow: 0 4px 16px rgba(10, 132, 255, 0.25);\n  transform: translateY(-1px);\n}\n\n.ad-palette-choice-icon {\n  width: 40px;\n  height: 40px;\n  border-radius: 10px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 18px;\n  flex-shrink: 0;\n  background: rgba(255, 255, 255, 0.06);\n  border: 1px solid rgba(255, 255, 255, 0.08);\n}\n\n.ad-palette-choice-text {\n  flex: 1;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n  gap: 2px;\n}\n\n.ad-palette-choice-title {\n  font-size: 13.5px;\n  font-weight: 600;\n  color: #ffffff;\n}\n\n.ad-palette-choice-desc {\n  font-size: 12px;\n  color: #94a3b8;\n}\n\n.ad-palette-choice-kbd {\n  display: flex;\n  align-items: center;\n  gap: 4px;\n}\n\n.ad-palette-kbd {\n  padding: 3px 6px;\n  font-size: 11px;\n  font-weight: 700;\n  border-radius: 5px;\n  background: rgba(255, 255, 255, 0.08);\n  border: 1px solid rgba(255, 255, 255, 0.14);\n  color: #cbd5e1;\n}\n\n/* Floating Confirmation Toast */\n.ad-palette-toast {\n  position: fixed;\n  bottom: 24px;\n  left: 50%;\n  transform: translateX(-50%) translateY(20px);\n  opacity: 0;\n  background: rgba(16, 185, 129, 0.95);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n  color: #ffffff;\n  padding: 8px 16px;\n  border-radius: 24px;\n  font-size: 12.5px;\n  font-weight: 600;\n  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);\n  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);\n  z-index: 2147483647;\n  pointer-events: none;\n  display: flex;\n  align-items: center;\n  gap: 8px;\n}\n\n.ad-palette-toast.ad-show {\n  opacity: 1;\n  transform: translateX(-50%) translateY(0);\n}\n\n\n";
 
   // src/extension/domExtractor.ts
   function extractPageContext() {
@@ -92,6 +92,545 @@
     };
   }
 
+  // src/extension/paletteModal.ts
+  function isExtensionContextValid() {
+    try {
+      return typeof chrome !== "undefined" && typeof chrome.runtime !== "undefined" && !!chrome.runtime.id;
+    } catch {
+      return false;
+    }
+  }
+  function escapeHtml(str) {
+    return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+  function getDomain(rawUrl) {
+    try {
+      const u = new URL(rawUrl);
+      return u.hostname.replace(/^www\./, "");
+    } catch {
+      return rawUrl;
+    }
+  }
+  var isPaletteOpening = false;
+  var lastPaletteToggleTimestamp = 0;
+  function togglePaletteModal() {
+    if (!isExtensionContextValid()) {
+      console.warn("[App Directory Companion] Extension was reloaded. Please refresh this page.");
+      return;
+    }
+    const now = Date.now();
+    if (now - lastPaletteToggleTimestamp < 350 || isPaletteOpening) {
+      return;
+    }
+    lastPaletteToggleTimestamp = now;
+    const existingHost = document.getElementById("app-directory-palette-host");
+    if (existingHost) {
+      const backdrop = existingHost.shadowRoot?.querySelector(".ad-modal-backdrop");
+      if (backdrop) {
+        backdrop.classList.remove("ad-visible");
+        setTimeout(() => existingHost.remove(), 200);
+      } else {
+        existingHost.remove();
+      }
+      return;
+    }
+    const addModalHost = document.getElementById("app-directory-modal-host");
+    if (addModalHost) {
+      addModalHost.remove();
+    }
+    isPaletteOpening = true;
+    try {
+      chrome.runtime.sendMessage({ type: "GET_APP_DIRECTORY_STATE" }, (response) => {
+        isPaletteOpening = false;
+        try {
+          if (!isExtensionContextValid()) return;
+          if (chrome.runtime.lastError) return;
+          if (document.getElementById("app-directory-palette-host")) {
+            return;
+          }
+          const folders = response && response.folders || [];
+          const categories = response && response.categories || [];
+          const entries = response && response.entries || [];
+          renderPaletteModal(folders, categories, entries);
+        } catch (_) {
+        }
+      });
+    } catch (_) {
+      isPaletteOpening = false;
+    }
+  }
+  var ACTION_CHOICES = [
+    {
+      id: "current",
+      title: "Open in Current Tab",
+      desc: "Navigate active tab to this website",
+      icon: "\u{1F4C4}",
+      kbd: "Enter",
+      numberKey: "1"
+    },
+    {
+      id: "new-tab",
+      title: "Open in New Tab",
+      desc: "Open in a foreground tab & switch to it",
+      icon: "\u2197\uFE0F",
+      kbd: "Ctrl+Enter",
+      numberKey: "2"
+    },
+    {
+      id: "background-tab",
+      title: "Open in New Background Tab",
+      desc: "Open silently in background without leaving this page",
+      icon: "\u29C9",
+      kbd: "Shift+Enter",
+      numberKey: "3"
+    }
+  ];
+  function renderPaletteModal(availableFolders, _availableCategories, cachedEntries = []) {
+    document.querySelectorAll("#app-directory-palette-host").forEach((node) => node.remove());
+    const host = document.createElement("div");
+    host.id = "app-directory-palette-host";
+    const shadow = host.attachShadow({ mode: "open" });
+    const styleEl = document.createElement("style");
+    styleEl.textContent = modal_default;
+    shadow.appendChild(styleEl);
+    const folderMap = /* @__PURE__ */ new Map();
+    availableFolders.forEach((f) => folderMap.set(f.id, f));
+    const allBookmarks = [...cachedEntries].sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+      const aVisits = a.visitCount || 0;
+      const bVisits = b.visitCount || 0;
+      if (bVisits !== aVisits) return bVisits - aVisits;
+      const aTime = a.dateAdded ? new Date(a.dateAdded).getTime() : 0;
+      const bTime = b.dateAdded ? new Date(b.dateAdded).getTime() : 0;
+      return bTime - aTime;
+    });
+    let currentView = "search";
+    let selectedBookmark = null;
+    let filteredBookmarks = allBookmarks;
+    let searchSelectedIndex = 0;
+    let actionSelectedIndex = 0;
+    let closeTimer = null;
+    let toastTimer = null;
+    let keyHandler = null;
+    const backdrop = document.createElement("div");
+    backdrop.className = "ad-modal-backdrop";
+    backdrop.innerHTML = `
+    <div class="ad-palette-card">
+      <!-- Search View -->
+      <div id="ad-palette-search-container" style="display:flex; flex-direction:column;">
+        <div class="ad-palette-search-bar">
+          <span class="ad-palette-search-icon">\u{1F50D}</span>
+          <input
+            type="text"
+            id="ad-palette-input"
+            class="ad-palette-input"
+            placeholder="Search saved websites (Alt+K)..."
+            autocomplete="off"
+            spellcheck="false"
+          >
+          <span id="ad-palette-counter" class="ad-palette-counter">${allBookmarks.length} sites</span>
+          <span id="ad-palette-esc-btn" class="ad-palette-esc-badge" title="Close">ESC</span>
+        </div>
+
+        <div id="ad-palette-results" class="ad-palette-results"></div>
+
+        <div class="ad-palette-footer">
+          <div class="ad-palette-footer-shortcuts">
+            <span><kbd class="ad-palette-kbd">\u2191\u2193</kbd> Navigate</span>
+            <span><kbd class="ad-palette-kbd">\u21B5</kbd> Select</span>
+            <span><kbd class="ad-palette-kbd">Ctrl+\u21B5</kbd> New Tab</span>
+            <span><kbd class="ad-palette-kbd">Shift+\u21B5</kbd> Background Tab</span>
+            <span><kbd class="ad-palette-kbd">Esc</kbd> Close</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Chooser View -->
+      <div id="ad-palette-action-container" class="ad-palette-action-view" style="display:none;">
+        <div class="ad-palette-action-header">
+          <button type="button" class="ad-palette-back-btn" id="ad-palette-back-btn">
+            \u2190 Back to search
+          </button>
+          <span id="ad-palette-action-esc-btn" class="ad-palette-esc-badge" title="Close">ESC</span>
+        </div>
+
+        <div class="ad-palette-target-info" id="ad-palette-target-info">
+          <!-- Filled dynamically -->
+        </div>
+
+        <div class="ad-palette-prompt">Choose how to open this website:</div>
+
+        <div class="ad-palette-choices-list" id="ad-palette-choices-list">
+          ${ACTION_CHOICES.map(
+      (choice, idx) => `
+            <div class="ad-palette-choice-card ${idx === 0 ? "is-selected" : ""}" data-choice="${choice.id}" data-index="${idx}">
+              <div class="ad-palette-choice-icon">${choice.icon}</div>
+              <div class="ad-palette-choice-text">
+                <div class="ad-palette-choice-title">${escapeHtml(choice.title)}</div>
+                <div class="ad-palette-choice-desc">${escapeHtml(choice.desc)}</div>
+              </div>
+              <div class="ad-palette-choice-kbd">
+                <span class="ad-palette-kbd">${choice.kbd}</span>
+              </div>
+            </div>
+          `
+    ).join("")}
+        </div>
+
+        <div class="ad-palette-footer" style="padding: 10px 0 0 0; border-top: 1px solid rgba(255,255,255,0.08); background: transparent;">
+          <div class="ad-palette-footer-shortcuts">
+            <span><kbd class="ad-palette-kbd">1</kbd>/<kbd class="ad-palette-kbd">2</kbd>/<kbd class="ad-palette-kbd">3</kbd> Quick Choice</span>
+            <span><kbd class="ad-palette-kbd">\u2191\u2193</kbd> Select</span>
+            <span><kbd class="ad-palette-kbd">\u21B5</kbd> Open</span>
+            <span><kbd class="ad-palette-kbd">Esc</kbd> Back</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Confirmation Toast -->
+      <div class="ad-palette-toast" id="ad-palette-toast">
+        <span>\u2713</span>
+        <span id="ad-palette-toast-msg">Opened in background tab</span>
+      </div>
+    </div>
+  `;
+    shadow.appendChild(backdrop);
+    document.body.appendChild(host);
+    requestAnimationFrame(() => {
+      backdrop.classList.add("ad-visible");
+      const input = shadow.getElementById("ad-palette-input");
+      if (input) {
+        input.focus();
+      }
+    });
+    const searchContainer = shadow.getElementById("ad-palette-search-container");
+    const actionContainer = shadow.getElementById("ad-palette-action-container");
+    const searchInput = shadow.getElementById("ad-palette-input");
+    const resultsContainer = shadow.getElementById("ad-palette-results");
+    const counterEl = shadow.getElementById("ad-palette-counter");
+    const targetInfoEl = shadow.getElementById("ad-palette-target-info");
+    const choicesListEl = shadow.getElementById("ad-palette-choices-list");
+    const toastEl = shadow.getElementById("ad-palette-toast");
+    const toastMsg = shadow.getElementById("ad-palette-toast-msg");
+    const closePalette = () => {
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
+      }
+      if (toastTimer) {
+        clearTimeout(toastTimer);
+        toastTimer = null;
+      }
+      if (keyHandler) {
+        window.removeEventListener("keydown", keyHandler, true);
+      }
+      backdrop.classList.remove("ad-visible");
+      setTimeout(() => host.remove(), 200);
+    };
+    const escBtn = shadow.getElementById("ad-palette-esc-btn");
+    const actionEscBtn = shadow.getElementById("ad-palette-action-esc-btn");
+    const backBtn = shadow.getElementById("ad-palette-back-btn");
+    if (escBtn) escBtn.addEventListener("click", closePalette);
+    if (actionEscBtn) actionEscBtn.addEventListener("click", closePalette);
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) closePalette();
+    });
+    const stopKeyboardPropagation = (e) => {
+      e.stopPropagation();
+    };
+    backdrop.addEventListener("keydown", stopKeyboardPropagation);
+    backdrop.addEventListener("keyup", stopKeyboardPropagation);
+    backdrop.addEventListener("keypress", stopKeyboardPropagation);
+    host.addEventListener("keydown", stopKeyboardPropagation);
+    host.addEventListener("keyup", stopKeyboardPropagation);
+    host.addEventListener("keypress", stopKeyboardPropagation);
+    const selectBookmarkForAction = (bookmark) => {
+      selectedBookmark = bookmark;
+      currentView = "actions";
+      actionSelectedIndex = 0;
+      if (searchContainer) searchContainer.style.display = "none";
+      if (actionContainer) actionContainer.style.display = "flex";
+      if (targetInfoEl) {
+        const folder = bookmark.folderId ? folderMap.get(bookmark.folderId) : null;
+        const domain = getDomain(bookmark.url);
+        const iconSrc = bookmark.iconUrl || bookmark.icon || "";
+        const isImg = iconSrc.startsWith("http") || iconSrc.startsWith("data:");
+        targetInfoEl.innerHTML = `
+        <div class="ad-palette-target-icon">
+          ${isImg ? `<img src="${escapeHtml(iconSrc)}" alt="" onerror="this.parentElement.textContent='\u{1F310}'">` : iconSrc || "\u{1F4C1}"}
+        </div>
+        <div class="ad-palette-target-meta">
+          <div class="ad-palette-target-title">${escapeHtml(bookmark.name || "Untitled")}</div>
+          <div class="ad-palette-target-url">${escapeHtml(domain)}${bookmark.description ? ` &bull; ${escapeHtml(bookmark.description)}` : ""}</div>
+        </div>
+        ${folder ? `<span class="ad-palette-folder-badge" style="${folder.color ? `background:${folder.color}1c; color:${folder.color}; border-color:${folder.color}40;` : ""}">${escapeHtml(folder.icon || "\u{1F4C1}")} ${escapeHtml(folder.name)}</span>` : ""}
+      `;
+      }
+      updateActionSelection();
+    };
+    const backToSearchView = () => {
+      currentView = "search";
+      selectedBookmark = null;
+      if (actionContainer) actionContainer.style.display = "none";
+      if (searchContainer) searchContainer.style.display = "flex";
+      if (searchInput) {
+        searchInput.focus();
+      }
+    };
+    if (backBtn) backBtn.addEventListener("click", backToSearchView);
+    const executeAction = (bookmark, mode) => {
+      if (!bookmark || !bookmark.url) return;
+      try {
+        chrome.runtime.sendMessage({
+          type: "OPEN_BOOKMARK_URL",
+          url: bookmark.url,
+          mode,
+          id: bookmark.id
+        });
+      } catch (_) {
+      }
+      if (mode === "background-tab") {
+        if (toastEl && toastMsg) {
+          toastMsg.textContent = `Opened "${bookmark.name}" in background tab \u2713`;
+          toastEl.classList.add("ad-show");
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => {
+            toastEl.classList.remove("ad-show");
+          }, 2200);
+        }
+        if (currentView === "actions") {
+          backToSearchView();
+        }
+      } else {
+        closePalette();
+      }
+    };
+    const updateActionSelection = () => {
+      if (!choicesListEl) return;
+      const cards = choicesListEl.querySelectorAll(".ad-palette-choice-card");
+      cards.forEach((card, idx) => {
+        card.classList.toggle("is-selected", idx === actionSelectedIndex);
+      });
+    };
+    if (choicesListEl) {
+      const cards = choicesListEl.querySelectorAll(".ad-palette-choice-card");
+      cards.forEach((card, idx) => {
+        card.addEventListener("mouseenter", () => {
+          actionSelectedIndex = idx;
+          updateActionSelection();
+        });
+        card.addEventListener("click", () => {
+          if (!selectedBookmark) return;
+          const choice = ACTION_CHOICES[idx];
+          if (choice) {
+            executeAction(selectedBookmark, choice.id);
+          }
+        });
+      });
+    }
+    const updateSearchSelection = () => {
+      if (!resultsContainer) return;
+      const items = resultsContainer.querySelectorAll(".ad-palette-item");
+      items.forEach((item, idx) => {
+        const isSelected = idx === searchSelectedIndex;
+        item.classList.toggle("is-selected", isSelected);
+        if (isSelected) {
+          item.scrollIntoView({ block: "nearest" });
+        }
+      });
+    };
+    const renderResults = (query) => {
+      if (!resultsContainer) return;
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        filteredBookmarks = allBookmarks;
+      } else {
+        filteredBookmarks = allBookmarks.filter((entry) => {
+          const nameMatch = (entry.name || "").toLowerCase().includes(q);
+          const urlMatch = (entry.url || "").toLowerCase().includes(q);
+          const descMatch = (entry.description || "").toLowerCase().includes(q);
+          const catMatch = (entry.categories || []).some((c) => c.toLowerCase().includes(q));
+          const folder = entry.folderId ? folderMap.get(entry.folderId) : null;
+          const folderMatch = folder ? folder.name.toLowerCase().includes(q) : false;
+          return nameMatch || urlMatch || descMatch || catMatch || folderMatch;
+        });
+      }
+      if (counterEl) {
+        counterEl.textContent = `${filteredBookmarks.length} site${filteredBookmarks.length !== 1 ? "s" : ""}`;
+      }
+      resultsContainer.innerHTML = "";
+      if (filteredBookmarks.length === 0) {
+        resultsContainer.innerHTML = `
+        <div class="ad-palette-empty">
+          <div class="ad-palette-empty-icon">\u{1F50D}</div>
+          <div>No matching websites found for "<strong>${escapeHtml(query)}</strong>"</div>
+        </div>
+      `;
+        return;
+      }
+      if (!q) {
+        const secHeader = document.createElement("div");
+        secHeader.className = "ad-palette-section-title";
+        secHeader.textContent = "\u2605 Frequently Visited & Starred";
+        resultsContainer.appendChild(secHeader);
+      }
+      filteredBookmarks.forEach((entry, idx) => {
+        const folder = entry.folderId ? folderMap.get(entry.folderId) : null;
+        const domain = getDomain(entry.url);
+        const iconSrc = entry.iconUrl || entry.icon || "";
+        const isImg = iconSrc.startsWith("http") || iconSrc.startsWith("data:");
+        const row = document.createElement("div");
+        row.className = `ad-palette-item ${idx === searchSelectedIndex ? "is-selected" : ""}`;
+        row.setAttribute("data-index", String(idx));
+        row.innerHTML = `
+        <div class="ad-palette-item-icon">
+          ${isImg ? `<img src="${escapeHtml(iconSrc)}" alt="" onerror="this.parentElement.textContent='\u{1F310}'">` : iconSrc || "\u{1F4C1}"}
+        </div>
+        <div class="ad-palette-item-info">
+          <div class="ad-palette-item-title-row">
+            <span class="ad-palette-item-title">${escapeHtml(entry.name || "Untitled")}</span>
+            ${entry.isFavorite ? `<span class="ad-palette-fav-star" title="Favorite">\u2605</span>` : ""}
+          </div>
+          <div class="ad-palette-item-subtitle">${escapeHtml(domain)}${entry.description ? ` &bull; ${escapeHtml(entry.description)}` : ""}</div>
+        </div>
+        <div class="ad-palette-item-badges">
+          ${folder ? `<span class="ad-palette-folder-badge" ${folder.color ? `style="background:${folder.color}1c; color:${folder.color}; border-color:${folder.color}40;"` : ""}>${escapeHtml(folder.icon || "\u{1F4C1}")} ${escapeHtml(folder.name)}</span>` : ""}
+          ${Array.isArray(entry.categories) && entry.categories[0] ? `<span class="ad-palette-tag">${escapeHtml(entry.categories[0])}</span>` : ""}
+        </div>
+        <div class="ad-palette-quick-actions">
+          <button type="button" class="ad-palette-quick-btn" data-mode="current" title="Open in Current Tab (Enter)">\u{1F4C4}</button>
+          <button type="button" class="ad-palette-quick-btn" data-mode="new-tab" title="Open in New Tab (Ctrl+Enter)">\u2197\uFE0F</button>
+          <button type="button" class="ad-palette-quick-btn" data-mode="background-tab" title="Open in Background Tab (Shift+Enter)">\u29C9</button>
+        </div>
+      `;
+        row.querySelectorAll(".ad-palette-quick-btn").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const mode = btn.getAttribute("data-mode");
+            executeAction(entry, mode);
+          });
+        });
+        row.addEventListener("mouseenter", () => {
+          searchSelectedIndex = idx;
+          updateSearchSelection();
+        });
+        row.addEventListener("click", () => {
+          selectBookmarkForAction(entry);
+        });
+        resultsContainer.appendChild(row);
+      });
+      if (searchSelectedIndex >= filteredBookmarks.length) {
+        searchSelectedIndex = 0;
+      }
+      updateSearchSelection();
+    };
+    renderResults("");
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        searchSelectedIndex = 0;
+        renderResults(searchInput.value);
+      });
+    }
+    keyHandler = (e) => {
+      if (currentView === "actions") {
+        if (e.key === "Escape" || e.key === "Backspace") {
+          e.preventDefault();
+          e.stopPropagation();
+          backToSearchView();
+          return;
+        }
+        if (e.key === "1") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (selectedBookmark) executeAction(selectedBookmark, "current");
+          return;
+        }
+        if (e.key === "2") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (selectedBookmark) executeAction(selectedBookmark, "new-tab");
+          return;
+        }
+        if (e.key === "3") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (selectedBookmark) executeAction(selectedBookmark, "background-tab");
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          e.stopPropagation();
+          actionSelectedIndex = (actionSelectedIndex + 1) % ACTION_CHOICES.length;
+          updateActionSelection();
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          e.stopPropagation();
+          actionSelectedIndex = (actionSelectedIndex - 1 + ACTION_CHOICES.length) % ACTION_CHOICES.length;
+          updateActionSelection();
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (selectedBookmark) {
+            const choice = ACTION_CHOICES[actionSelectedIndex];
+            if (choice) {
+              executeAction(selectedBookmark, choice.id);
+            }
+          }
+          return;
+        }
+        return;
+      }
+      if (currentView === "search") {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          closePalette();
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (filteredBookmarks.length > 0) {
+            searchSelectedIndex = (searchSelectedIndex + 1) % filteredBookmarks.length;
+            updateSearchSelection();
+          }
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          e.stopPropagation();
+          if (filteredBookmarks.length > 0) {
+            searchSelectedIndex = (searchSelectedIndex - 1 + filteredBookmarks.length) % filteredBookmarks.length;
+            updateSearchSelection();
+          }
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.stopPropagation();
+          const selected = filteredBookmarks[searchSelectedIndex];
+          if (!selected) return;
+          if (e.ctrlKey || e.metaKey) {
+            executeAction(selected, "new-tab");
+            return;
+          }
+          if (e.shiftKey) {
+            executeAction(selected, "background-tab");
+            return;
+          }
+          selectBookmarkForAction(selected);
+          return;
+        }
+      }
+    };
+    window.addEventListener("keydown", keyHandler, true);
+  }
+
   // src/extension/content.ts
   if (typeof window.__APP_DIRECTORY_CLEANUP__ === "function") {
     try {
@@ -139,7 +678,7 @@
     const metaDesc = document.querySelector('meta[name="description" i]')?.content || document.querySelector('meta[property="og:description" i]')?.content || document.querySelector('meta[name="twitter:description" i]')?.content;
     return (metaDesc || "").trim();
   }
-  function isExtensionContextValid() {
+  function isExtensionContextValid2() {
     try {
       return typeof chrome !== "undefined" && typeof chrome.runtime !== "undefined" && !!chrome.runtime.id;
     } catch {
@@ -149,7 +688,7 @@
   var isModalOpening = false;
   var lastToggleTimestamp = 0;
   function toggleModal() {
-    if (!isExtensionContextValid()) {
+    if (!isExtensionContextValid2()) {
       console.warn("[App Directory Companion] Extension was reloaded. Please refresh this page.");
       return;
     }
@@ -174,7 +713,7 @@
       chrome.runtime.sendMessage({ type: "GET_APP_DIRECTORY_STATE" }, (response) => {
         isModalOpening = false;
         try {
-          if (!isExtensionContextValid()) return;
+          if (!isExtensionContextValid2()) return;
           if (chrome.runtime.lastError) return;
           if (document.getElementById("app-directory-modal-host")) {
             return;
@@ -230,17 +769,17 @@
       <div class="ad-modal-body">
         <div class="ad-field-row">
           <div class="ad-icon-preview-box" title="Website Icon">
-            <img class="ad-icon-img" src="${escapeHtml(initialIcon)}" alt="" onerror="this.src='https://icons.duckduckgo.com/ip3/${window.location.hostname}.ico'">
+            <img class="ad-icon-img" src="${escapeHtml2(initialIcon)}" alt="" onerror="this.src='https://icons.duckduckgo.com/ip3/${window.location.hostname}.ico'">
           </div>
           <div class="ad-form-group">
             <label class="ad-form-label" for="ad-name-input">Website Name</label>
-            <input type="text" id="ad-name-input" class="ad-input" value="${escapeHtml(initialTitle)}" spellcheck="false">
+            <input type="text" id="ad-name-input" class="ad-input" value="${escapeHtml2(initialTitle)}" spellcheck="false">
           </div>
         </div>
 
         <div class="ad-form-group">
           <label class="ad-form-label" for="ad-url-input">Website URL</label>
-          <input type="url" id="ad-url-input" class="ad-input" value="${escapeHtml(initialUrl)}" spellcheck="false">
+          <input type="url" id="ad-url-input" class="ad-input" value="${escapeHtml2(initialUrl)}" spellcheck="false">
         </div>
 
         <div class="ad-two-col">
@@ -248,7 +787,7 @@
             <label class="ad-form-label" for="ad-folder-select">Folder</label>
             <select id="ad-folder-select" class="ad-select">
               <option value="">(None / Root)</option>
-              ${availableFolders.map((f) => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.icon || "\u{1F4C1}")} ${escapeHtml(f.name)}</option>`).join("")}
+              ${availableFolders.map((f) => `<option value="${escapeHtml2(f.id)}">${escapeHtml2(f.icon || "\u{1F4C1}")} ${escapeHtml2(f.name)}</option>`).join("")}
             </select>
           </div>
 
@@ -279,7 +818,7 @@
 
         <div class="ad-form-group">
           <label class="ad-form-label" for="ad-desc-input">Description / Notes <span style="font-size:10px;text-transform:none;opacity:0.7;">(Auto-detected)</span></label>
-          <textarea id="ad-desc-input" class="ad-textarea" placeholder="Add optional notes...">${escapeHtml(initialDesc)}</textarea>
+          <textarea id="ad-desc-input" class="ad-textarea" placeholder="Add optional notes...">${escapeHtml2(initialDesc)}</textarea>
         </div>
       </div>
 
@@ -349,24 +888,24 @@
           <div class="ad-duplicate-card">
             <div class="ad-duplicate-card-header">
               <div class="ad-duplicate-card-icon">
-                ${matchedEntry.iconUrl ? `<img src="${escapeHtml(matchedEntry.iconUrl)}" alt="" onerror="this.src='https://icons.duckduckgo.com/ip3/${window.location.hostname}.ico'">` : matchedEntry.icon || "\u{1F4C1}"}
+                ${matchedEntry.iconUrl ? `<img src="${escapeHtml2(matchedEntry.iconUrl)}" alt="" onerror="this.src='https://icons.duckduckgo.com/ip3/${window.location.hostname}.ico'">` : matchedEntry.icon || "\u{1F4C1}"}
               </div>
               <div class="ad-duplicate-card-meta">
-                <div class="ad-duplicate-entry-title">${escapeHtml(matchedEntry.name || "Untitled")}</div>
-                <a class="ad-duplicate-entry-url" href="${escapeHtml(matchedEntry.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(matchedEntry.url)}</a>
+                <div class="ad-duplicate-entry-title">${escapeHtml2(matchedEntry.name || "Untitled")}</div>
+                <a class="ad-duplicate-entry-url" href="${escapeHtml2(matchedEntry.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml2(matchedEntry.url)}</a>
               </div>
             </div>
             <div class="ad-duplicate-details">
               ${matchedEntry.folderId && availableFolders.find((f) => f.id === matchedEntry.folderId) ? `
               <div class="ad-duplicate-detail-row">
                 <span class="ad-duplicate-detail-label">Folder</span>
-                <span class="ad-duplicate-detail-value">${escapeHtml(availableFolders.find((f) => f.id === matchedEntry.folderId)?.name || "")}</span>
+                <span class="ad-duplicate-detail-value">${escapeHtml2(availableFolders.find((f) => f.id === matchedEntry.folderId)?.name || "")}</span>
               </div>` : ""}
               ${Array.isArray(matchedEntry.categories) && matchedEntry.categories.length > 0 ? `
               <div class="ad-duplicate-detail-row" style="flex-direction: column; align-items: flex-start;">
                 <span class="ad-duplicate-detail-label">Categories</span>
                 <div class="ad-duplicate-tags">
-                  ${matchedEntry.categories.map((c) => `<span class="ad-duplicate-tag">${escapeHtml(c)}</span>`).join("")}
+                  ${matchedEntry.categories.map((c) => `<span class="ad-duplicate-tag">${escapeHtml2(c)}</span>`).join("")}
                 </div>
               </div>` : ""}
               ${matchedEntry.dateAdded ? `
@@ -463,9 +1002,9 @@
       chip.setAttribute("data-tag", trimmed);
       if (isNewTag) {
         chip.setAttribute("title", "New category (does not exist in App Directory yet)");
-        chip.innerHTML = `<span style="font-weight:700;font-size:11px;opacity:0.9;">\u2726 NEW:</span> ${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">\u2715</span>`;
+        chip.innerHTML = `<span style="font-weight:700;font-size:11px;opacity:0.9;">\u2726 NEW:</span> ${escapeHtml2(trimmed)} <span class="ad-remove-tag" title="Remove">\u2715</span>`;
       } else {
-        chip.innerHTML = `${escapeHtml(trimmed)} <span class="ad-remove-tag" title="Remove">\u2715</span>`;
+        chip.innerHTML = `${escapeHtml2(trimmed)} <span class="ad-remove-tag" title="Remove">\u2715</span>`;
       }
       chip.querySelector(".ad-remove-tag")?.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -496,7 +1035,7 @@
         const item = document.createElement("div");
         item.className = "ad-suggestion-item";
         item.innerHTML = `
-        <span class="ad-suggest-tag-name">${escapeHtml(cat)}</span>
+        <span class="ad-suggest-tag-name">${escapeHtml2(cat)}</span>
         <span class="ad-suggest-tag-hint">Press Enter</span>
       `;
         item.addEventListener("mousedown", (e) => {
@@ -701,15 +1240,15 @@ ${chainLines}
       }
       if (hadFailover) {
         classifyBadge.className = "ad-classify-badge ad-badge-fallback";
-        classifyBadge.innerHTML = `\u{1FAB6} AI: ${escapeHtml(cleanModel)} [Fallback]`;
+        classifyBadge.innerHTML = `\u{1FAB6} AI: ${escapeHtml2(cleanModel)} [Fallback]`;
         classifyBadge.title = tooltip || `Recovered via fallback model ${cleanModel} (Click to toggle reasoning)`;
       } else if (res.method === "BRAVE_GROUNDED") {
         classifyBadge.className = "ad-classify-badge ad-badge-brave";
-        classifyBadge.innerHTML = `\u{1F50D} AI: Brave (${escapeHtml(cleanModel || "Search")})`;
+        classifyBadge.innerHTML = `\u{1F50D} AI: Brave (${escapeHtml2(cleanModel || "Search")})`;
         classifyBadge.title = tooltip || "Classified using Brave Search grounding (Click to toggle reasoning)";
       } else {
         classifyBadge.className = "ad-classify-badge ad-badge-dom";
-        classifyBadge.innerHTML = `\u2728 AI: ${escapeHtml(cleanModel || "Direct DOM")}`;
+        classifyBadge.innerHTML = `\u2728 AI: ${escapeHtml2(cleanModel || "Direct DOM")}`;
         classifyBadge.title = tooltip || "Classified directly from page text (Click to toggle reasoning)";
       }
       if (reasoningCard && res.reasoning) {
@@ -762,12 +1301,12 @@ ${chainLines}
       try {
         const port = chrome.runtime.connect({ name: "ad-classify" });
         port.onMessage.addListener((msg) => {
-          if (!isExtensionContextValid()) return;
+          if (!isExtensionContextValid2()) return;
           if (msg.type === "PROGRESS" && msg.progress) {
             const prog = msg.progress;
             const isFallback = prog.stage === "FALLBACK_SWITCH";
             classifyBadge.className = isFallback ? "ad-classify-badge ad-badge-fallback ad-badge-loading" : "ad-classify-badge ad-badge-loading";
-            classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> ${escapeHtml(prog.message)}`;
+            classifyBadge.innerHTML = `<span class="ad-spinner-dot"></span> ${escapeHtml2(prog.message)}`;
             classifyBadge.title = prog.message;
             return;
           }
@@ -801,7 +1340,7 @@ ${chainLines}
             },
             (res) => {
               if (reclassifyBtn) reclassifyBtn.classList.remove("is-spinning");
-              if (!isExtensionContextValid()) return;
+              if (!isExtensionContextValid2()) return;
               handleClassificationResult(res);
             }
           );
@@ -831,7 +1370,7 @@ ${chainLines}
     }
     try {
       chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (s) => {
-        if (!isExtensionContextValid()) return;
+        if (!isExtensionContextValid2()) return;
         if (s && s.geminiApiKey) {
           if (reclassifyBtn) reclassifyBtn.style.display = "inline-flex";
           if (matchedEntry) {
@@ -865,7 +1404,7 @@ ${chainLines}
     const doSave = () => {
       if (isSaving) return;
       try {
-        if (!isExtensionContextValid()) {
+        if (!isExtensionContextValid2()) {
           alert("The extension was reloaded. Please refresh this page to save bookmarks.");
           return;
         }
@@ -908,7 +1447,7 @@ ${chainLines}
       try {
         chrome.runtime.sendMessage({ type: "SAVE_BOOKMARK", entry: newBookmark }, (res) => {
           try {
-            if (!isExtensionContextValid()) return;
+            if (!isExtensionContextValid2()) return;
             if (chrome.runtime.lastError || res && res.success === false) {
               if (closeTimer) {
                 clearTimeout(closeTimer);
@@ -970,24 +1509,32 @@ ${chainLines}
     };
     window.addEventListener("keydown", keyHandler, true);
   }
-  function escapeHtml(str) {
+  function escapeHtml2(str) {
     return (str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
   window.__APP_DIRECTORY_CLEANUP__ = () => {
     try {
       window.removeEventListener("keydown", handlePageShortcut, true);
       document.querySelectorAll("#app-directory-modal-host").forEach((node) => node.remove());
+      document.querySelectorAll("#app-directory-palette-host").forEach((node) => node.remove());
     } catch (_) {
     }
   };
   function handlePageShortcut(e) {
-    if (!isExtensionContextValid()) {
+    if (!isExtensionContextValid2()) {
       if (typeof window.__APP_DIRECTORY_CLEANUP__ === "function") {
         window.__APP_DIRECTORY_CLEANUP__();
       }
       return;
     }
     if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    const isK = e.code === "KeyK" || e.key === "k" || e.key === "K";
+    if (isK) {
+      e.preventDefault();
+      e.stopPropagation();
+      togglePaletteModal();
+      return;
+    }
     const isA = e.code === "KeyA" || e.key === "a" || e.key === "A";
     const isS = e.code === "KeyS" || e.key === "s" || e.key === "S";
     const isB = e.code === "KeyB" || e.key === "b" || e.key === "B";
@@ -1000,12 +1547,15 @@ ${chainLines}
   }
   window.addEventListener("keydown", handlePageShortcut, true);
   try {
-    if (isExtensionContextValid() && chrome.runtime?.onMessage) {
+    if (isExtensionContextValid2() && chrome.runtime?.onMessage) {
       chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         try {
-          if (!isExtensionContextValid()) return;
+          if (!isExtensionContextValid2()) return;
           if (message && message.type === "TOGGLE_INJECTED_MODAL") {
             toggleModal();
+            sendResponse({ success: true });
+          } else if (message && message.type === "TOGGLE_PALETTE_MODAL") {
+            togglePaletteModal();
             sendResponse({ success: true });
           }
         } catch (_) {

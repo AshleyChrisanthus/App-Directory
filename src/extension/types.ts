@@ -73,7 +73,12 @@ export interface CachedBookmark {
   categories?: string[];
   folderId?: string | null;
   dateAdded?: string;
+  description?: string;
+  visitCount?: number;
+  isFavorite?: boolean;
 }
+
+export type OpenBookmarkMode = 'current' | 'new-tab' | 'background-tab';
 
 export interface AppDirectoryState {
   folders: CachedFolder[];
