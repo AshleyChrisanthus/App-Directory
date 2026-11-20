@@ -14,7 +14,15 @@ import { fetchWebsiteMetadata } from '../../utils/auto-fill';
 import { renderIconCandidates, getCandidateSources } from '../icons/picker';
 import { updatePendingIconsUI } from '../icons/refresh';
 import { renderCategoryChips, hideCategorySuggestions, getAllCategories } from '../categories/manager';
-import { populateFolderSelect } from '../folders/sidebar';
+import {
+  renderModalCollectionPicker,
+  updateHiddenFromMainVisibility
+} from '../folders/sidebar';
+import {
+  isUserCollectionId,
+  getEntryFolderIds,
+  syncLegacyFolderFields
+} from '../../utils/collections';
 import { getSettings } from '../settings/manager';
 import { classifyBookmarkWithAI } from '../settings/classifier';
 
@@ -252,6 +260,8 @@ export interface InitialModalData {
   url?: string;
   description?: string;
   folderId?: string;
+  folderIds?: string[];
+  hiddenFromMain?: boolean;
   categories?: string[];
 }
 
@@ -266,6 +276,7 @@ export function openModal(id: string | null = null, initialData?: InitialModalDa
   const entryIcon = document.getElementById('entryIcon') as HTMLInputElement | null;
   const entryDescription = document.getElementById('entryDescription') as HTMLTextAreaElement | null;
   const entryFavorite = document.getElementById('entryFavorite') as HTMLInputElement | null;
+  const entryHiddenFromMain = document.getElementById('entryHiddenFromMain') as HTMLInputElement | null;
   const entryForm = document.getElementById('entryForm') as HTMLFormElement | null;
   const iconCandidatesWrapper = document.getElementById('iconCandidatesWrapper');
   const entryCategory = document.getElementById('entryCategory') as HTMLInputElement | null;
@@ -282,19 +293,34 @@ export function openModal(id: string | null = null, initialData?: InitialModalDa
     if (saveBtn) saveBtn.textContent = 'Update';
     if (entryName) entryName.value = entry.name || '';
     if (entryUrl) entryUrl.value = entry.url || '';
-    populateFolderSelect(entry.folderId || '');
+    state.selectedModalFolderIds = [...getEntryFolderIds(entry)];
+    renderModalCollectionPicker();
     state.selectedCategories = [...(entry.categories || [])];
     const icon = entry.icon || (entry as any).iconUrl || '';
     if (entryIcon) entryIcon.value = icon;
     if (entryDescription) entryDescription.value = entry.description || '';
     if (entryFavorite) entryFavorite.checked = entry.isFavorite || false;
+    if (entryHiddenFromMain) {
+      entryHiddenFromMain.checked = Boolean(entry.hiddenFromMain) && state.selectedModalFolderIds.length > 0;
+    }
+    updateHiddenFromMainVisibility();
     renderIconCandidates(entry.url, icon, 'google');
   } else {
     if (modalTitle) modalTitle.textContent = 'Add Website';
     if (saveBtn) saveBtn.textContent = 'Save';
     if (entryForm) entryForm.reset();
-    const defaultFid = initialData?.folderId || (state.activeFolderId && state.activeFolderId.startsWith('f-') ? state.activeFolderId : '');
-    populateFolderSelect(defaultFid);
+    state.selectedModalFolderIds = initialData?.folderIds?.length
+      ? [...initialData.folderIds]
+      : initialData?.folderId
+        ? [initialData.folderId]
+        : isUserCollectionId(state.activeFolderId)
+          ? [state.activeFolderId]
+          : [];
+    renderModalCollectionPicker();
+    if (entryHiddenFromMain) {
+      entryHiddenFromMain.checked = Boolean(initialData?.hiddenFromMain) && state.selectedModalFolderIds.length > 0;
+    }
+    updateHiddenFromMainVisibility();
     state.selectedCategories = initialData?.categories ? [...initialData.categories] : [];
     if (iconCandidatesWrapper) iconCandidatesWrapper.style.display = 'none';
 
@@ -343,25 +369,39 @@ export async function addEntry(data: {
   icon?: string;
   iconUrl?: string;
   folderId?: string | null;
+  folderIds?: string[];
+  hiddenFromMain?: boolean;
   categories?: string[];
   isFavorite?: boolean;
 }, onUpdate?: () => void): Promise<void> {
   const now = new Date().toISOString();
   const rawIcon = data.icon || data.iconUrl || getFaviconUrl(data.url);
-  const entry: BookmarkEntry = {
-    id: generateId(),
-    name: data.name,
-    url: ensureProtocol(data.url),
-    description: data.description || '',
-    iconUrl: rawIcon,
-    folderId: data.folderId || null,
-    categories: data.categories || [],
-    dateAdded: now,
-    dateModified: now,
-    visitCount: 0,
-    lastVisited: null,
-    isFavorite: data.isFavorite || false
-  };
+  const initialFolderIds = data.folderIds !== undefined
+    ? data.folderIds
+    : data.folderId
+      ? [data.folderId]
+      : [];
+
+  const entry: BookmarkEntry = syncLegacyFolderFields(
+    {
+      id: generateId(),
+      name: data.name,
+      url: ensureProtocol(data.url),
+      description: data.description || '',
+      iconUrl: rawIcon,
+      folderIds: [],
+      folderId: null,
+      hiddenFromMain: false,
+      categories: data.categories || [],
+      dateAdded: now,
+      dateModified: now,
+      visitCount: 0,
+      lastVisited: null,
+      isFavorite: data.isFavorite || false
+    },
+    initialFolderIds,
+    Boolean(data.hiddenFromMain)
+  );
 
   const diskList = getLatestStoredEntries();
   diskList.push(entry);
@@ -402,6 +442,8 @@ export async function updateEntry(id: string, data: {
   icon?: string;
   iconUrl?: string;
   folderId?: string | null;
+  folderIds?: string[];
+  hiddenFromMain?: boolean;
   categories?: string[];
   isFavorite?: boolean;
 }, onUpdate?: () => void): Promise<void> {
@@ -410,20 +452,31 @@ export async function updateEntry(id: string, data: {
   let target = diskList.find(e => e.id === id);
 
   if (!target) {
-    target = {
-      id,
-      name: data.name,
-      url: ensureProtocol(data.url),
-      description: data.description || '',
-      iconUrl: rawIcon,
-      folderId: data.folderId || null,
-      categories: data.categories || [],
-      dateAdded: new Date().toISOString(),
-      dateModified: new Date().toISOString(),
-      visitCount: 0,
-      lastVisited: null,
-      isFavorite: data.isFavorite || false
-    };
+    const nextFolderIds = data.folderIds !== undefined
+      ? data.folderIds
+      : data.folderId
+        ? [data.folderId]
+        : [];
+    target = syncLegacyFolderFields(
+      {
+        id,
+        name: data.name,
+        url: ensureProtocol(data.url),
+        description: data.description || '',
+        iconUrl: rawIcon,
+        folderIds: [],
+        folderId: null,
+        hiddenFromMain: false,
+        categories: data.categories || [],
+        dateAdded: new Date().toISOString(),
+        dateModified: new Date().toISOString(),
+        visitCount: 0,
+        lastVisited: null,
+        isFavorite: data.isFavorite || false
+      },
+      nextFolderIds,
+      Boolean(data.hiddenFromMain)
+    );
     diskList.push(target);
   } else {
     target.name = data.name;
@@ -431,7 +484,13 @@ export async function updateEntry(id: string, data: {
     target.description = data.description || '';
     target.iconUrl = rawIcon;
     delete target.icon;
-    target.folderId = data.folderId !== undefined ? data.folderId : (target.folderId || null);
+    const nextFolderIds = data.folderIds !== undefined
+      ? data.folderIds
+      : data.folderId !== undefined
+        ? (data.folderId ? [data.folderId] : [])
+        : getEntryFolderIds(target);
+    const nextHidden = data.hiddenFromMain !== undefined ? data.hiddenFromMain : target.hiddenFromMain;
+    syncLegacyFolderFields(target, nextFolderIds, Boolean(nextHidden));
     target.categories = data.categories || [];
     target.isFavorite = data.isFavorite || false;
     target.dateModified = new Date().toISOString();
@@ -504,6 +563,60 @@ export function toggleFavorite(id: string, onUpdate?: () => void): void {
   (entry as any).dateModified = new Date().toISOString();
   saveEntries(diskList);
   if (onUpdate) onUpdate();
+}
+
+/** Toggles whether a collection member is hidden from the Main ("All") view. */
+export function toggleHiddenFromMain(id: string, onUpdate?: () => void): void {
+  const diskList = getLatestStoredEntries();
+  const entry = diskList.find(e => e.id === id);
+  if (!entry) return;
+
+  const folderIds = getEntryFolderIds(entry);
+  if (!entry.hiddenFromMain && folderIds.length === 0) {
+    entry.hiddenFromMain = false;
+    showToast(`Add "${entry.name}" to a collection first to hide it from Main`);
+    return;
+  }
+
+  const nextHidden = !entry.hiddenFromMain;
+  syncLegacyFolderFields(entry, folderIds, nextHidden);
+  entry.dateModified = new Date().toISOString();
+  saveEntries(diskList);
+  if (onUpdate) onUpdate();
+  showToast(
+    nextHidden
+      ? `Hidden "${entry.name}" from Main view`
+      : `Shown "${entry.name}" in Main view`
+  );
+}
+
+/** Removes a bookmark from a specific collection without deleting it from the library. */
+export function removeEntryFromCollection(
+  entryId: string,
+  folderId: string,
+  onUpdate?: () => void
+): void {
+  const diskList = getLatestStoredEntries();
+  const entry = diskList.find(e => e.id === entryId);
+  if (!entry) return;
+
+  const currentIds = getEntryFolderIds(entry);
+  if (!currentIds.includes(folderId)) return;
+
+  const remainingIds = currentIds.filter(id => id !== folderId);
+  const wasHidden = Boolean(entry.hiddenFromMain);
+  syncLegacyFolderFields(entry, remainingIds, wasHidden);
+  entry.dateModified = new Date().toISOString();
+  saveEntries(diskList);
+  if (onUpdate) onUpdate();
+
+  const folder = state.folders.find(f => f.id === folderId);
+  const folderName = folder ? folder.name : 'collection';
+  if (wasHidden && remainingIds.length === 0) {
+    showToast(`Removed "${entry.name}" from ${folderName} — now visible in Main view`);
+  } else {
+    showToast(`Removed "${entry.name}" from ${folderName}`);
+  }
 }
 
 export function visitEntry(id: string, onUpdate?: () => void): void {

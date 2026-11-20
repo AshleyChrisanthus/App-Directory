@@ -1,6 +1,7 @@
 import type { BookmarkEntry, Folder } from '../types';
 import { STORAGE_KEY, STORAGE_FOLDERS_KEY, DEFAULT_FOLDERS } from './constants';
 import { state } from './state';
+import { getEntryFolderIds, syncLegacyFolderFields } from '../utils/collections';
 import {
   openAppDB,
   idbGetAllEntries,
@@ -60,6 +61,10 @@ export function migrateEntry(entry: any): BookmarkEntry | null {
     }
   }
 
+  // Migrate single folderId -> folderIds[] and enforce orphan auto-unhide
+  const folderIds = getEntryFolderIds(entry);
+  syncLegacyFolderFields(entry, folderIds, Boolean(entry.hiddenFromMain));
+
   return entry as BookmarkEntry;
 }
 
@@ -118,6 +123,29 @@ export async function initStorage(): Promise<void> {
 
     let entries = await idbGetAllEntries();
     let folders = await idbGetAllFolders();
+
+    if (entries.length > 0) {
+      let needsMigrationWrite = false;
+      entries = entries
+        .map(raw => {
+          const rawAny = raw as any;
+          const hadFolderIds = Array.isArray(rawAny?.folderIds);
+          const normalizedIds = getEntryFolderIds(rawAny);
+          const expectedLegacyId = normalizedIds[0] ?? null;
+          const rawFolderId = rawAny?.folderId || null;
+          const hadOrphanHidden = Boolean(rawAny?.hiddenFromMain) && normalizedIds.length === 0;
+          const hadDirtyIds = hadFolderIds && rawAny.folderIds.length !== normalizedIds.length;
+          if (!hadFolderIds || rawFolderId !== expectedLegacyId || hadOrphanHidden || hadDirtyIds) {
+            needsMigrationWrite = true;
+          }
+          return migrateEntry({ ...rawAny });
+        })
+        .filter(Boolean) as BookmarkEntry[];
+
+      if (needsMigrationWrite) {
+        await idbSetAllEntries(entries);
+      }
+    }
 
     const alreadyMigrated = localStorage.getItem(MIGRATED_FLAG_KEY) === 'true';
 
@@ -205,7 +233,7 @@ function loadFallbackFromLocalStorage(): void {
 export async function reloadFromStorage(): Promise<void> {
   try {
     const [entries, folders] = await Promise.all([idbGetAllEntries(), idbGetAllFolders()]);
-    state.entries = entries;
+    state.entries = entries.map(e => migrateEntry({ ...e })).filter(Boolean) as BookmarkEntry[];
     if (folders && folders.length > 0) {
       state.folders = folders;
     }

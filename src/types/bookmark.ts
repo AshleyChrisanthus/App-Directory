@@ -11,7 +11,9 @@ export interface BookmarkEntry {
   url: string;
   description?: string;
   categories: string[];
+  folderIds: string[];
   folderId?: string | null;
+  hiddenFromMain?: boolean;
   icon?: string | null;
   iconUrl?: string | null;
   customIcon?: boolean;

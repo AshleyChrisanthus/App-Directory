@@ -7,8 +7,20 @@ import { renderFoldersSidebar, setActiveFolder } from '../folders/sidebar';
 import { populateCategories, getAllCategories } from '../categories/manager';
 import { renderInsightsDashboard } from '../insights/dashboard';
 import { refreshEntryIcon, acceptPendingIcon, dismissPendingIcon } from '../icons/refresh';
-import { getFilteredEntries } from './filter-sort';
-import { openModal, deleteEntry, toggleFavorite, visitEntry } from './crud';
+import { getFilteredEntries, countHiddenSearchMatches } from './filter-sort';
+import {
+  openModal,
+  deleteEntry,
+  toggleFavorite,
+  toggleHiddenFromMain,
+  removeEntryFromCollection,
+  visitEntry
+} from './crud';
+import {
+  isUserCollectionId,
+  getEntryFolderIds,
+  entryBelongsToCollection
+} from '../../utils/collections';
 
 let pendingRenderRafId: number | null = null;
 let currentRenderToken = 0;
@@ -33,9 +45,35 @@ export function setViewMode(mode: ViewLayoutMode): void {
   renderCardsOnly();
 }
 
+function resolveEntryFolders(entry: BookmarkEntry, folderMap?: Map<string, Folder>): Folder[] {
+  const ids = getEntryFolderIds(entry);
+  const resolved: Folder[] = [];
+  for (const fid of ids) {
+    const folder = folderMap ? folderMap.get(fid) : state.folders.find(f => f.id === fid);
+    if (folder) resolved.push(folder);
+  }
+  return resolved;
+}
+
+function renderCollectionChipsHtml(folders: Folder[], showHiddenBadge: boolean): string {
+  const folderTags = folders
+    .map(
+      folder =>
+        `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Collection: ${escapeHtml(folder.name)} (Click to view collection)"><span>${escapeHtml(folder.icon || '📁')}</span> ${escapeHtml(folder.name)}</span>`
+    )
+    .join('');
+
+  const hiddenBadge = showHiddenBadge
+    ? `<span class="tag hidden-main-tag" title="Hidden from Main view">🙈 Hidden</span>`
+    : '';
+
+  return `${hiddenBadge}${folderTags}`;
+}
+
 export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>): HTMLElement {
   const card = document.createElement('div');
-  card.className = 'card';
+  const inUserCollection = isUserCollectionId(state.activeFolderId);
+  card.className = `card${entry.hiddenFromMain ? ' is-hidden-from-main' : ''}${inUserCollection ? ' in-collection-view' : ''}`;
   card.setAttribute('data-id', entry.id);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -44,7 +82,7 @@ export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>
     card.addEventListener('dragstart', (e: DragEvent) => {
       if (e.dataTransfer) {
         e.dataTransfer.setData('text/plain', entry.id);
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = 'copyMove';
       }
       card.classList.add('is-dragging');
     });
@@ -64,8 +102,9 @@ export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>
   }
 
   const domain = getDomain(entry.url);
-  const folder = entry.folderId
-    ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find(f => f.id === entry.folderId)) || null
+  const entryFolders = resolveEntryFolders(entry, folderMap);
+  const activeCollection = inUserCollection
+    ? (folderMap ? folderMap.get(state.activeFolderId) : state.folders.find(f => f.id === state.activeFolderId)) || null
     : null;
   const iconSrc = entry.icon || (entry as any).iconUrl || '';
 
@@ -111,7 +150,7 @@ export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>
     ` : ''}
     <div class="card-meta">
       <div class="card-tags-row">
-        ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)} (Click to view folder)"><span>${escapeHtml(folder.icon || '📁')}</span> ${escapeHtml(folder.name)}</span>` : ''}
+        ${renderCollectionChipsHtml(entryFolders, Boolean(entry.hiddenFromMain) && !inUserCollection)}
         ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
       </div>
       <div class="card-footer-row">
@@ -134,6 +173,15 @@ export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>
           </div>
         </div>
       </div>
+      ${inUserCollection ? `
+        <div class="card-collection-bar">
+          <button type="button" class="card-visibility-switch ${entry.hiddenFromMain ? 'is-hidden' : ''}" role="switch" aria-checked="${!entry.hiddenFromMain}" title="${entry.hiddenFromMain ? 'Hidden from Main view — click to show in Main' : 'Visible in Main view — click to hide from Main'}">
+            <span class="vis-switch-track"><span class="vis-switch-thumb"></span></span>
+            <span class="vis-switch-label">${entry.hiddenFromMain ? 'Hidden from Main' : 'In Main'}</span>
+          </button>
+          <button type="button" class="card-remove-collection-btn" title="Remove from ${escapeHtml(activeCollection?.name || 'collection')} (keeps bookmark in library)">✕ Remove</button>
+        </div>
+      ` : ''}
     </div>
   `;
 
@@ -142,9 +190,21 @@ export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
-    if (target.closest('.folder-tag')) {
+    const folderTag = target.closest('.folder-tag') as HTMLElement | null;
+    if (folderTag) {
       e.stopPropagation();
-      if (folder) setActiveFolder(folder.id, render);
+      const fid = folderTag.getAttribute('data-folder-id');
+      if (fid) setActiveFolder(fid, render);
+      return;
+    }
+    if (target.closest('.card-visibility-switch')) {
+      e.stopPropagation();
+      toggleHiddenFromMain(entry.id, render);
+      return;
+    }
+    if (target.closest('.card-remove-collection-btn')) {
+      e.stopPropagation();
+      removeEntryFromCollection(entry.id, state.activeFolderId, render);
       return;
     }
     if (target.closest('.card-favorite')) {
@@ -194,7 +254,8 @@ export function renderCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>
 
 export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Folder>): HTMLElement {
   const row = document.createElement('div');
-  row.className = 'table-row';
+  const inUserCollection = isUserCollectionId(state.activeFolderId);
+  row.className = `table-row${entry.hiddenFromMain ? ' is-hidden-from-main' : ''}${inUserCollection ? ' in-collection-view' : ''}`;
   row.setAttribute('data-id', entry.id);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -203,7 +264,7 @@ export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Fol
     row.addEventListener('dragstart', (e: DragEvent) => {
       if (e.dataTransfer) {
         e.dataTransfer.setData('text/plain', entry.id);
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = 'copyMove';
       }
       row.classList.add('is-dragging');
     });
@@ -213,8 +274,9 @@ export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Fol
   }
 
   const domain = getDomain(entry.url);
-  const folder = entry.folderId
-    ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find(f => f.id === entry.folderId)) || null
+  const entryFolders = resolveEntryFolders(entry, folderMap);
+  const activeCollection = inUserCollection
+    ? (folderMap ? folderMap.get(state.activeFolderId) : state.folders.find(f => f.id === state.activeFolderId)) || null
     : null;
   const iconSrc = entry.icon || (entry as any).iconUrl || '';
   const pendingIcon = state.pendingIcons.get(entry.id);
@@ -259,7 +321,7 @@ export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Fol
       ` : ''}
     </div>
     <div class="table-cell-tags">
-      ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || '#0a84ff')}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
+      ${renderCollectionChipsHtml(entryFolders, Boolean(entry.hiddenFromMain) && !inUserCollection)}
       ${(entry.categories || []).map(cat => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join('')}
     </div>
     <div class="table-cell-visits">
@@ -269,6 +331,10 @@ export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Fol
       ${timeAgo(entry.dateAdded)}
     </div>
     <div class="table-cell-actions">
+      ${inUserCollection ? `
+        <button class="table-action-btn toggle-hidden-btn ${entry.hiddenFromMain ? 'is-hidden' : ''}" title="${entry.hiddenFromMain ? 'Hidden from Main — click to show in Main' : 'Visible in Main — click to hide from Main'}">${entry.hiddenFromMain ? '🙈' : '👁️'}</button>
+        <button class="table-action-btn remove-collection-btn" title="Remove from ${escapeHtml(activeCollection?.name || 'collection')}">✕</button>
+      ` : ''}
       <button class="table-action-btn refresh-btn" title="Refresh icon">🔄</button>
       <button class="table-action-btn edit-btn" title="Edit">✏️</button>
       <button class="table-action-btn delete-btn" title="Delete">🗑️</button>
@@ -279,9 +345,21 @@ export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Fol
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
-    if (target.closest('.folder-tag')) {
+    const folderTag = target.closest('.folder-tag') as HTMLElement | null;
+    if (folderTag) {
       e.stopPropagation();
-      if (folder) setActiveFolder(folder.id, render);
+      const fid = folderTag.getAttribute('data-folder-id');
+      if (fid) setActiveFolder(fid, render);
+      return;
+    }
+    if (target.closest('.toggle-hidden-btn')) {
+      e.stopPropagation();
+      toggleHiddenFromMain(entry.id, render);
+      return;
+    }
+    if (target.closest('.remove-collection-btn')) {
+      e.stopPropagation();
+      removeEntryFromCollection(entry.id, state.activeFolderId, render);
       return;
     }
     if (target.closest('.table-fav-btn')) {
@@ -326,7 +404,8 @@ export function renderTableRow(entry: BookmarkEntry, folderMap?: Map<string, Fol
 
 export function renderIconCard(entry: BookmarkEntry, folderMap?: Map<string, Folder>): HTMLElement {
   const card = document.createElement('div');
-  card.className = 'icon-card';
+  const inUserCollection = isUserCollectionId(state.activeFolderId);
+  card.className = `icon-card${entry.hiddenFromMain ? ' is-hidden-from-main' : ''}${inUserCollection ? ' in-collection-view' : ''}`;
   card.setAttribute('data-id', entry.id);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
@@ -335,7 +414,7 @@ export function renderIconCard(entry: BookmarkEntry, folderMap?: Map<string, Fol
     card.addEventListener('dragstart', (e: DragEvent) => {
       if (e.dataTransfer) {
         e.dataTransfer.setData('text/plain', entry.id);
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = 'copyMove';
       }
       card.classList.add('is-dragging');
     });
@@ -349,14 +428,26 @@ export function renderIconCard(entry: BookmarkEntry, folderMap?: Map<string, Fol
     });
   }
 
-  const folder = entry.folderId
-    ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find(f => f.id === entry.folderId)) || null
+  const entryFolders = resolveEntryFolders(entry, folderMap);
+  const activeCollection = inUserCollection
+    ? (folderMap ? folderMap.get(state.activeFolderId) : state.folders.find(f => f.id === state.activeFolderId)) || null
     : null;
   const iconSrc = entry.icon || (entry as any).iconUrl || '';
+  const folderDotsHtml = entryFolders
+    .slice(0, 3)
+    .map(
+      f =>
+        `<span class="icon-card-folder-dot" style="background: ${escapeHtml(f.color || 'var(--accent)')};" title="Collection: ${escapeHtml(f.name)}"></span>`
+    )
+    .join('');
 
   card.innerHTML = `
     <div class="icon-card-header">
       <div class="icon-card-actions">
+        ${inUserCollection ? `
+          <button class="icon-card-action-btn toggle-hidden-btn ${entry.hiddenFromMain ? 'is-hidden' : ''}" title="${entry.hiddenFromMain ? 'Hidden from Main — click to show in Main' : 'Visible in Main — click to hide from Main'}">${entry.hiddenFromMain ? '🙈' : '👁️'}</button>
+          <button class="icon-card-action-btn remove-collection-btn" title="Remove from ${escapeHtml(activeCollection?.name || 'collection')}">✕</button>
+        ` : ''}
         <button class="icon-card-action-btn edit-btn" title="Edit">✏️</button>
         <button class="icon-card-action-btn delete-btn" title="Delete">🗑️</button>
       </div>
@@ -370,8 +461,8 @@ export function renderIconCard(entry: BookmarkEntry, folderMap?: Map<string, Fol
         : '<span style="font-size:20px;">🌐</span>'
       }
     </div>
-    <div class="icon-card-name" title="${escapeHtml(entry.name)}">
-      ${folder ? `<span class="icon-card-folder-dot" style="background: ${escapeHtml(folder.color || 'var(--accent)')};" title="Folder: ${escapeHtml(folder.name)}"></span>` : ''}
+    <div class="icon-card-name" title="${escapeHtml(entry.name)}${entry.hiddenFromMain ? ' (Hidden from Main)' : ''}">
+      ${folderDotsHtml}
       <span>${escapeHtml(entry.name)}</span>
     </div>
   `;
@@ -380,6 +471,16 @@ export function renderIconCard(entry: BookmarkEntry, folderMap?: Map<string, Fol
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
+    if (target.closest('.toggle-hidden-btn')) {
+      e.stopPropagation();
+      toggleHiddenFromMain(entry.id, render);
+      return;
+    }
+    if (target.closest('.remove-collection-btn')) {
+      e.stopPropagation();
+      removeEntryFromCollection(entry.id, state.activeFolderId, render);
+      return;
+    }
     if (target.closest('.icon-card-fav')) {
       e.stopPropagation();
       toggleFavorite(entry.id, render);
@@ -416,30 +517,44 @@ export function renderCardsOnly(): void {
   const emptyState = document.getElementById('emptyState');
 
   // Update stats
-  const total = state.entries.length;
+  const visibleMainTotal = state.entries.filter(e => !e.hiddenFromMain).length;
+  let viewTotal = visibleMainTotal;
+  if (state.activeFolderId === 'all') {
+    viewTotal = state.includeHiddenInSearch ? state.entries.length : visibleMainTotal;
+  } else if (state.activeFolderId === 'favorites') {
+    viewTotal = state.entries.filter(e => e.isFavorite).length;
+  } else if (state.activeFolderId === 'unorganized') {
+    viewTotal = state.entries.filter(e => getEntryFolderIds(e).length === 0).length;
+  } else if (state.activeFolderId === 'broken') {
+    viewTotal = state.entries.filter(e => e.health && e.health.status === 'broken').length;
+  } else if (isUserCollectionId(state.activeFolderId)) {
+    viewTotal = state.entries.filter(e => entryBelongsToCollection(e, state.activeFolderId)).length;
+  }
+
   const showing = filtered.length;
   const activeCats = Array.from(state.selectedFilterCategories);
+  const hiddenSuffix = state.activeFolderId === 'all' && state.includeHiddenInSearch ? ' · incl. hidden' : '';
 
   if (statsText) {
-    if (total === 0) {
-      statsText.textContent = '0 sites';
-    } else if (showing === total) {
-      statsText.textContent = `${total} site${total !== 1 ? 's' : ''}`;
+    if (viewTotal === 0) {
+      statsText.textContent = `0 sites${hiddenSuffix}`;
+    } else if (showing === viewTotal) {
+      statsText.textContent = `${viewTotal} site${viewTotal !== 1 ? 's' : ''}${hiddenSuffix}`;
     } else {
-      statsText.textContent = `Showing ${showing} of ${total} site${total !== 1 ? 's' : ''}`;
+      statsText.textContent = `Showing ${showing} of ${viewTotal} site${viewTotal !== 1 ? 's' : ''}${hiddenSuffix}`;
     }
   }
 
   // Update header count badge (Stitch mobile header & desktop pill)
   const headerCountBadge = document.getElementById('headerCountBadge');
   if (headerCountBadge) {
-    headerCountBadge.textContent = String(total);
+    headerCountBadge.textContent = String(visibleMainTotal);
   }
 
   // Dynamic search placeholder
   const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
   if (searchInput && !searchInput.value) {
-    searchInput.placeholder = `Search ${total} bookmarks…`;
+    searchInput.placeholder = `Search ${visibleMainTotal} bookmarks…`;
   }
 
   // Active Category Filter Banner
@@ -463,8 +578,8 @@ export function renderCardsOnly(): void {
 
   if (!grid || !emptyState) return;
 
-  // Show/hide empty state
-  if (total === 0) {
+  // Show/hide empty state when entire vault has no bookmarks
+  if (state.entries.length === 0) {
     grid.style.display = 'none';
     emptyState.style.display = 'block';
     return;
@@ -476,6 +591,43 @@ export function renderCardsOnly(): void {
   emptyState.style.display = 'none';
 
   grid.innerHTML = '';
+
+  if (filtered.length === 0) {
+    const hiddenMatches = countHiddenSearchMatches();
+    const emptyMsg = document.createElement('div');
+    emptyMsg.className = 'grid-empty-message';
+    if (state.activeFolderId === 'all' && hiddenMatches > 0) {
+      emptyMsg.innerHTML = `
+        <div class="grid-empty-icon">🙈</div>
+        <p>No visible bookmarks matched. <strong>${hiddenMatches}</strong> hidden bookmark${hiddenMatches !== 1 ? 's' : ''} matched your filters.</p>
+        <button type="button" class="btn btn-secondary btn-sm" id="showHiddenMatchesBtn">👁️ Show ${hiddenMatches} hidden match${hiddenMatches !== 1 ? 'es' : ''}</button>
+      `;
+      emptyMsg.querySelector('#showHiddenMatchesBtn')?.addEventListener('click', () => {
+        state.includeHiddenInSearch = true;
+        const toggleBtn = document.getElementById('searchIncludeHiddenBtn');
+        if (toggleBtn) {
+          toggleBtn.classList.add('active');
+          toggleBtn.setAttribute('aria-pressed', 'true');
+          toggleBtn.title = 'Including hidden collection webpages in search (click to hide)';
+          const iconSpan = toggleBtn.querySelector('.search-hidden-icon');
+          if (iconSpan) iconSpan.textContent = '👁️';
+        }
+        renderCardsOnly();
+      });
+    } else if (isUserCollectionId(state.activeFolderId)) {
+      emptyMsg.innerHTML = `
+        <div class="grid-empty-icon">📂</div>
+        <p>No websites in this collection yet (or none match your filters).</p>
+      `;
+    } else {
+      emptyMsg.innerHTML = `
+        <div class="grid-empty-icon">🔍</div>
+        <p>No matching websites found.</p>
+      `;
+    }
+    grid.appendChild(emptyMsg);
+    return;
+  }
 
   const folderMap = new Map<string, Folder>();
   for (const f of state.folders) {
@@ -496,7 +648,7 @@ export function renderCardsOnly(): void {
       <span class="th-fav"></span>
       <span class="th-icon"></span>
       <span class="th-name">Website</span>
-      <span class="th-tags">Folder & Categories</span>
+      <span class="th-tags">Collections & Categories</span>
       <span class="th-visits">Visits</span>
       <span class="th-date">Added</span>
       <span class="th-actions" style="text-align: right;">Actions</span>

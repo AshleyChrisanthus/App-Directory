@@ -64,9 +64,10 @@ export function renderInsightsDashboard(
 
   if (!insightsDrawer || !state.isInsightsOpen) return;
 
-  const totalSites = state.entries.length;
+  const visibleEntries = state.entries.filter(e => !e.hiddenFromMain);
+  const totalSites = visibleEntries.length;
   let totalLaunches = 0;
-  state.entries.forEach(e => {
+  visibleEntries.forEach(e => {
     totalLaunches += e.visitCount || 0;
   });
 
@@ -75,7 +76,7 @@ export function renderInsightsDashboard(
 
   if (insightsHeaderStats) {
     insightsHeaderStats.innerHTML = `
-      <div class="insights-stat-pill" title="Total saved bookmarks">
+      <div class="insights-stat-pill" title="Total visible bookmarks">
         <span>Sites:</span>
         <span class="insights-stat-num">${totalSites}</span>
       </div>
@@ -87,8 +88,8 @@ export function renderInsightsDashboard(
         <span>Categories:</span>
         <span class="insights-stat-num">${allCats.length}</span>
       </div>
-      <div class="insights-stat-pill" title="Folders created">
-        <span>Folders:</span>
+      <div class="insights-stat-pill" title="Collections created">
+        <span>Collections:</span>
         <span class="insights-stat-num">${totalFolders}</span>
       </div>
     `;
@@ -96,18 +97,18 @@ export function renderInsightsDashboard(
 
   if (!insightsBody) return;
 
-  const visitedSites = [...state.entries]
+  const visitedSites = [...visibleEntries]
     .filter(e => (e.visitCount || 0) > 0)
     .sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0))
     .slice(0, 6);
 
-  const recentlyAdded = [...state.entries]
+  const recentlyAdded = [...visibleEntries]
     .sort((a, b) => new Date(b.dateAdded || 0).getTime() - new Date(a.dateAdded || 0).getTime())
     .slice(0, 5);
 
   const catCounts: Record<string, number> = {};
   let totalCatAssignments = 0;
-  state.entries.forEach(e => {
+  visibleEntries.forEach(e => {
     (e.categories || []).forEach(c => {
       catCounts[c] = (catCounts[c] || 0) + 1;
       totalCatAssignments++;
@@ -118,7 +119,7 @@ export function renderInsightsDashboard(
 
   const now = Date.now();
   const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
-  const dormantEntries = state.entries
+  const dormantEntries = visibleEntries
     .filter(e => {
       if (e.lastVisited) {
         return now - new Date(e.lastVisited).getTime() > NINETY_DAYS_MS;

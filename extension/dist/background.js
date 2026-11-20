@@ -118,6 +118,29 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     return prompt;
   }
 
+  // src/utils/collections.ts
+  function getEntryFolderIds(entry) {
+    if (!entry) return [];
+    if (Array.isArray(entry.folderIds)) {
+      const seen = /* @__PURE__ */ new Set();
+      const clean = [];
+      for (const raw of entry.folderIds) {
+        if (typeof raw === "string") {
+          const trimmed = raw.trim();
+          if (trimmed && !seen.has(trimmed)) {
+            seen.add(trimmed);
+            clean.push(trimmed);
+          }
+        }
+      }
+      return clean;
+    }
+    if (typeof entry.folderId === "string" && entry.folderId.trim()) {
+      return [entry.folderId.trim()];
+    }
+    return [];
+  }
+
   // src/extension/background.ts
   var STORAGE_KEYS = {
     CACHED_FOLDERS: "ad_cached_folders",
@@ -409,6 +432,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
             const rawEntries = entRes[STORAGE_KEYS.CACHED_ENTRIES];
             const entriesList = Array.isArray(rawEntries) ? [...rawEntries] : [];
             const existingIdx = entriesList.findIndex((e) => e.id === entry.id || e.url === entry.url);
+            const folderIds = getEntryFolderIds(entry);
             const cachedItem = {
               id: entry.id,
               name: entry.name,
@@ -416,7 +440,9 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
               icon: entry.icon || null,
               iconUrl: entry.iconUrl || null,
               categories: entry.categories || [],
-              folderId: entry.folderId || null,
+              folderIds,
+              folderId: folderIds[0] || null,
+              hiddenFromMain: folderIds.length > 0 && Boolean(entry.hiddenFromMain),
               dateAdded: entry.dateAdded,
               description: entry.description || "",
               visitCount: entry.visitCount || 0,

@@ -148,6 +148,7 @@ export function parseNetscapeBookmarks(htmlContent: string, existingFolders: Fol
         }
       }
 
+      const folderIds = matchedFolderId ? [matchedFolderId] : [];
       const resolvedIcon = iconUrl || getFaviconUrl(rawUrl);
       const entry: BookmarkEntry = {
         id: generateId(),
@@ -156,7 +157,9 @@ export function parseNetscapeBookmarks(htmlContent: string, existingFolders: Fol
         description: '',
         icon: resolvedIcon,
         iconUrl: resolvedIcon,
+        folderIds,
         folderId: matchedFolderId,
+        hiddenFromMain: false,
         categories: categories,
         dateAdded: dateAdded,
         visitCount: 0,

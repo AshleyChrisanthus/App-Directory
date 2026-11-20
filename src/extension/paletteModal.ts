@@ -2,6 +2,7 @@
 // Allows searching through saved websites and opening in current, new, or background tab.
 
 import modalCss from './modal.css';
+import { getEntryFolderIds } from '../utils/collections';
 import {
   CachedFolder,
   CachedBookmark,
@@ -164,8 +165,9 @@ function renderPaletteModal(
   });
 
   let currentView: 'search' | 'actions' = 'search';
+  let includeHidden = false;
   let selectedBookmark: CachedBookmark | null = null;
-  let filteredBookmarks: CachedBookmark[] = allBookmarks;
+  let filteredBookmarks: CachedBookmark[] = allBookmarks.filter((e) => !e.hiddenFromMain);
   let searchSelectedIndex = 0;
   let actionSelectedIndex = 0;
   let closeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -189,7 +191,8 @@ function renderPaletteModal(
             autocomplete="off"
             spellcheck="false"
           >
-          <span id="ad-palette-counter" class="ad-palette-counter">${allBookmarks.length} sites</span>
+          <span id="ad-palette-counter" class="ad-palette-counter">${filteredBookmarks.length} sites</span>
+          <button type="button" id="ad-palette-hidden-toggle" class="ad-palette-hidden-toggle" aria-pressed="false" title="Include hidden collection webpages in search">🙈 Hidden</button>
           <span id="ad-palette-esc-btn" class="ad-palette-esc-badge" title="Close">ESC</span>
         </div>
 
@@ -327,7 +330,9 @@ function renderPaletteModal(
     if (actionContainer) actionContainer.style.display = 'flex';
 
     if (targetInfoEl) {
-      const folder = bookmark.folderId ? folderMap.get(bookmark.folderId) : null;
+      const entryFolders = getEntryFolderIds(bookmark)
+        .map((fid) => folderMap.get(fid))
+        .filter((f): f is CachedFolder => Boolean(f));
       const domain = getDomain(bookmark.url);
       const iconSrc = bookmark.iconUrl || bookmark.icon || '';
       const isImg = iconSrc.startsWith('http') || iconSrc.startsWith('data:');
@@ -340,7 +345,10 @@ function renderPaletteModal(
           <div class="ad-palette-target-title">${escapeHtml(bookmark.name || 'Untitled')}</div>
           <div class="ad-palette-target-url">${escapeHtml(domain)}${bookmark.description ? ` &bull; ${escapeHtml(bookmark.description)}` : ''}</div>
         </div>
-        ${folder ? `<span class="ad-palette-folder-badge" style="${folder.color ? `background:${folder.color}1c; color:${folder.color}; border-color:${folder.color}40;` : ''}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
+        <div class="ad-palette-item-badges">
+          ${bookmark.hiddenFromMain ? `<span class="ad-palette-hidden-badge" title="Hidden from Main view">🙈 Hidden</span>` : ''}
+          ${entryFolders.map((folder) => `<span class="ad-palette-folder-badge" style="${folder.color ? `background:${folder.color}1c; color:${folder.color}; border-color:${folder.color}40;` : ''}">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>`).join('')}
+        </div>
       `;
     }
 
@@ -435,17 +443,23 @@ function renderPaletteModal(
   const renderResults = (query: string): void => {
     if (!resultsContainer) return;
 
+    const searchableBookmarks = includeHidden
+      ? allBookmarks
+      : allBookmarks.filter((e) => !e.hiddenFromMain);
+
     const q = query.trim().toLowerCase();
     if (!q) {
-      filteredBookmarks = allBookmarks;
+      filteredBookmarks = searchableBookmarks;
     } else {
-      filteredBookmarks = allBookmarks.filter((entry) => {
+      filteredBookmarks = searchableBookmarks.filter((entry) => {
         const nameMatch = (entry.name || '').toLowerCase().includes(q);
         const urlMatch = (entry.url || '').toLowerCase().includes(q);
         const descMatch = (entry.description || '').toLowerCase().includes(q);
         const catMatch = (entry.categories || []).some((c) => c.toLowerCase().includes(q));
-        const folder = entry.folderId ? folderMap.get(entry.folderId) : null;
-        const folderMatch = folder ? folder.name.toLowerCase().includes(q) : false;
+        const folderMatch = getEntryFolderIds(entry).some((fid) => {
+          const folder = folderMap.get(fid);
+          return folder ? folder.name.toLowerCase().includes(q) : false;
+        });
         return nameMatch || urlMatch || descMatch || catMatch || folderMatch;
       });
     }
@@ -460,7 +474,7 @@ function renderPaletteModal(
       resultsContainer.innerHTML = `
         <div class="ad-palette-empty">
           <div class="ad-palette-empty-icon">🔍</div>
-          <div>No matching websites found for "<strong>${escapeHtml(query)}</strong>"</div>
+          <div>${q ? `No matching websites found for "<strong>${escapeHtml(query)}</strong>"` : 'No visible websites found'}</div>
         </div>
       `;
       return;
@@ -474,10 +488,24 @@ function renderPaletteModal(
     }
 
     filteredBookmarks.forEach((entry, idx) => {
-      const folder = entry.folderId ? folderMap.get(entry.folderId) : null;
+      const entryFolders = getEntryFolderIds(entry)
+        .map((fid) => folderMap.get(fid))
+        .filter((f): f is CachedFolder => Boolean(f));
       const domain = getDomain(entry.url);
       const iconSrc = entry.iconUrl || entry.icon || '';
       const isImg = iconSrc.startsWith('http') || iconSrc.startsWith('data:');
+
+      const folderBadgesHtml =
+        entryFolders
+          .slice(0, 2)
+          .map(
+            (folder) =>
+              `<span class="ad-palette-folder-badge" ${folder.color ? `style="background:${folder.color}1c; color:${folder.color}; border-color:${folder.color}40;"` : ''}>${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>`
+          )
+          .join('') +
+        (entryFolders.length > 2
+          ? `<span class="ad-palette-folder-badge">+${entryFolders.length - 2}</span>`
+          : '');
 
       const row = document.createElement('div');
       row.className = `ad-palette-item ${idx === searchSelectedIndex ? 'is-selected' : ''}`;
@@ -495,7 +523,8 @@ function renderPaletteModal(
           <div class="ad-palette-item-subtitle">${escapeHtml(domain)}${entry.description ? ` &bull; ${escapeHtml(entry.description)}` : ''}</div>
         </div>
         <div class="ad-palette-item-badges">
-          ${folder ? `<span class="ad-palette-folder-badge" ${folder.color ? `style="background:${folder.color}1c; color:${folder.color}; border-color:${folder.color}40;"` : ''}>${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</span>` : ''}
+          ${entry.hiddenFromMain ? `<span class="ad-palette-hidden-badge" title="Hidden from Main view">🙈</span>` : ''}
+          ${folderBadgesHtml}
           ${Array.isArray(entry.categories) && entry.categories[0] ? `<span class="ad-palette-tag">${escapeHtml(entry.categories[0])}</span>` : ''}
         </div>
         <div class="ad-palette-quick-actions">
@@ -542,6 +571,22 @@ function renderPaletteModal(
     searchInput.addEventListener('input', () => {
       searchSelectedIndex = 0;
       renderResults(searchInput.value);
+    });
+  }
+
+  const hiddenToggleBtn = shadow.getElementById('ad-palette-hidden-toggle');
+  if (hiddenToggleBtn) {
+    hiddenToggleBtn.addEventListener('click', () => {
+      includeHidden = !includeHidden;
+      hiddenToggleBtn.classList.toggle('active', includeHidden);
+      hiddenToggleBtn.setAttribute('aria-pressed', String(includeHidden));
+      hiddenToggleBtn.textContent = includeHidden ? '👁️ Hidden' : '🙈 Hidden';
+      hiddenToggleBtn.title = includeHidden
+        ? 'Including hidden webpages in search (click to exclude)'
+        : 'Include hidden collection webpages in search';
+      searchSelectedIndex = 0;
+      renderResults(searchInput?.value || '');
+      searchInput?.focus();
     });
   }
 

@@ -2,6 +2,7 @@ import type { BookmarkEntry, Folder } from '../../types';
 import { PIN_FAVORITES_KEY } from '../../core/constants';
 import { state } from '../../core/state';
 import { getDomain, escapeHtml, showToast } from '../../utils/dom';
+import { getEntryFolderIds, entryBelongsToCollection } from '../../utils/collections';
 
 export interface CommandPaletteCallbacks {
   openAddModal: () => void;
@@ -39,6 +40,19 @@ export interface PaletteItem {
 let isCommandPaletteOpen = false;
 let paletteSelectedIndex = 0;
 let paletteFlatItems: PaletteItem[] = [];
+let paletteIncludeHidden = false;
+
+function updatePaletteHiddenToggleUI(): void {
+  const btn = document.getElementById('commandPaletteHiddenToggle');
+  if (!btn) return;
+  btn.classList.toggle('is-active', paletteIncludeHidden);
+  btn.setAttribute('aria-pressed', String(paletteIncludeHidden));
+  btn.title = paletteIncludeHidden
+    ? 'Showing hidden webpages in search (click to hide)'
+    : 'Hidden webpages excluded from search (click to include)';
+  const iconSpan = btn.querySelector('.palette-hidden-icon');
+  if (iconSpan) iconSpan.textContent = paletteIncludeHidden ? '👁️' : '🙈';
+}
 
 export function openCommandPalette(callbacks: CommandPaletteCallbacks): void {
   const commandPaletteBackdrop = document.getElementById('commandPaletteBackdrop');
@@ -47,6 +61,8 @@ export function openCommandPalette(callbacks: CommandPaletteCallbacks): void {
 
   if (!commandPaletteBackdrop || !commandPaletteInput) return;
   isCommandPaletteOpen = true;
+  paletteIncludeHidden = false;
+  updatePaletteHiddenToggleUI();
   commandPaletteBackdrop.style.display = 'flex';
   commandPaletteInput.value = '';
   if (commandPaletteClearBtn) commandPaletteClearBtn.style.display = 'none';
@@ -290,12 +306,14 @@ export function getCommandPaletteActions(callbacks: CommandPaletteCallbacks): Pa
 }
 
 export function getCommandPaletteFolders(callbacks: CommandPaletteCallbacks): PaletteItem[] {
+  const visibleMainCount = state.entries.filter(e => !e.hiddenFromMain).length;
+  const unorganizedCount = state.entries.filter(e => getEntryFolderIds(e).length === 0).length;
   const list: PaletteItem[] = [
     {
       id: 'folder-all',
       type: 'folder',
       title: 'All Bookmarks',
-      subtitle: `View all ${state.entries.length} saved bookmarks`,
+      subtitle: `View all ${visibleMainCount} visible bookmarks`,
       icon: '📁',
       badge: 'View',
       keywords: ['all', 'bookmarks', 'library'],
@@ -315,7 +333,7 @@ export function getCommandPaletteFolders(callbacks: CommandPaletteCallbacks): Pa
       id: 'folder-unorganized',
       type: 'folder',
       title: 'Unorganized',
-      subtitle: `Bookmarks not in any collection (${state.entries.filter(e => !e.folderId).length})`,
+      subtitle: `Bookmarks not in any collection (${unorganizedCount})`,
       icon: '📂',
       badge: 'View',
       keywords: ['unorganized', 'inbox', 'unsorted'],
@@ -338,7 +356,7 @@ export function getCommandPaletteFolders(callbacks: CommandPaletteCallbacks): Pa
   }
 
   state.folders.forEach(f => {
-    const count = state.entries.filter(e => e.folderId === f.id).length;
+    const count = state.entries.filter(e => entryBelongsToCollection(e, f.id)).length;
     list.push({
       id: `folder-${f.id}`,
       type: 'folder',
@@ -356,8 +374,12 @@ export function getCommandPaletteFolders(callbacks: CommandPaletteCallbacks): Pa
 }
 
 export function getCommandPaletteBookmarks(query: string, callbacks: CommandPaletteCallbacks): PaletteItem[] {
+  const searchable = paletteIncludeHidden
+    ? state.entries
+    : state.entries.filter(e => !e.hiddenFromMain);
+
   if (!query) {
-    return state.entries
+    return searchable
       .slice()
       .sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0) || new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime())
       .slice(0, 6)
@@ -367,13 +389,17 @@ export function getCommandPaletteBookmarks(query: string, callbacks: CommandPale
   const q = query.toLowerCase().trim();
   const matched: PaletteItem[] = [];
 
-  for (const entry of state.entries) {
+  for (const entry of searchable) {
     const nameMatch = entry.name.toLowerCase().includes(q);
     const urlMatch = entry.url.toLowerCase().includes(q);
     const descMatch = (entry.description || '').toLowerCase().includes(q);
     const catMatch = (entry.categories || []).some(c => c.toLowerCase().includes(q));
+    const folderMatch = getEntryFolderIds(entry).some(fid => {
+      const f = state.folders.find(col => col.id === fid);
+      return f ? f.name.toLowerCase().includes(q) : false;
+    });
 
-    if (nameMatch || urlMatch || descMatch || catMatch) {
+    if (nameMatch || urlMatch || descMatch || catMatch || folderMatch) {
       matched.push(createBookmarkPaletteItem(entry, 'Bookmark', callbacks));
     }
   }
@@ -383,15 +409,27 @@ export function getCommandPaletteBookmarks(query: string, callbacks: CommandPale
 
 function createBookmarkPaletteItem(entry: BookmarkEntry, badgeLabel: string, callbacks: CommandPaletteCallbacks): PaletteItem {
   const domain = getDomain(entry.url);
-  const folder = entry.folderId ? state.folders.find(f => f.id === entry.folderId) : null;
+  const entryFolders = getEntryFolderIds(entry)
+    .map(fid => state.folders.find(f => f.id === fid))
+    .filter((f): f is Folder => Boolean(f));
+  const primaryFolder = entryFolders[0] || null;
+  let badge = badgeLabel;
+  if (primaryFolder) {
+    badge = entryFolders.length > 1
+      ? `${primaryFolder.name} +${entryFolders.length - 1}`
+      : primaryFolder.name;
+  }
+  if (entry.hiddenFromMain) {
+    badge = `${badge} · Hidden`;
+  }
   return {
     id: `bookmark-${entry.id}`,
     type: 'bookmark',
     title: entry.name,
     subtitle: `${domain}${entry.description ? ` • ${entry.description}` : ''}`,
     iconUrl: entry.iconUrl || entry.icon,
-    badge: folder ? folder.name : badgeLabel,
-    color: folder ? folder.color : null,
+    badge,
+    color: primaryFolder ? primaryFolder.color : null,
     run: () => callbacks.visitEntry(entry.id)
   };
 }
@@ -524,7 +562,18 @@ export function initCommandPalette(callbacks: CommandPaletteCallbacks): void {
   const commandPaletteInput = document.getElementById('commandPaletteInput') as HTMLInputElement | null;
   const commandPaletteClearBtn = document.getElementById('commandPaletteClearBtn');
   const commandPaletteEscBadge = document.getElementById('commandPaletteEscBadge');
+  const commandPaletteHiddenToggle = document.getElementById('commandPaletteHiddenToggle');
   const cmdPaletteKbdLabel = document.getElementById('cmdPaletteKbdLabel');
+
+  if (commandPaletteHiddenToggle) {
+    commandPaletteHiddenToggle.addEventListener('click', () => {
+      paletteIncludeHidden = !paletteIncludeHidden;
+      updatePaletteHiddenToggleUI();
+      paletteSelectedIndex = 0;
+      renderCommandPaletteResults(commandPaletteInput?.value || '', callbacks);
+      commandPaletteInput?.focus();
+    });
+  }
 
   if (cmdPaletteKbdLabel) {
     const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);

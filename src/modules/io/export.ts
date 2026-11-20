@@ -2,6 +2,7 @@ import { state } from '../../core/state';
 import { getLatestStoredEntries } from '../../core/storage';
 import { showToast } from '../../utils/dom';
 import { idbGetHandle, idbSaveHandle } from '../../core/idb';
+import { getEntryFolderIds } from '../../utils/collections';
 
 const IDB_KEY_EXPORTS = 'exports_dir_handle';
 
@@ -32,6 +33,10 @@ export function getExportJson(): { json: string; baseName: string; filename: str
   }
   const cleanList = rawList.map(e => {
     const copy = { ...e };
+    const folderIds = getEntryFolderIds(copy);
+    copy.folderIds = folderIds;
+    copy.folderId = folderIds[0] || null;
+    copy.hiddenFromMain = folderIds.length > 0 && Boolean(copy.hiddenFromMain);
     if (copy.iconUrl || copy.icon) {
       copy.iconUrl = copy.iconUrl || copy.icon;
       if (copy.icon && (copy.icon === copy.iconUrl || !copy.customIcon)) {

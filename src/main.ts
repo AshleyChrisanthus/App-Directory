@@ -2,6 +2,7 @@ import { state } from './core/state';
 import { initStorage, reloadFromStorage, onBroadcastMessage, notifyOtherTabs } from './core/storage';
 import { PIN_FAVORITES_KEY, FILTER_MODE_KEY } from './core/constants';
 import { showToast } from './utils/dom';
+import { isUserCollectionId } from './utils/collections';
 
 // Theme & Navigation
 import {
@@ -60,7 +61,10 @@ import {
   setActiveFolder,
   renderFoldersSidebar,
   deleteFolder,
-  populateFolderSelect
+  populateFolderSelect,
+  renderModalCollectionPicker,
+  updateHiddenFromMainVisibility,
+  setCollectionMembersVisibility
 } from './modules/folders/sidebar';
 import {
   openFolderModal,
@@ -154,7 +158,7 @@ const modalBackdrop = document.getElementById('modalBackdrop');
 const entryForm = document.getElementById('entryForm') as HTMLFormElement | null;
 const entryName = document.getElementById('entryName') as HTMLInputElement | null;
 const entryUrl = document.getElementById('entryUrl') as HTMLInputElement | null;
-const entryFolder = document.getElementById('entryFolder') as HTMLSelectElement | null;
+const entryHiddenFromMain = document.getElementById('entryHiddenFromMain') as HTMLInputElement | null;
 const entryIcon = document.getElementById('entryIcon') as HTMLInputElement | null;
 const entryDescription = document.getElementById('entryDescription') as HTMLTextAreaElement | null;
 const entryFavorite = document.getElementById('entryFavorite') as HTMLInputElement | null;
@@ -187,6 +191,7 @@ const catModalSearchClearBtn = document.getElementById('catModalSearchClearBtn')
 
 const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
 const searchClearBtn = document.getElementById('searchClearBtn');
+const searchIncludeHiddenBtn = document.getElementById('searchIncludeHiddenBtn');
 const sortSelect = document.getElementById('sortSelect') as HTMLSelectElement | null;
 const pinFavoritesBtn = document.getElementById('pinFavoritesBtn');
 
@@ -225,6 +230,7 @@ const newFolderBtn = document.getElementById('newFolderBtn');
 const inlineNewFolderBtn = document.getElementById('inlineNewFolderBtn');
 const editFolderBtn = document.getElementById('editFolderBtn');
 const deleteFolderBtn = document.getElementById('deleteFolderBtn');
+const folderBulkVisibility = document.getElementById('folderBulkVisibility');
 const folderForm = document.getElementById('folderForm');
 const folderModalClose = document.getElementById('folderModalClose');
 const cancelFolderBtn = document.getElementById('cancelFolderBtn');
@@ -335,10 +341,13 @@ function handleSubmit(e: Event): void {
     state.selectedCategories.push(pendingCat);
   }
 
+  const selectedFolderIds = [...state.selectedModalFolderIds];
   const data = {
     name: entryName.value.trim(),
     url: entryUrl.value.trim(),
-    folderId: entryFolder ? (entryFolder.value || null) : null,
+    folderIds: selectedFolderIds,
+    folderId: selectedFolderIds[0] || null,
+    hiddenFromMain: selectedFolderIds.length > 0 && Boolean(entryHiddenFromMain?.checked),
     categories: [...state.selectedCategories],
     iconUrl: entryIcon ? entryIcon.value.trim() : '',
     description: entryDescription ? entryDescription.value.trim() : '',
@@ -675,6 +684,26 @@ if (searchClearBtn) {
   });
 }
 
+function updateSearchHiddenToggleUI(): void {
+  if (!searchIncludeHiddenBtn) return;
+  searchIncludeHiddenBtn.classList.toggle('active', state.includeHiddenInSearch);
+  searchIncludeHiddenBtn.setAttribute('aria-pressed', String(state.includeHiddenInSearch));
+  searchIncludeHiddenBtn.title = state.includeHiddenInSearch
+    ? 'Including hidden collection webpages in search (click to hide)'
+    : 'Hidden collection webpages are excluded (click to include in search)';
+  const iconSpan = searchIncludeHiddenBtn.querySelector('.search-hidden-icon');
+  if (iconSpan) iconSpan.textContent = state.includeHiddenInSearch ? '👁️' : '🙈';
+}
+
+if (searchIncludeHiddenBtn) {
+  updateSearchHiddenToggleUI();
+  searchIncludeHiddenBtn.addEventListener('click', () => {
+    state.includeHiddenInSearch = !state.includeHiddenInSearch;
+    updateSearchHiddenToggleUI();
+    renderCardsOnly();
+  });
+}
+
 if (sortSelect) {
   sortSelect.addEventListener('change', () => renderCardsOnly());
 }
@@ -986,14 +1015,18 @@ if (newFolderBtn) {
 if (inlineNewFolderBtn) {
   inlineNewFolderBtn.addEventListener('click', () => {
     openFolderModal(null, (newFolderId: string) => {
-      populateFolderSelect(newFolderId);
+      if (!state.selectedModalFolderIds.includes(newFolderId)) {
+        state.selectedModalFolderIds.push(newFolderId);
+      }
+      renderModalCollectionPicker();
+      updateHiddenFromMainVisibility();
     });
   });
 }
 
 if (editFolderBtn) {
   editFolderBtn.addEventListener('click', () => {
-    if (state.activeFolderId && state.activeFolderId.startsWith('f-')) {
+    if (isUserCollectionId(state.activeFolderId)) {
       openFolderModal(state.activeFolderId);
     }
   });
@@ -1001,9 +1034,18 @@ if (editFolderBtn) {
 
 if (deleteFolderBtn) {
   deleteFolderBtn.addEventListener('click', () => {
-    if (state.activeFolderId && state.activeFolderId.startsWith('f-')) {
+    if (isUserCollectionId(state.activeFolderId)) {
       deleteFolder(state.activeFolderId, render);
     }
+  });
+}
+
+if (folderBulkVisibility) {
+  folderBulkVisibility.addEventListener('click', (e: MouseEvent) => {
+    const btn = (e.target as HTMLElement | null)?.closest('[data-bulk-visibility]') as HTMLElement | null;
+    if (!btn || !isUserCollectionId(state.activeFolderId)) return;
+    const action = btn.getAttribute('data-bulk-visibility');
+    setCollectionMembersVisibility(state.activeFolderId, action === 'hide', render);
   });
 }
 
@@ -1194,9 +1236,12 @@ function resetToAllBookmarks(): void {
   const hadSearch = Boolean(searchInput && searchInput.value);
   const hadCats = state.selectedFilterCategories.size > 0;
   const hadFolder = state.activeFolderId !== 'all';
+  const hadHiddenSearch = state.includeHiddenInSearch;
 
   if (searchInput) searchInput.value = '';
   if (searchClearBtn) searchClearBtn.style.display = 'none';
+  state.includeHiddenInSearch = false;
+  updateSearchHiddenToggleUI();
   state.selectedFilterCategories.clear();
   if (catFilterList) {
     catFilterList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -1208,7 +1253,7 @@ function resetToAllBookmarks(): void {
   updateCatFilterLabel();
   updateMobileCategoryTrackActiveState();
 
-  if (hadSearch || hadCats || hadFolder) {
+  if (hadSearch || hadCats || hadFolder || hadHiddenSearch) {
     state.activeFolderId = 'all';
     renderFoldersSidebar(render);
     renderCardsOnly();
@@ -1231,7 +1276,7 @@ if (headerLogo) {
         updateMobileBottomNavActiveTab(
           state.activeFolderId === 'favorites'
             ? 'favorites'
-            : state.activeFolderId && state.activeFolderId.startsWith('f-')
+            : isUserCollectionId(state.activeFolderId)
               ? 'folders'
               : 'directory'
         );
@@ -1302,7 +1347,7 @@ if (navTabFolders) {
       updateMobileBottomNavActiveTab(
         state.activeFolderId === 'favorites'
           ? 'favorites'
-          : state.activeFolderId && state.activeFolderId.startsWith('f-')
+          : isUserCollectionId(state.activeFolderId)
             ? 'folders'
             : 'directory'
       );
@@ -1498,7 +1543,7 @@ function initMobileSwipeFolderGesture(): void {
       updateMobileBottomNavActiveTab(
         state.activeFolderId === 'favorites'
           ? 'favorites'
-          : state.activeFolderId && state.activeFolderId.startsWith('f-')
+          : isUserCollectionId(state.activeFolderId)
             ? 'folders'
             : 'directory'
       );

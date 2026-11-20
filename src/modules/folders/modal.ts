@@ -2,6 +2,11 @@ import type { Folder, BookmarkEntry } from '../../types';
 import { state } from '../../core/state';
 import { getLatestStoredEntries, saveEntries, saveFolders } from '../../core/storage';
 import { escapeHtml, showToast, getFaviconUrl } from '../../utils/dom';
+import {
+  getEntryFolderIds,
+  entryBelongsToCollection,
+  syncLegacyFolderFields
+} from '../../utils/collections';
 import { closeEmojiPicker, renderFolderEmojiQuickRow } from './emoji-picker';
 import { renderFoldersSidebar, setActiveFolder } from './sidebar';
 
@@ -22,14 +27,14 @@ export function openFolderModal(folderId: string | null = null, onCreatedCallbac
   if (folderId) {
     const folder = state.folders.find(f => f.id === folderId);
     if (folder) {
-      if (folderModalTitle) folderModalTitle.textContent = 'Edit Folder';
+      if (folderModalTitle) folderModalTitle.textContent = 'Edit Collection';
       if (folderNameInput) folderNameInput.value = folder.name || '';
       if (folderIconInput) folderIconInput.value = folder.icon || '📁';
       if (folderColorInput) folderColorInput.value = folder.color || '#0a84ff';
       if (folderIconDisplay) folderIconDisplay.textContent = folder.icon || '📁';
     }
   } else {
-    if (folderModalTitle) folderModalTitle.textContent = 'New Folder';
+    if (folderModalTitle) folderModalTitle.textContent = 'New Collection';
     if (folderNameInput) folderNameInput.value = '';
     if (folderIconInput) folderIconInput.value = '📁';
     if (folderColorInput) folderColorInput.value = '#0a84ff';
@@ -84,7 +89,7 @@ export function saveFolderForm(e: Event, onFolderUpdated?: () => void): void {
       folder.icon = icon;
       folder.color = color;
       (folder as any).dateModified = new Date().toISOString();
-      showToast(`Updated folder "${name}"`);
+      showToast(`Updated collection "${name}"`);
     }
   } else {
     const newFolder: Folder = {
@@ -96,7 +101,7 @@ export function saveFolderForm(e: Event, onFolderUpdated?: () => void): void {
     };
     state.folders.push(newFolder);
     createdFolderId = newFolder.id;
-    showToast(`Created folder "${name}" 📁`);
+    showToast(`Created collection "${name}" 📁`);
   }
 
   saveFolders();
@@ -173,60 +178,64 @@ export function closeAddBookmarksModal(): void {
 }
 
 export function renderAddBookmarksList(): void {
-  const addBmListContainer = document.getElementById('addBmListContainer');
-  const addBmSubmitBtn = document.getElementById('addBmSubmitBtn') as HTMLButtonElement | null;
+  const addBmListContainer = document.getElementById('addBmList');
+  const addBmEmpty = document.getElementById('addBmEmpty');
   if (!addBmListContainer) return;
 
-  const currentFolder = state.folders.find(f => f.id === state.activeFolderId);
-  if (!currentFolder) return;
-
-  let candidates = state.entries.filter(e => e.folderId !== currentFolder.id);
-
-  if (addBmSourceFilter === 'unorganized') {
-    candidates = candidates.filter(e => !e.folderId);
-  } else if (addBmSourceFilter === 'other') {
-    candidates = candidates.filter(e => !!e.folderId);
-  }
-
-  const q = addBmSearchQuery.trim().toLowerCase();
-  if (q) {
-    candidates = candidates.filter(
-      e =>
-        e.name.toLowerCase().includes(q) ||
-        e.url.toLowerCase().includes(q) ||
-        (e.description && e.description.toLowerCase().includes(q))
-    );
-  }
-
-  candidates.sort((a, b) => a.name.localeCompare(b.name));
+  const candidates = getFilteredBookmarksToMove().slice().sort((a, b) => a.name.localeCompare(b.name));
   addBmListContainer.innerHTML = '';
 
   if (candidates.length === 0) {
-    addBmListContainer.innerHTML = `<div class="add-bm-empty">No available bookmarks found.</div>`;
+    if (addBmEmpty) addBmEmpty.style.display = 'block';
     updateAddBmSubmitBtn(0);
     return;
   }
 
+  if (addBmEmpty) addBmEmpty.style.display = 'none';
+
+  const folderMap = new Map<string, Folder>();
+  state.folders.forEach(f => folderMap.set(f.id, f));
+
   candidates.forEach(entry => {
     const isSelected = selectedBookmarksToMove.has(entry.id);
     const item = document.createElement('div');
-    item.className = `add-bm-item ${isSelected ? 'selected' : ''}`;
+    item.className = `add-bm-item-row ${isSelected ? 'is-selected' : ''}`;
     item.setAttribute('data-id', entry.id);
 
     const iconUrl = entry.iconUrl || entry.icon || getFaviconUrl(entry.url);
-    const existingFolder = state.folders.find(f => f.id === entry.folderId);
-    const folderBadge = existingFolder
-      ? `<span class="add-bm-folder-badge">${existingFolder.icon || '📁'} ${escapeHtml(existingFolder.name)}</span>`
+    const existingFolders = getEntryFolderIds(entry)
+      .map(fid => folderMap.get(fid))
+      .filter((f): f is Folder => Boolean(f));
+
+    const folderBadgesHtml = existingFolders.length > 0
+      ? existingFolders
+          .slice(0, 2)
+          .map(f => `<span class="add-bm-folder-badge">${escapeHtml(f.icon || '📁')} ${escapeHtml(f.name)}</span>`)
+          .join('') +
+        (existingFolders.length > 2
+          ? `<span class="add-bm-folder-badge">+${existingFolders.length - 2}</span>`
+          : '')
       : `<span class="add-bm-folder-badge unorg">Unorganized</span>`;
 
+    const hiddenBadgeHtml = entry.hiddenFromMain
+      ? `<span class="add-bm-folder-badge is-hidden-badge">🙈 Hidden</span>`
+      : '';
+
     item.innerHTML = `
-      <input type="checkbox" class="add-bm-checkbox" ${isSelected ? 'checked' : ''}>
-      <img class="add-bm-icon" src="${escapeHtml(iconUrl)}" alt="" onerror="this.src='https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(entry.url)}&size=64'">
-      <div class="add-bm-info">
-        <div class="add-bm-name">${escapeHtml(entry.name)}</div>
-        <div class="add-bm-url">${escapeHtml(entry.url)}</div>
+      <div class="add-bm-item-left">
+        <input type="checkbox" class="add-bm-checkbox" ${isSelected ? 'checked' : ''}>
+        <div class="add-bm-item-icon">
+          <img src="${escapeHtml(iconUrl)}" alt="" onerror="this.src='https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(entry.url)}&size=64'">
+        </div>
+        <div class="add-bm-item-info">
+          <div class="add-bm-item-name">${escapeHtml(entry.name)}</div>
+          <div class="add-bm-item-url">${escapeHtml(entry.url)}</div>
+        </div>
       </div>
-      ${folderBadge}
+      <div class="add-bm-item-badges">
+        ${hiddenBadgeHtml}
+        ${folderBadgesHtml}
+      </div>
     `;
 
     item.addEventListener('click', e => {
@@ -236,10 +245,10 @@ export function renderAddBookmarksList(): void {
       }
       if (cb && cb.checked) {
         selectedBookmarksToMove.add(entry.id);
-        item.classList.add('selected');
+        item.classList.add('is-selected');
       } else {
         selectedBookmarksToMove.delete(entry.id);
-        item.classList.remove('selected');
+        item.classList.remove('is-selected');
       }
       updateAddBmSubmitBtn();
     });
@@ -251,7 +260,7 @@ export function renderAddBookmarksList(): void {
 }
 
 function updateAddBmSubmitBtn(totalAvailable = -1): void {
-  const addBmSubmitBtn = document.getElementById('addBmSubmitBtn') as HTMLButtonElement | null;
+  const addBmSubmitBtn = document.getElementById('confirmAddBmBtn') as HTMLButtonElement | null;
   const addBmSelectedCount = document.getElementById('addBmSelectedCount');
   const addBmTotalCount = document.getElementById('addBmTotalCount');
   const count = selectedBookmarksToMove.size;
@@ -261,7 +270,7 @@ function updateAddBmSubmitBtn(totalAvailable = -1): void {
 
   if (!addBmSubmitBtn) return;
   addBmSubmitBtn.disabled = count === 0;
-  addBmSubmitBtn.textContent = `Add Selected (${count})`;
+  addBmSubmitBtn.textContent = `Add Selected (${count}) to Collection`;
 }
 
 export function commitAddBookmarksToFolder(onSuccess?: () => void): void {
@@ -273,7 +282,10 @@ export function commitAddBookmarksToFolder(onSuccess?: () => void): void {
   const diskList = getLatestStoredEntries();
   diskList.forEach(entry => {
     if (selectedBookmarksToMove.has(entry.id)) {
-      entry.folderId = folder.id;
+      const currentIds = getEntryFolderIds(entry);
+      if (!currentIds.includes(folder.id)) {
+        syncLegacyFolderFields(entry, [...currentIds, folder.id], entry.hiddenFromMain);
+      }
       (entry as any).dateModified = new Date().toISOString();
     }
   });
@@ -299,12 +311,12 @@ export function getFilteredBookmarksToMove(): BookmarkEntry[] {
   const currentFolder = state.folders.find(f => f.id === state.activeFolderId);
   if (!currentFolder) return [];
 
-  let candidates = state.entries.filter(e => e.folderId !== currentFolder.id);
+  let candidates = state.entries.filter(e => !entryBelongsToCollection(e, currentFolder.id));
 
   if (addBmSourceFilter === 'unorganized') {
-    candidates = candidates.filter(e => !e.folderId);
-  } else if (addBmSourceFilter === 'other') {
-    candidates = candidates.filter(e => !!e.folderId);
+    candidates = candidates.filter(e => getEntryFolderIds(e).length === 0);
+  } else if (addBmSourceFilter === 'folders' || addBmSourceFilter === 'other') {
+    candidates = candidates.filter(e => getEntryFolderIds(e).length > 0);
   }
 
   const q = addBmSearchQuery.trim().toLowerCase();

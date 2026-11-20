@@ -4,6 +4,7 @@ import { saveEntries, migrateEntry } from '../../core/storage';
 import { getAllCategories } from '../categories/manager';
 import { showToast } from '../../utils/dom';
 import { syncSettingsFromExtension } from '../settings/manager';
+import { getEntryFolderIds } from '../../utils/collections';
 
 let isExtensionSyncInitialized = false;
 let currentOnDataChanged: (() => void) | null = null;
@@ -48,19 +49,24 @@ export function initExtensionSync(onDataChanged: () => void): void {
           color: f.color || '#0a84ff'
         })),
         categories: getAllCategories(),
-        entries: (state.entries || []).map(e => ({
-          id: e.id,
-          name: e.name,
-          url: e.url,
-          icon: e.icon || null,
-          iconUrl: e.iconUrl || null,
-          categories: e.categories || [],
-          folderId: e.folderId || null,
-          dateAdded: e.dateAdded,
-          description: e.description || '',
-          visitCount: e.visitCount || 0,
-          isFavorite: !!e.isFavorite
-        }))
+        entries: (state.entries || []).map(e => {
+          const folderIds = getEntryFolderIds(e);
+          return {
+            id: e.id,
+            name: e.name,
+            url: e.url,
+            icon: e.icon || null,
+            iconUrl: e.iconUrl || null,
+            categories: e.categories || [],
+            folderIds,
+            folderId: folderIds[0] || null,
+            hiddenFromMain: Boolean(e.hiddenFromMain),
+            dateAdded: e.dateAdded,
+            description: e.description || '',
+            visitCount: e.visitCount || 0,
+            isFavorite: !!e.isFavorite
+          };
+        })
       }, '*');
     } catch (_) {}
   };

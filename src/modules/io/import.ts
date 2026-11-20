@@ -2,6 +2,7 @@ import type { BookmarkEntry, Folder } from '../../types';
 import { state } from '../../core/state';
 import { getLatestStoredEntries, saveEntries, saveFolders } from '../../core/storage';
 import { generateId, ensureProtocol, getFaviconUrl, showToast } from '../../utils/dom';
+import { getEntryFolderIds } from '../../utils/collections';
 import { parseNetscapeBookmarks, normalizeUrlForDuplicateCheck } from './browser-importer';
 
 export function importData(file: File, onImportSuccess?: () => void): void {
@@ -61,7 +62,7 @@ export function importData(file: File, onImportSuccess?: () => void): void {
         if (onImportSuccess) onImportSuccess();
 
         const skippedCount = importedEntries.length - importedCount;
-        const folderPart = addedFoldersCount > 0 ? ` and ${addedFoldersCount} folder${addedFoldersCount !== 1 ? 's' : ''}` : '';
+        const folderPart = addedFoldersCount > 0 ? ` and ${addedFoldersCount} collection${addedFoldersCount !== 1 ? 's' : ''}` : '';
         showToast(
           `Imported ${importedCount} site${importedCount !== 1 ? 's' : ''}${folderPart} from browser bookmarks (${skippedCount} duplicate${
             skippedCount !== 1 ? 's' : ''
@@ -123,13 +124,17 @@ export function importData(file: File, onImportSuccess?: () => void): void {
           }
           // Use canonical iconUrl; avoid duplicating huge data URLs in both icon and iconUrl
           const resolvedIcon = item.iconUrl || item.icon || getFaviconUrl(item.url);
+          const folderIds = getEntryFolderIds(item);
+          const hiddenFromMain = folderIds.length > 0 ? Boolean(item.hiddenFromMain) : false;
           diskList.push({
             id: item.id || generateId(),
             name: item.name,
             url: ensureProtocol(item.url),
             description: item.description || '',
             iconUrl: resolvedIcon,
-            folderId: item.folderId || null,
+            folderIds,
+            folderId: folderIds[0] || null,
+            hiddenFromMain,
             categories: cats,
             dateAdded: item.dateAdded || new Date().toISOString(),
             dateModified: item.dateModified || item.dateAdded || new Date().toISOString(),

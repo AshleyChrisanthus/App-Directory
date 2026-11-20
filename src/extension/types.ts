@@ -71,7 +71,9 @@ export interface CachedBookmark {
   icon?: string | null;
   iconUrl?: string | null;
   categories?: string[];
+  folderIds?: string[];
   folderId?: string | null;
+  hiddenFromMain?: boolean;
   dateAdded?: string;
   description?: string;
   visitCount?: number;

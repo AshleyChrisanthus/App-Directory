@@ -1,6 +1,7 @@
 import modalCss from './modal.css';
 import { extractPageContext } from './domExtractor';
 import { togglePaletteModal } from './paletteModal';
+import { getEntryFolderIds } from '../utils/collections';
 import {
   ClassificationResult,
   ClassificationProgressEvent,
@@ -167,8 +168,15 @@ function renderModal(
   });
 
   const selectedCategories: string[] = [];
+  const selectedFolderIds: string[] = [];
+  let hiddenFromMain = false;
   let isFavorite = false;
   let suggestionHighlightedIndex = -1;
+  const matchedFolders = matchedEntry
+    ? getEntryFolderIds(matchedEntry)
+        .map((fid) => availableFolders.find((f) => f.id === fid))
+        .filter((f): f is CachedFolder => Boolean(f))
+    : [];
 
   const backdrop = document.createElement('div');
   backdrop.className = 'ad-modal-backdrop';
@@ -204,22 +212,27 @@ function renderModal(
           <input type="url" id="ad-url-input" class="ad-input" value="${escapeHtml(initialUrl)}" spellcheck="false">
         </div>
 
-        <div class="ad-two-col">
-          <div class="ad-form-group">
-            <label class="ad-form-label" for="ad-folder-select">Folder</label>
-            <select id="ad-folder-select" class="ad-select">
-              <option value="">(None / Root)</option>
-              ${availableFolders.map((f) => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.icon || '📁')} ${escapeHtml(f.name)}</option>`).join('')}
-            </select>
-          </div>
-
-          <div class="ad-form-group" style="justify-content: flex-end;">
-            <label class="ad-form-label">Pin to Favorites</label>
-            <div class="ad-fav-toggle" id="ad-fav-toggle">
+        <div class="ad-form-group">
+          <div class="ad-category-header-row">
+            <label class="ad-form-label" style="margin-bottom:0;">Collections <span style="font-weight:400;text-transform:none;opacity:0.7;">(optional)</span></label>
+            <div class="ad-fav-toggle ad-fav-toggle-compact" id="ad-fav-toggle" title="Pin to Favorites">
               <span class="ad-fav-star">☆</span>
               <span>Favorite</span>
             </div>
           </div>
+          <div class="ad-collections-picker" id="ad-collections-picker">
+            ${availableFolders.length > 0
+              ? availableFolders.map((f) => `<button type="button" class="ad-collection-pill" data-folder-id="${escapeHtml(f.id)}" style="${f.color ? `--ad-col-color:${escapeHtml(f.color)};` : ''}"><span>${escapeHtml(f.icon || '📁')}</span><span>${escapeHtml(f.name)}</span></button>`).join('')
+              : '<span class="ad-collections-empty">No collections created yet</span>'
+            }
+          </div>
+        </div>
+
+        <div class="ad-hidden-main-group" id="ad-hidden-from-main-group" style="display: none;">
+          <label class="ad-checkbox-row">
+            <input type="checkbox" id="ad-hidden-from-main-check">
+            <span>🙈 Hide from Main view (visible only in selected collections)</span>
+          </label>
         </div>
 
         <div class="ad-form-group ad-categories-field">
@@ -318,10 +331,15 @@ function renderModal(
               </div>
             </div>
             <div class="ad-duplicate-details">
-              ${matchedEntry.folderId && availableFolders.find(f => f.id === matchedEntry.folderId) ? `
+              ${matchedFolders.length > 0 ? `
               <div class="ad-duplicate-detail-row">
-                <span class="ad-duplicate-detail-label">Folder</span>
-                <span class="ad-duplicate-detail-value">${escapeHtml(availableFolders.find(f => f.id === matchedEntry.folderId)?.name || '')}</span>
+                <span class="ad-duplicate-detail-label">Collections</span>
+                <span class="ad-duplicate-detail-value">${matchedFolders.map((f) => escapeHtml(`${f.icon || '📁'} ${f.name}`)).join(', ')}</span>
+              </div>` : ''}
+              ${matchedEntry.hiddenFromMain ? `
+              <div class="ad-duplicate-detail-row">
+                <span class="ad-duplicate-detail-label">Visibility</span>
+                <span class="ad-duplicate-detail-value">🙈 Hidden from Main</span>
               </div>` : ''}
               ${Array.isArray(matchedEntry.categories) && matchedEntry.categories.length > 0 ? `
               <div class="ad-duplicate-detail-row" style="flex-direction: column; align-items: flex-start;">
@@ -412,6 +430,46 @@ function renderModal(
       favToggle.classList.toggle('active', isFavorite);
       const star = favToggle.querySelector('.ad-fav-star');
       if (star) star.textContent = isFavorite ? '★' : '☆';
+    });
+  }
+
+  // Multi-collection pill picker & conditional Hide from Main checkbox
+  const collectionsPicker = shadow.getElementById('ad-collections-picker');
+  const hiddenGroup = shadow.getElementById('ad-hidden-from-main-group');
+  const hiddenCheck = shadow.getElementById('ad-hidden-from-main-check') as HTMLInputElement | null;
+
+  const updateExtensionHiddenVisibility = (): void => {
+    const hasCollections = selectedFolderIds.length > 0;
+    if (hiddenGroup) {
+      hiddenGroup.style.display = hasCollections ? 'block' : 'none';
+    }
+    if (!hasCollections) {
+      hiddenFromMain = false;
+      if (hiddenCheck) hiddenCheck.checked = false;
+    }
+  };
+
+  if (hiddenCheck) {
+    hiddenCheck.addEventListener('change', () => {
+      hiddenFromMain = hiddenCheck.checked && selectedFolderIds.length > 0;
+    });
+  }
+
+  if (collectionsPicker) {
+    collectionsPicker.querySelectorAll<HTMLButtonElement>('.ad-collection-pill').forEach((pill) => {
+      pill.addEventListener('click', () => {
+        const fid = pill.getAttribute('data-folder-id');
+        if (!fid) return;
+        const idx = selectedFolderIds.indexOf(fid);
+        if (idx >= 0) {
+          selectedFolderIds.splice(idx, 1);
+          pill.classList.remove('active');
+        } else {
+          selectedFolderIds.push(fid);
+          pill.classList.add('active');
+        }
+        updateExtensionHiddenVisibility();
+      });
     });
   }
 
@@ -930,7 +988,6 @@ function renderModal(
 
     const nameInput = shadow.getElementById('ad-name-input') as HTMLInputElement | null;
     const urlInput = shadow.getElementById('ad-url-input') as HTMLInputElement | null;
-    const folderSelect = shadow.getElementById('ad-folder-select') as HTMLSelectElement | null;
     const descInput = shadow.getElementById('ad-desc-input') as HTMLTextAreaElement | null;
 
     if (tagInput && tagInput.value.trim()) {
@@ -940,7 +997,7 @@ function renderModal(
 
     const name = nameInput?.value.trim() || initialTitle;
     const url = urlInput?.value.trim() || initialUrl;
-    const folderId = folderSelect?.value || null;
+    const cleanFolderIds = [...selectedFolderIds];
     const description = descInput?.value.trim() || '';
 
     const newBookmark = {
@@ -948,7 +1005,9 @@ function renderModal(
       name,
       url,
       iconUrl: initialIcon,
-      folderId: folderId || undefined,
+      folderIds: cleanFolderIds,
+      folderId: cleanFolderIds[0] || null,
+      hiddenFromMain: cleanFolderIds.length > 0 && hiddenFromMain,
       categories: selectedCategories,
       description,
       isFavorite,

@@ -23,6 +23,8 @@ export class AppState {
   editingFolderId: string | null = null;
   editingId: string | null = null;
   selectedCategories: string[] = [];
+  selectedModalFolderIds: string[] = [];
+  includeHiddenInSearch: boolean = false;
   selectedFilterCategories: Set<string> = new Set();
   catFilterMode: CategoryMatchMode = (localStorage.getItem(FILTER_MODE_KEY) as CategoryMatchMode) || 'union';
   pinFavorites: boolean = localStorage.getItem(PIN_FAVORITES_KEY) === 'true';

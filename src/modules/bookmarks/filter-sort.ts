@@ -1,6 +1,11 @@
 import type { BookmarkEntry } from '../../types';
 import { state } from '../../core/state';
 import { getAllCategories } from '../categories/manager';
+import {
+  isUserCollectionId,
+  getEntryFolderIds,
+  entryBelongsToCollection
+} from '../../utils/collections';
 
 const tsCache = new Map<string, number>();
 
@@ -14,16 +19,9 @@ function getTimestamp(iso?: string | null): number {
   return val;
 }
 
-export function getFilteredEntries(): BookmarkEntry[] {
-  const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
-  const sortSelect = document.getElementById('sortSelect') as HTMLSelectElement | null;
-  const query = (searchInput?.value || '').toLowerCase().trim();
-  const sortVal = sortSelect?.value || 'dateAdded-desc';
-  const [sortField, sortDir] = sortVal.split('-');
+function applySearchAndCategoryFilters(entries: BookmarkEntry[], query: string): BookmarkEntry[] {
+  let filtered = entries;
 
-  let filtered = [...state.entries];
-
-  // Search
   if (query) {
     filtered = filtered.filter(e =>
       (e.name || '').toLowerCase().includes(query) ||
@@ -32,7 +30,6 @@ export function getFilteredEntries(): BookmarkEntry[] {
     );
   }
 
-  // Multi-Category Filter (Union vs Intersection)
   const allCats = getAllCategories();
   if (state.selectedFilterCategories.size > 0) {
     if (state.catFilterMode === 'intersect') {
@@ -51,15 +48,41 @@ export function getFilteredEntries(): BookmarkEntry[] {
     }
   }
 
-  // Active Folder / Collection Filter
+  return filtered;
+}
+
+/** Counts hidden bookmarks that match the current main-view search/category filters. */
+export function countHiddenSearchMatches(): number {
+  if (state.activeFolderId !== 'all' || state.includeHiddenInSearch) return 0;
+  const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+  const query = (searchInput?.value || '').toLowerCase().trim();
+  const hiddenEntries = state.entries.filter(e => e.hiddenFromMain);
+  if (hiddenEntries.length === 0) return 0;
+  return applySearchAndCategoryFilters(hiddenEntries, query).length;
+}
+
+export function getFilteredEntries(): BookmarkEntry[] {
+  const searchInput = document.getElementById('searchInput') as HTMLInputElement | null;
+  const sortSelect = document.getElementById('sortSelect') as HTMLSelectElement | null;
+  const query = (searchInput?.value || '').toLowerCase().trim();
+  const sortVal = sortSelect?.value || 'dateAdded-desc';
+  const [sortField, sortDir] = sortVal.split('-');
+
+  let filtered = applySearchAndCategoryFilters([...state.entries], query);
+
+  // Active Collection / Virtual View Filter
   if (state.activeFolderId === 'favorites') {
     filtered = filtered.filter(e => e.isFavorite);
   } else if (state.activeFolderId === 'unorganized') {
-    filtered = filtered.filter(e => !e.folderId);
+    filtered = filtered.filter(e => getEntryFolderIds(e).length === 0);
   } else if (state.activeFolderId === 'broken') {
     filtered = filtered.filter(e => e.health && e.health.status === 'broken');
-  } else if (state.activeFolderId && state.activeFolderId !== 'all') {
-    filtered = filtered.filter(e => e.folderId === state.activeFolderId);
+  } else if (isUserCollectionId(state.activeFolderId)) {
+    // Always show all members inside a user collection regardless of hiddenFromMain
+    filtered = filtered.filter(e => entryBelongsToCollection(e, state.activeFolderId));
+  } else if (!state.includeHiddenInSearch) {
+    // Main ('all') view hides hiddenFromMain entries unless search toggle is active
+    filtered = filtered.filter(e => !e.hiddenFromMain);
   }
 
   // Sort

@@ -1,6 +1,7 @@
 // Manifest V3 Background Service Worker for App Directory Companion Extension
 
 import { TAXONOMY_SYSTEM_PROMPT, buildTaxonomyUserPrompt } from './taxonomy';
+import { getEntryFolderIds } from '../utils/collections';
 import {
   ExtractedPageContext,
   ExtensionSettings,
@@ -374,6 +375,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const rawEntries = entRes[STORAGE_KEYS.CACHED_ENTRIES];
           const entriesList: any[] = Array.isArray(rawEntries) ? [...rawEntries] : [];
           const existingIdx = entriesList.findIndex((e) => e.id === entry.id || e.url === entry.url);
+          const folderIds = getEntryFolderIds(entry);
           const cachedItem = {
             id: entry.id,
             name: entry.name,
@@ -381,7 +383,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             icon: entry.icon || null,
             iconUrl: entry.iconUrl || null,
             categories: entry.categories || [],
-            folderId: entry.folderId || null,
+            folderIds,
+            folderId: folderIds[0] || null,
+            hiddenFromMain: folderIds.length > 0 && Boolean(entry.hiddenFromMain),
             dateAdded: entry.dateAdded,
             description: entry.description || '',
             visitCount: entry.visitCount || 0,

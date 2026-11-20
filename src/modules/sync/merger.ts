@@ -1,5 +1,6 @@
 import type { BookmarkEntry, Folder } from '../../types';
 import type { DecryptedSyncPayload, SyncTombstone } from './types';
+import { getEntryFolderIds, syncLegacyFolderFields, SPECIAL_FOLDER_IDS } from '../../utils/collections';
 
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -51,21 +52,27 @@ export function mergeSyncPayload(
   const processEntry = (entry: BookmarkEntry) => {
     if (!entry || !entry.id) return;
 
-    const entryTime = new Date((entry as any).dateModified || entry.dateAdded || 0).getTime();
-    const deletedTime = activeTombstoneLookup.get(entry.id);
+    const normalized = syncLegacyFolderFields(
+      { ...entry },
+      getEntryFolderIds(entry),
+      Boolean(entry.hiddenFromMain)
+    );
+
+    const entryTime = new Date((normalized as any).dateModified || normalized.dateAdded || 0).getTime();
+    const deletedTime = activeTombstoneLookup.get(normalized.id);
 
     // If deleted after entry was modified, do not include
     if (deletedTime && deletedTime >= entryTime) {
       return;
     }
 
-    if (!entryMap.has(entry.id)) {
-      entryMap.set(entry.id, entry);
+    if (!entryMap.has(normalized.id)) {
+      entryMap.set(normalized.id, normalized);
     } else {
-      const current = entryMap.get(entry.id)!;
+      const current = entryMap.get(normalized.id)!;
       const currentTime = new Date((current as any).dateModified || current.dateAdded || 0).getTime();
       if (entryTime >= currentTime) {
-        entryMap.set(entry.id, entry);
+        entryMap.set(normalized.id, normalized);
       }
     }
   };
@@ -78,12 +85,10 @@ export function mergeSyncPayload(
   // 3. Merge Folders
   const folderMap = new Map<string, Folder>();
 
-  const DEFAULT_FOLDER_IDS = new Set(['all', 'favorites', 'unorganized', 'broken']);
-
   const processFolder = (folder: Folder) => {
     if (!folder || !folder.id) return;
     const deletedTime = activeTombstoneLookup.get(folder.id);
-    if (deletedTime && !DEFAULT_FOLDER_IDS.has(folder.id)) {
+    if (deletedTime && !SPECIAL_FOLDER_IDS.has(folder.id)) {
       return;
     }
 
@@ -114,7 +119,8 @@ export function mergeSyncPayload(
         loc.id !== e.id ||
         loc.name !== e.name ||
         loc.url !== e.url ||
-        loc.folderId !== e.folderId ||
+        JSON.stringify(getEntryFolderIds(loc)) !== JSON.stringify(getEntryFolderIds(e)) ||
+        Boolean(loc.hiddenFromMain) !== Boolean(e.hiddenFromMain) ||
         loc.isFavorite !== e.isFavorite ||
         loc.description !== e.description ||
         (loc as any).dateModified !== (e as any).dateModified ||

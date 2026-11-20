@@ -3,6 +3,12 @@ import { SIDEBAR_STATE_KEY } from '../../core/constants';
 import { state } from '../../core/state';
 import { getLatestStoredEntries, saveEntries, saveFolders } from '../../core/storage';
 import { escapeHtml, showToast } from '../../utils/dom';
+import {
+  isUserCollectionId,
+  getEntryFolderIds,
+  entryBelongsToCollection,
+  syncLegacyFolderFields
+} from '../../utils/collections';
 import { openFolderModal } from './modal';
 
 export function initSidebar(): void {
@@ -35,7 +41,7 @@ export function closeMobileFoldersDrawer(): void {
   if (!foldersSidebar) return;
   foldersSidebar.classList.add('collapsed');
   if (backdrop) backdrop.classList.remove('active');
-  if (navTabFolders && !(state.activeFolderId && state.activeFolderId.startsWith('f-'))) {
+  if (navTabFolders && !isUserCollectionId(state.activeFolderId)) {
     navTabFolders.classList.remove('is-active');
   }
 }
@@ -77,22 +83,55 @@ export function updateActiveFolderBanner(onFolderChanged?: () => void): void {
   const folderBannerTitle = document.getElementById('folderBannerTitle');
   const folderBannerCount = document.getElementById('folderBannerCount');
   const bannerActions = document.getElementById('folderBannerActions');
+  const bulkVisWrap = document.getElementById('folderBulkVisibility');
   if (!activeFolderBanner) return;
 
   if (activeFolderBanner.style && typeof activeFolderBanner.style.removeProperty === 'function') {
     activeFolderBanner.style.removeProperty('--folder-color');
   }
 
-  if (state.activeFolderId && state.activeFolderId.startsWith('f-')) {
+  if (isUserCollectionId(state.activeFolderId)) {
     const folder = state.folders.find(f => f.id === state.activeFolderId);
     if (folder) {
-      const folderCount = state.entries.filter(e => e.folderId === folder.id).length;
+      const members = state.entries.filter(e => entryBelongsToCollection(e, folder.id));
+      const folderCount = members.length;
+      const hiddenCount = members.filter(e => e.hiddenFromMain).length;
+      const visibleCount = folderCount - hiddenCount;
+
       if (activeFolderBanner.style && typeof activeFolderBanner.style.setProperty === 'function') {
         activeFolderBanner.style.setProperty('--folder-color', folder.color || '#0a84ff');
       }
       if (folderBannerIcon) folderBannerIcon.textContent = folder.icon || '📁';
       if (folderBannerTitle) folderBannerTitle.textContent = folder.name;
-      if (folderBannerCount) folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? 's' : ''}`;
+      if (folderBannerCount) {
+        if (hiddenCount === 0) {
+          folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? 's' : ''}`;
+        } else if (hiddenCount === folderCount && folderCount > 0) {
+          folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? 's' : ''} · All hidden from Main`;
+        } else {
+          folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? 's' : ''} · ${hiddenCount} hidden from Main`;
+        }
+      }
+
+      if (bulkVisWrap) {
+        if (folderCount === 0) {
+          bulkVisWrap.style.display = 'none';
+          bulkVisWrap.innerHTML = '';
+        } else if (hiddenCount === 0) {
+          bulkVisWrap.style.display = 'inline-flex';
+          bulkVisWrap.innerHTML = `<button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn" data-bulk-visibility="hide" title="Hide all webpages in this collection from the Main view">🙈 Hide All from Main</button>`;
+        } else if (hiddenCount === folderCount) {
+          bulkVisWrap.style.display = 'inline-flex';
+          bulkVisWrap.innerHTML = `<button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn is-active" data-bulk-visibility="show" title="Show all webpages in this collection in the Main view">👁️ Show All in Main</button>`;
+        } else {
+          bulkVisWrap.style.display = 'inline-flex';
+          bulkVisWrap.innerHTML = `
+            <button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn" data-bulk-visibility="hide" title="Hide remaining ${visibleCount} visible webpage${visibleCount !== 1 ? 's' : ''} from Main view">🙈 Hide All (${visibleCount})</button>
+            <button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn is-active" data-bulk-visibility="show" title="Show ${hiddenCount} hidden webpage${hiddenCount !== 1 ? 's' : ''} in Main view">👁️ Show All (${hiddenCount})</button>
+          `;
+        }
+      }
+
       if (bannerActions) bannerActions.style.display = 'flex';
       activeFolderBanner.style.display = 'flex';
       return;
@@ -102,14 +141,16 @@ export function updateActiveFolderBanner(onFolderChanged?: () => void): void {
     if (folderBannerIcon) folderBannerIcon.textContent = '⭐';
     if (folderBannerTitle) folderBannerTitle.textContent = 'Favorites';
     if (folderBannerCount) folderBannerCount.textContent = `${favCount} site${favCount !== 1 ? 's' : ''}`;
+    if (bulkVisWrap) { bulkVisWrap.style.display = 'none'; bulkVisWrap.innerHTML = ''; }
     if (bannerActions) bannerActions.style.display = 'none';
     activeFolderBanner.style.display = 'flex';
     return;
   } else if (state.activeFolderId === 'unorganized') {
-    const unorgCount = state.entries.filter(e => !e.folderId).length;
+    const unorgCount = state.entries.filter(e => getEntryFolderIds(e).length === 0).length;
     if (folderBannerIcon) folderBannerIcon.textContent = '📂';
     if (folderBannerTitle) folderBannerTitle.textContent = 'Unorganized';
     if (folderBannerCount) folderBannerCount.textContent = `${unorgCount} site${unorgCount !== 1 ? 's' : ''}`;
+    if (bulkVisWrap) { bulkVisWrap.style.display = 'none'; bulkVisWrap.innerHTML = ''; }
     if (bannerActions) bannerActions.style.display = 'none';
     activeFolderBanner.style.display = 'flex';
     return;
@@ -118,12 +159,49 @@ export function updateActiveFolderBanner(onFolderChanged?: () => void): void {
     if (folderBannerIcon) folderBannerIcon.textContent = '⚠️';
     if (folderBannerTitle) folderBannerTitle.textContent = 'Broken / Offline Links';
     if (folderBannerCount) folderBannerCount.textContent = `${brokenCount} site${brokenCount !== 1 ? 's' : ''}`;
+    if (bulkVisWrap) { bulkVisWrap.style.display = 'none'; bulkVisWrap.innerHTML = ''; }
     if (bannerActions) bannerActions.style.display = 'none';
     activeFolderBanner.style.display = 'flex';
     return;
   }
 
+  if (bulkVisWrap) { bulkVisWrap.style.display = 'none'; bulkVisWrap.innerHTML = ''; }
   activeFolderBanner.style.display = 'none';
+}
+
+/** Bulk-hides or bulk-shows all member webpages of a collection in the Main view. */
+export function setCollectionMembersVisibility(
+  folderId: string,
+  hide: boolean,
+  onUpdate?: () => void
+): void {
+  const folder = state.folders.find(f => f.id === folderId);
+  if (!folder) return;
+
+  const diskList = getLatestStoredEntries();
+  let updatedCount = 0;
+  const now = new Date().toISOString();
+
+  diskList.forEach(entry => {
+    if (entryBelongsToCollection(entry, folderId)) {
+      const currentHidden = Boolean(entry.hiddenFromMain);
+      if (currentHidden !== hide) {
+        syncLegacyFolderFields(entry, getEntryFolderIds(entry), hide);
+        entry.dateModified = now;
+        updatedCount++;
+      }
+    }
+  });
+
+  if (updatedCount === 0) return;
+
+  saveEntries(diskList);
+  if (onUpdate) onUpdate();
+  showToast(
+    hide
+      ? `Hidden ${updatedCount} website${updatedCount !== 1 ? 's' : ''} from Main view`
+      : `Shown ${updatedCount} website${updatedCount !== 1 ? 's' : ''} in Main view`
+  );
 }
 
 export function setupFolderDropTarget(element: HTMLElement, targetFolderId: string, onDropSuccess?: () => void): void {
@@ -133,7 +211,7 @@ export function setupFolderDropTarget(element: HTMLElement, targetFolderId: stri
   element.addEventListener('dragover', (e: DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = 'move';
+      e.dataTransfer.dropEffect = targetFolderId === 'unorganized' ? 'move' : 'copy';
     }
     element.classList.add('drag-over');
   });
@@ -160,20 +238,30 @@ export function setupFolderDropTarget(element: HTMLElement, targetFolderId: stri
       if (onDropSuccess) onDropSuccess();
       showToast(`Pinned "${entry.name}" to Favorites ⭐`);
     } else if (targetFolderId === 'unorganized') {
-      entry.folderId = null;
+      const wasHidden = Boolean(entry.hiddenFromMain);
+      syncLegacyFolderFields(entry, [], false);
       (entry as any).dateModified = new Date().toISOString();
       saveEntries(diskList);
       if (onDropSuccess) onDropSuccess();
-      showToast(`Moved "${entry.name}" to Unorganized`);
+      showToast(
+        wasHidden
+          ? `Removed "${entry.name}" from collections — now visible in Main`
+          : `Moved "${entry.name}" to Unorganized`
+      );
     } else if (targetFolderId === 'all' || targetFolderId === 'broken') {
-      // No folder change needed
+      // No collection change needed
     } else {
       const folder = state.folders.find(f => f.id === targetFolderId);
-      entry.folderId = targetFolderId;
+      const currentIds = getEntryFolderIds(entry);
+      if (currentIds.includes(targetFolderId)) {
+        showToast(`"${entry.name}" is already in ${folder ? folder.name : 'collection'}`);
+        return;
+      }
+      syncLegacyFolderFields(entry, [...currentIds, targetFolderId], entry.hiddenFromMain);
       (entry as any).dateModified = new Date().toISOString();
       saveEntries(diskList);
       if (onDropSuccess) onDropSuccess();
-      showToast(`Moved "${entry.name}" to ${folder ? folder.name : 'folder'} 📁`);
+      showToast(`Added "${entry.name}" to ${folder ? folder.name : 'collection'} 📁`);
     }
   });
 }
@@ -181,7 +269,7 @@ export function setupFolderDropTarget(element: HTMLElement, targetFolderId: stri
 export function deleteFolder(folderId: string, onFolderDeleted?: () => void): void {
   const folder = state.folders.find(f => f.id === folderId);
   if (!folder) return;
-  if (!confirm(`Delete folder "${folder.name}"? Bookmarks inside will become unorganized.`)) return;
+  if (!confirm(`Delete collection "${folder.name}"? Websites inside will remain in your library (any site with no other collections will become unorganized and visible in Main).`)) return;
 
   state.folders = state.folders.filter(f => f.id !== folderId);
   saveFolders(state.folders);
@@ -194,8 +282,10 @@ export function deleteFolder(folderId: string, onFolderDeleted?: () => void): vo
 
   const diskList = getLatestStoredEntries();
   diskList.forEach(e => {
-    if (e.folderId === folderId) {
-      e.folderId = null;
+    const currentIds = getEntryFolderIds(e);
+    if (currentIds.includes(folderId)) {
+      const nextIds = currentIds.filter(id => id !== folderId);
+      syncLegacyFolderFields(e, nextIds, e.hiddenFromMain);
       (e as any).dateModified = new Date().toISOString();
     }
   });
@@ -210,7 +300,7 @@ export function deleteFolder(folderId: string, onFolderDeleted?: () => void): vo
   } else {
     renderFoldersSidebar();
   }
-  showToast(`Deleted folder "${folder.name}"`);
+  showToast(`Deleted collection "${folder.name}"`);
 }
 
 export function renderFoldersSidebar(
@@ -228,6 +318,7 @@ export function renderFoldersSidebar(
   if (!sidebarFoldersList) return;
 
   const diskList = state.entries;
+  let allVisibleTotal = 0;
   let favTotal = 0;
   let unorgTotal = 0;
   let brokenTotal = 0;
@@ -235,13 +326,19 @@ export function renderFoldersSidebar(
 
   for (let i = 0; i < diskList.length; i++) {
     const e = diskList[i];
+    if (!e.hiddenFromMain) allVisibleTotal++;
     if (e.isFavorite) favTotal++;
-    if (!e.folderId) unorgTotal++;
-    else folderCounts.set(e.folderId, (folderCounts.get(e.folderId) || 0) + 1);
+    const fids = getEntryFolderIds(e);
+    if (fids.length === 0) unorgTotal++;
+    else {
+      for (const fid of fids) {
+        folderCounts.set(fid, (folderCounts.get(fid) || 0) + 1);
+      }
+    }
     if (e.health && e.health.status === 'broken') brokenTotal++;
   }
 
-  if (countAll) countAll.textContent = String(diskList.length);
+  if (countAll) countAll.textContent = String(allVisibleTotal);
   if (countFavorites) countFavorites.textContent = String(favTotal);
   if (countUnorganized) countUnorganized.textContent = String(unorgTotal);
   if (countBroken) countBroken.textContent = String(brokenTotal);
@@ -275,8 +372,8 @@ export function renderFoldersSidebar(
       <span class="sidebar-item-name">${escapeHtml(folder.name)}</span>
       <span class="sidebar-item-count">${folderCount}</span>
       <div class="sidebar-item-actions">
-        <button type="button" class="sidebar-action-btn edit-folder-action" title="Edit folder">✏️</button>
-        <button type="button" class="sidebar-action-btn delete-folder-action" title="Delete folder">🗑️</button>
+        <button type="button" class="sidebar-action-btn edit-folder-action" title="Edit collection">✏️</button>
+        <button type="button" class="sidebar-action-btn delete-folder-action" title="Delete collection">🗑️</button>
       </div>
     `;
 
@@ -304,17 +401,72 @@ export function renderFoldersSidebar(
   updateActiveFolderBanner(onFolderChanged);
 }
 
-export function populateFolderSelect(selectedId = ''): void {
-  const entryFolder = document.getElementById('entryFolder') as HTMLSelectElement | null;
-  if (!entryFolder) return;
-  entryFolder.innerHTML = '<option value="">📂 None (Unorganized)</option>';
+/** Shows or hides the "Hide from Main view" checkbox based on whether >= 1 collection is selected. */
+export function updateHiddenFromMainVisibility(): void {
+  const hiddenGroup = document.getElementById('entryHiddenGroup');
+  const hiddenCheckbox = document.getElementById('entryHiddenFromMain') as HTMLInputElement | null;
+  const hasCollections = state.selectedModalFolderIds.length > 0;
+
+  if (hiddenGroup) {
+    hiddenGroup.style.display = hasCollections ? 'block' : 'none';
+  }
+  if (!hasCollections && hiddenCheckbox) {
+    hiddenCheckbox.checked = false;
+  }
+}
+
+/** Renders toggleable collection pills in the Add/Edit Website modal. */
+export function renderModalCollectionPicker(): void {
+  const picker = document.getElementById('entryCollectionsPicker');
+  if (!picker) return;
+
+  const validIds = new Set(state.folders.map(f => f.id));
+  state.selectedModalFolderIds = state.selectedModalFolderIds.filter(id => validIds.has(id));
+
+  picker.innerHTML = '';
+  if (state.folders.length === 0) {
+    picker.innerHTML = '<span class="collection-picker-empty">No collections yet — create one to organize sites.</span>';
+    updateHiddenFromMainVisibility();
+    return;
+  }
+
+  const selectedSet = new Set(state.selectedModalFolderIds);
   state.folders.forEach(folder => {
-    const opt = document.createElement('option');
-    opt.value = folder.id;
-    opt.textContent = `${folder.icon || '📁'} ${folder.name}`;
-    if (selectedId && folder.id === selectedId) {
-      opt.selected = true;
+    const isSelected = selectedSet.has(folder.id);
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = `collection-pill-btn ${isSelected ? 'is-selected' : ''}`;
+    pill.setAttribute('data-folder-id', folder.id);
+    pill.setAttribute('aria-pressed', String(isSelected));
+    if (folder.color) {
+      pill.style.setProperty('--folder-color', folder.color);
     }
-    entryFolder.appendChild(opt);
+    pill.innerHTML = `
+      <span class="collection-pill-icon">${escapeHtml(folder.icon || '📁')}</span>
+      <span class="collection-pill-name">${escapeHtml(folder.name)}</span>
+      <span class="collection-pill-check">${isSelected ? '✓' : '+'}</span>
+    `;
+    pill.addEventListener('click', () => {
+      const idx = state.selectedModalFolderIds.indexOf(folder.id);
+      if (idx >= 0) {
+        state.selectedModalFolderIds.splice(idx, 1);
+      } else {
+        state.selectedModalFolderIds.push(folder.id);
+      }
+      renderModalCollectionPicker();
+      updateHiddenFromMainVisibility();
+    });
+    picker.appendChild(pill);
   });
+
+  updateHiddenFromMainVisibility();
+}
+
+export function populateFolderSelect(selected?: string | string[]): void {
+  if (Array.isArray(selected)) {
+    state.selectedModalFolderIds = [...selected];
+  } else if (typeof selected === 'string') {
+    state.selectedModalFolderIds = selected ? [selected] : [];
+  }
+  renderModalCollectionPicker();
 }

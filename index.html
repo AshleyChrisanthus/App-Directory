@@ -13,7 +13,7 @@
   <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css?v=4eead025">
+  <link rel="stylesheet" href="style.css?v=ce841767">
 </head>
 <body>
   <!-- Top Navigation Wrapper (Smart Reveal on Hover/Scroll) -->
@@ -21,7 +21,7 @@
     <!-- Header -->
     <header class="header">
       <div class="header-left">
-        <button id="sidebarToggleBtn" class="btn btn-icon sidebar-toggle-btn" title="Toggle Folders Sidebar">
+        <button id="sidebarToggleBtn" class="btn btn-icon sidebar-toggle-btn" title="Toggle Collections Sidebar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
         <div class="logo logo-wrapper" id="headerLogo" title="Reset to All Bookmarks">
@@ -121,6 +121,10 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input type="text" id="searchInput" placeholder="Search by name or URL…" autocomplete="off">
           <button type="button" class="search-clear-btn" id="searchClearBtn" style="display: none;" title="Clear search">✕</button>
+          <button type="button" class="search-hidden-toggle" id="searchIncludeHiddenBtn" aria-pressed="false" title="Hidden collection webpages are excluded (click to include in search)">
+            <span class="search-hidden-icon">🙈</span>
+            <span class="search-hidden-label">Hidden</span>
+          </button>
           <button type="button" class="search-kbd-shortcut" id="cmdPaletteTrigger" title="Open Command Palette (Ctrl+K / ⌘K)"><kbd id="cmdPaletteKbdLabel">Ctrl+K</kbd></button>
         </div>
         <!-- Mobile Category Pill Track (Google Stitch UX) -->
@@ -213,9 +217,9 @@
       <div class="mobile-sidebar-header">
         <div class="mobile-sidebar-title-wrap">
           <span class="mobile-sidebar-icon">📁</span>
-          <span class="mobile-sidebar-title">Folders & Collections</span>
+          <span class="mobile-sidebar-title">Collections</span>
         </div>
-        <button type="button" class="btn btn-icon mobile-sidebar-close-btn" id="mobileSidebarCloseBtn" title="Close Folders" aria-label="Close Folders">✕</button>
+        <button type="button" class="btn btn-icon mobile-sidebar-close-btn" id="mobileSidebarCloseBtn" title="Close Collections" aria-label="Close Collections">✕</button>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-nav-list" id="sidebarQuickViews">
@@ -245,7 +249,7 @@
       <div class="sidebar-section">
         <div class="sidebar-header">
           <span class="sidebar-header-title">Collections</span>
-          <button type="button" class="sidebar-header-action" id="newFolderBtn" title="Create New Folder">
+          <button type="button" class="sidebar-header-action" id="newFolderBtn" title="Create New Collection">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
@@ -268,9 +272,10 @@
           </div>
         </div>
         <div class="folder-banner-actions" id="folderBannerActions">
-          <button type="button" class="btn btn-primary btn-sm" id="addBookmarksToFolderBtn" title="Add existing bookmarks into this folder">📥 Add Bookmarks</button>
-          <button type="button" class="btn btn-ghost btn-sm" id="editFolderBtn" title="Edit Folder">✏️ Edit</button>
-          <button type="button" class="btn btn-danger btn-sm" id="deleteFolderBtn" title="Delete Folder">🗑️ Delete</button>
+          <div class="folder-bulk-visibility" id="folderBulkVisibility" style="display: none;"></div>
+          <button type="button" class="btn btn-primary btn-sm" id="addBookmarksToFolderBtn" title="Add existing bookmarks into this collection">📥 Add Bookmarks</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="editFolderBtn" title="Edit Collection">✏️ Edit</button>
+          <button type="button" class="btn btn-danger btn-sm" id="deleteFolderBtn" title="Delete Collection">🗑️ Delete</button>
         </div>
       </div>
 
@@ -389,14 +394,21 @@
           </div>
         </div>
         <div class="form-group">
-          <label for="entryFolder">Folder / Collection <span class="optional">(Organize into folder)</span></label>
-          <div class="folder-select-row">
-            <select id="entryFolder" class="form-select">
-              <option value="">📂 None (Unorganized)</option>
-              <!-- Populated dynamically by JS -->
-            </select>
-            <button type="button" class="btn btn-ghost btn-sm" id="inlineNewFolderBtn" title="Create a new folder collection">+ New Folder</button>
+          <div class="form-label-row">
+            <label>Collections <span class="optional">(Select one or more, optional)</span></label>
+            <button type="button" class="btn btn-ghost btn-xs" id="inlineNewFolderBtn" title="Create a new collection">+ New Collection</button>
           </div>
+          <div class="collection-picker-wrap">
+            <div class="collection-picker-grid" id="entryCollectionsPicker">
+              <!-- Populated dynamically by JS -->
+            </div>
+          </div>
+        </div>
+        <div class="form-group checkbox-group entry-hidden-group" id="entryHiddenGroup" style="display: none;">
+          <label>
+            <input type="checkbox" id="entryHiddenFromMain">
+            <span>🙈 Hide from Main view <span class="optional">(only visible inside selected collections)</span></span>
+          </label>
         </div>
         <div class="form-group">
           <label for="entryDescription">Description</label>
@@ -420,18 +432,18 @@
   <div class="modal-backdrop" id="folderModalBackdrop">
     <div class="modal modal-sm" id="folderModal">
       <div class="modal-header">
-        <h2 id="folderModalTitle">New Folder</h2>
+        <h2 id="folderModalTitle">New Collection</h2>
         <button class="btn btn-icon modal-close" id="folderModalClose" title="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <form id="folderForm" novalidate>
         <div class="form-group">
-          <label for="folderNameInput">Folder Name <span class="required">*</span></label>
+          <label for="folderNameInput">Collection Name <span class="required">*</span></label>
           <input type="text" id="folderNameInput" placeholder="e.g. Work Projects" required autocomplete="off">
         </div>
         <div class="form-group emoji-picker-form-group">
-          <label for="folderIconInput">Folder Icon / Emoji</label>
+          <label for="folderIconInput">Collection Icon / Emoji</label>
           <div class="folder-icon-picker-wrap" id="folderIconPickerWrap">
             <div class="folder-icon-row">
               <button type="button" class="folder-icon-trigger-btn" id="folderIconTriggerBtn" title="Click to open Full Emoji Picker">
@@ -468,13 +480,13 @@
         <div class="form-group">
           <label for="folderColorInput">Color Accent</label>
           <div class="folder-color-picker-row">
-            <input type="color" id="folderColorInput" class="folder-color-input" value="#0a84ff" title="Choose folder accent color">
-            <span class="folder-color-hint">Signature accent color for folder collection</span>
+            <input type="color" id="folderColorInput" class="folder-color-input" value="#0a84ff" title="Choose collection accent color">
+            <span class="folder-color-hint">Signature accent color for collection</span>
           </div>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" id="cancelFolderBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="saveFolderBtn">Save Folder</button>
+          <button type="submit" class="btn btn-primary" id="saveFolderBtn">Save Collection</button>
         </div>
       </form>
     </div>
@@ -486,7 +498,7 @@
       <div class="modal-header">
         <div class="modal-title-with-icon">
           <span id="addBookmarksModalIcon" style="font-size: 1.4rem;">📁</span>
-          <h2 id="addBookmarksModalTitle">Add Bookmarks to Folder</h2>
+          <h2 id="addBookmarksModalTitle">Add Bookmarks to Collection</h2>
         </div>
         <button class="btn btn-icon modal-close" id="addBookmarksModalClose" title="Close">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -503,7 +515,7 @@
           <div class="add-bm-filter-pills" id="addBmFilterPills">
             <button type="button" class="pill-filter-btn active" data-source="all">All Available</button>
             <button type="button" class="pill-filter-btn" data-source="unorganized">📂 Unorganized Only</button>
-            <button type="button" class="pill-filter-btn" data-source="folders">📁 Other Folders</button>
+            <button type="button" class="pill-filter-btn" data-source="folders">📁 Other Collections</button>
           </div>
         </div>
 
@@ -526,12 +538,12 @@
         <div class="empty-state add-bm-empty" id="addBmEmpty" style="display:none; padding: 32px 16px;">
           <div class="empty-icon">📂</div>
           <h3 style="font-size: 1.05rem; margin-bottom: 4px;">No matching bookmarks found</h3>
-          <p style="font-size: 0.85rem; color: var(--text-tertiary);">All available bookmarks are already in this folder or match no search results.</p>
+          <p style="font-size: 0.85rem; color: var(--text-tertiary);">All available bookmarks are already in this collection or match no search results.</p>
         </div>
       </div>
       <div class="modal-footer theme-modal-footer">
         <button type="button" class="btn btn-ghost" id="cancelAddBmBtn">Cancel</button>
-        <button type="button" class="btn btn-primary" id="confirmAddBmBtn" disabled>Move Selected (0) Bookmarks</button>
+        <button type="button" class="btn btn-primary" id="confirmAddBmBtn" disabled>Add Selected (0) to Collection</button>
       </div>
     </div>
   </div>
@@ -851,6 +863,10 @@
         </svg>
         <input type="text" id="commandPaletteInput" class="command-palette-input" placeholder="Type a command or search bookmarks…" autocomplete="off" spellcheck="false">
         <button type="button" class="command-palette-clear-btn" id="commandPaletteClearBtn" style="display: none;" title="Clear input">✕</button>
+        <button type="button" class="command-palette-hidden-toggle" id="commandPaletteHiddenToggle" aria-pressed="false" title="Hidden webpages excluded from search (click to include)">
+          <span class="palette-hidden-icon">🙈</span>
+          <span>Hidden</span>
+        </button>
         <kbd class="command-palette-esc-badge" id="commandPaletteEscBadge" title="Close (ESC)">ESC</kbd>
       </div>
       <div class="command-palette-body" id="commandPaletteResults">
@@ -1143,11 +1159,11 @@
       </svg>
       <span class="mobile-nav-label">Directory</span>
     </button>
-    <button type="button" class="mobile-nav-tab" data-tab="folders" id="navTabFolders" title="Folders & Collections">
+    <button type="button" class="mobile-nav-tab" data-tab="folders" id="navTabFolders" title="Collections">
       <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
       </svg>
-      <span class="mobile-nav-label">Folders</span>
+      <span class="mobile-nav-label">Collections</span>
     </button>
     <button type="button" class="mobile-nav-tab" data-tab="favorites" id="navTabFavorites" title="Starred Favorites">
       <svg class="mobile-nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1175,6 +1191,6 @@
   <!-- Toast container -->
   <div id="toastContainer" class="toast-container"></div>
 
-  <script src="app.js?v=77ac4686"></script>
+  <script src="app.js?v=d0f053c3"></script>
 </body>
 </html>

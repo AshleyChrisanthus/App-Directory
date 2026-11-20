@@ -109,6 +109,8 @@
       __publicField(this, "editingFolderId", null);
       __publicField(this, "editingId", null);
       __publicField(this, "selectedCategories", []);
+      __publicField(this, "selectedModalFolderIds", []);
+      __publicField(this, "includeHiddenInSearch", false);
       __publicField(this, "selectedFilterCategories", /* @__PURE__ */ new Set());
       __publicField(this, "catFilterMode", localStorage.getItem(FILTER_MODE_KEY) || "union");
       __publicField(this, "pinFavorites", localStorage.getItem(PIN_FAVORITES_KEY) === "true");
@@ -121,6 +123,53 @@
     }
   };
   var state = new AppState();
+
+  // src/utils/collections.ts
+  var SPECIAL_FOLDER_IDS = /* @__PURE__ */ new Set(["all", "favorites", "unorganized", "broken"]);
+  function isUserCollectionId(id) {
+    return Boolean(id) && !SPECIAL_FOLDER_IDS.has(id);
+  }
+  function getEntryFolderIds(entry) {
+    if (!entry) return [];
+    if (Array.isArray(entry.folderIds)) {
+      const seen = /* @__PURE__ */ new Set();
+      const clean = [];
+      for (const raw of entry.folderIds) {
+        if (typeof raw === "string") {
+          const trimmed = raw.trim();
+          if (trimmed && !seen.has(trimmed)) {
+            seen.add(trimmed);
+            clean.push(trimmed);
+          }
+        }
+      }
+      return clean;
+    }
+    if (typeof entry.folderId === "string" && entry.folderId.trim()) {
+      return [entry.folderId.trim()];
+    }
+    return [];
+  }
+  function entryBelongsToCollection(entry, folderId) {
+    return getEntryFolderIds(entry).includes(folderId);
+  }
+  function syncLegacyFolderFields(entry, folderIds, hiddenFromMain) {
+    const seen = /* @__PURE__ */ new Set();
+    const cleanIds = [];
+    for (const raw of folderIds) {
+      if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        if (trimmed && !seen.has(trimmed)) {
+          seen.add(trimmed);
+          cleanIds.push(trimmed);
+        }
+      }
+    }
+    entry.folderIds = cleanIds;
+    entry.folderId = cleanIds[0] ?? null;
+    entry.hiddenFromMain = cleanIds.length > 0 ? Boolean(hiddenFromMain ?? entry.hiddenFromMain) : false;
+    return entry;
+  }
 
   // src/core/idb.ts
   var IDB_DB_NAME = "app_directory_db";
@@ -305,6 +354,8 @@
         delete entry.icon;
       }
     }
+    const folderIds = getEntryFolderIds(entry);
+    syncLegacyFolderFields(entry, folderIds, Boolean(entry.hiddenFromMain));
     return entry;
   }
   function getLatestStoredEntries() {
@@ -328,6 +379,25 @@
       await openAppDB();
       let entries = await idbGetAllEntries();
       let folders = await idbGetAllFolders();
+      if (entries.length > 0) {
+        let needsMigrationWrite = false;
+        entries = entries.map((raw) => {
+          const rawAny = raw;
+          const hadFolderIds = Array.isArray(rawAny?.folderIds);
+          const normalizedIds = getEntryFolderIds(rawAny);
+          const expectedLegacyId = normalizedIds[0] ?? null;
+          const rawFolderId = rawAny?.folderId || null;
+          const hadOrphanHidden = Boolean(rawAny?.hiddenFromMain) && normalizedIds.length === 0;
+          const hadDirtyIds = hadFolderIds && rawAny.folderIds.length !== normalizedIds.length;
+          if (!hadFolderIds || rawFolderId !== expectedLegacyId || hadOrphanHidden || hadDirtyIds) {
+            needsMigrationWrite = true;
+          }
+          return migrateEntry({ ...rawAny });
+        }).filter(Boolean);
+        if (needsMigrationWrite) {
+          await idbSetAllEntries(entries);
+        }
+      }
       const alreadyMigrated = localStorage.getItem(MIGRATED_FLAG_KEY) === "true";
       if (entries.length === 0 && !alreadyMigrated) {
         try {
@@ -400,7 +470,7 @@
   async function reloadFromStorage() {
     try {
       const [entries, folders] = await Promise.all([idbGetAllEntries(), idbGetAllFolders()]);
-      state.entries = entries;
+      state.entries = entries.map((e) => migrateEntry({ ...e })).filter(Boolean);
       if (folders && folders.length > 0) {
         state.folders = folders;
       }
@@ -2894,14 +2964,14 @@
     if (folderId) {
       const folder = state.folders.find((f) => f.id === folderId);
       if (folder) {
-        if (folderModalTitle) folderModalTitle.textContent = "Edit Folder";
+        if (folderModalTitle) folderModalTitle.textContent = "Edit Collection";
         if (folderNameInput) folderNameInput.value = folder.name || "";
         if (folderIconInput2) folderIconInput2.value = folder.icon || "\u{1F4C1}";
         if (folderColorInput) folderColorInput.value = folder.color || "#0a84ff";
         if (folderIconDisplay2) folderIconDisplay2.textContent = folder.icon || "\u{1F4C1}";
       }
     } else {
-      if (folderModalTitle) folderModalTitle.textContent = "New Folder";
+      if (folderModalTitle) folderModalTitle.textContent = "New Collection";
       if (folderNameInput) folderNameInput.value = "";
       if (folderIconInput2) folderIconInput2.value = "\u{1F4C1}";
       if (folderColorInput) folderColorInput.value = "#0a84ff";
@@ -2950,7 +3020,7 @@
         folder.icon = icon;
         folder.color = color;
         folder.dateModified = (/* @__PURE__ */ new Date()).toISOString();
-        showToast(`Updated folder "${name}"`);
+        showToast(`Updated collection "${name}"`);
       }
     } else {
       const newFolder = {
@@ -2962,7 +3032,7 @@
       };
       state.folders.push(newFolder);
       createdFolderId = newFolder.id;
-      showToast(`Created folder "${name}" \u{1F4C1}`);
+      showToast(`Created collection "${name}" \u{1F4C1}`);
     }
     saveFolders();
     const cb = inlineFolderCallback;
@@ -3026,46 +3096,43 @@
     document.body.style.overflow = "";
   }
   function renderAddBookmarksList() {
-    const addBmListContainer = document.getElementById("addBmListContainer");
-    const addBmSubmitBtn = document.getElementById("addBmSubmitBtn");
+    const addBmListContainer = document.getElementById("addBmList");
+    const addBmEmpty = document.getElementById("addBmEmpty");
     if (!addBmListContainer) return;
-    const currentFolder = state.folders.find((f) => f.id === state.activeFolderId);
-    if (!currentFolder) return;
-    let candidates = state.entries.filter((e) => e.folderId !== currentFolder.id);
-    if (addBmSourceFilter === "unorganized") {
-      candidates = candidates.filter((e) => !e.folderId);
-    } else if (addBmSourceFilter === "other") {
-      candidates = candidates.filter((e) => !!e.folderId);
-    }
-    const q = addBmSearchQuery.trim().toLowerCase();
-    if (q) {
-      candidates = candidates.filter(
-        (e) => e.name.toLowerCase().includes(q) || e.url.toLowerCase().includes(q) || e.description && e.description.toLowerCase().includes(q)
-      );
-    }
-    candidates.sort((a, b) => a.name.localeCompare(b.name));
+    const candidates = getFilteredBookmarksToMove().slice().sort((a, b) => a.name.localeCompare(b.name));
     addBmListContainer.innerHTML = "";
     if (candidates.length === 0) {
-      addBmListContainer.innerHTML = `<div class="add-bm-empty">No available bookmarks found.</div>`;
+      if (addBmEmpty) addBmEmpty.style.display = "block";
       updateAddBmSubmitBtn(0);
       return;
     }
+    if (addBmEmpty) addBmEmpty.style.display = "none";
+    const folderMap = /* @__PURE__ */ new Map();
+    state.folders.forEach((f) => folderMap.set(f.id, f));
     candidates.forEach((entry) => {
       const isSelected = selectedBookmarksToMove.has(entry.id);
       const item = document.createElement("div");
-      item.className = `add-bm-item ${isSelected ? "selected" : ""}`;
+      item.className = `add-bm-item-row ${isSelected ? "is-selected" : ""}`;
       item.setAttribute("data-id", entry.id);
       const iconUrl = entry.iconUrl || entry.icon || getFaviconUrl(entry.url);
-      const existingFolder = state.folders.find((f) => f.id === entry.folderId);
-      const folderBadge = existingFolder ? `<span class="add-bm-folder-badge">${existingFolder.icon || "\u{1F4C1}"} ${escapeHtml(existingFolder.name)}</span>` : `<span class="add-bm-folder-badge unorg">Unorganized</span>`;
+      const existingFolders = getEntryFolderIds(entry).map((fid) => folderMap.get(fid)).filter((f) => Boolean(f));
+      const folderBadgesHtml = existingFolders.length > 0 ? existingFolders.slice(0, 2).map((f) => `<span class="add-bm-folder-badge">${escapeHtml(f.icon || "\u{1F4C1}")} ${escapeHtml(f.name)}</span>`).join("") + (existingFolders.length > 2 ? `<span class="add-bm-folder-badge">+${existingFolders.length - 2}</span>` : "") : `<span class="add-bm-folder-badge unorg">Unorganized</span>`;
+      const hiddenBadgeHtml = entry.hiddenFromMain ? `<span class="add-bm-folder-badge is-hidden-badge">\u{1F648} Hidden</span>` : "";
       item.innerHTML = `
-      <input type="checkbox" class="add-bm-checkbox" ${isSelected ? "checked" : ""}>
-      <img class="add-bm-icon" src="${escapeHtml(iconUrl)}" alt="" onerror="this.src='https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(entry.url)}&size=64'">
-      <div class="add-bm-info">
-        <div class="add-bm-name">${escapeHtml(entry.name)}</div>
-        <div class="add-bm-url">${escapeHtml(entry.url)}</div>
+      <div class="add-bm-item-left">
+        <input type="checkbox" class="add-bm-checkbox" ${isSelected ? "checked" : ""}>
+        <div class="add-bm-item-icon">
+          <img src="${escapeHtml(iconUrl)}" alt="" onerror="this.src='https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent(entry.url)}&size=64'">
+        </div>
+        <div class="add-bm-item-info">
+          <div class="add-bm-item-name">${escapeHtml(entry.name)}</div>
+          <div class="add-bm-item-url">${escapeHtml(entry.url)}</div>
+        </div>
       </div>
-      ${folderBadge}
+      <div class="add-bm-item-badges">
+        ${hiddenBadgeHtml}
+        ${folderBadgesHtml}
+      </div>
     `;
       item.addEventListener("click", (e) => {
         const cb = item.querySelector(".add-bm-checkbox");
@@ -3074,10 +3141,10 @@
         }
         if (cb && cb.checked) {
           selectedBookmarksToMove.add(entry.id);
-          item.classList.add("selected");
+          item.classList.add("is-selected");
         } else {
           selectedBookmarksToMove.delete(entry.id);
-          item.classList.remove("selected");
+          item.classList.remove("is-selected");
         }
         updateAddBmSubmitBtn();
       });
@@ -3086,7 +3153,7 @@
     updateAddBmSubmitBtn(candidates.length);
   }
   function updateAddBmSubmitBtn(totalAvailable = -1) {
-    const addBmSubmitBtn = document.getElementById("addBmSubmitBtn");
+    const addBmSubmitBtn = document.getElementById("confirmAddBmBtn");
     const addBmSelectedCount = document.getElementById("addBmSelectedCount");
     const addBmTotalCount = document.getElementById("addBmTotalCount");
     const count = selectedBookmarksToMove.size;
@@ -3094,7 +3161,7 @@
     if (addBmTotalCount && totalAvailable >= 0) addBmTotalCount.textContent = String(totalAvailable);
     if (!addBmSubmitBtn) return;
     addBmSubmitBtn.disabled = count === 0;
-    addBmSubmitBtn.textContent = `Add Selected (${count})`;
+    addBmSubmitBtn.textContent = `Add Selected (${count}) to Collection`;
   }
   function commitAddBookmarksToFolder(onSuccess) {
     const folder = state.folders.find((f) => f.id === state.activeFolderId);
@@ -3104,7 +3171,10 @@
     const diskList = getLatestStoredEntries();
     diskList.forEach((entry) => {
       if (selectedBookmarksToMove.has(entry.id)) {
-        entry.folderId = folder.id;
+        const currentIds = getEntryFolderIds(entry);
+        if (!currentIds.includes(folder.id)) {
+          syncLegacyFolderFields(entry, [...currentIds, folder.id], entry.hiddenFromMain);
+        }
         entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
       }
     });
@@ -3124,11 +3194,11 @@
   function getFilteredBookmarksToMove() {
     const currentFolder = state.folders.find((f) => f.id === state.activeFolderId);
     if (!currentFolder) return [];
-    let candidates = state.entries.filter((e) => e.folderId !== currentFolder.id);
+    let candidates = state.entries.filter((e) => !entryBelongsToCollection(e, currentFolder.id));
     if (addBmSourceFilter === "unorganized") {
-      candidates = candidates.filter((e) => !e.folderId);
-    } else if (addBmSourceFilter === "other") {
-      candidates = candidates.filter((e) => !!e.folderId);
+      candidates = candidates.filter((e) => getEntryFolderIds(e).length === 0);
+    } else if (addBmSourceFilter === "folders" || addBmSourceFilter === "other") {
+      candidates = candidates.filter((e) => getEntryFolderIds(e).length > 0);
     }
     const q = addBmSearchQuery.trim().toLowerCase();
     if (q) {
@@ -3177,7 +3247,7 @@
     if (!foldersSidebar) return;
     foldersSidebar.classList.add("collapsed");
     if (backdrop) backdrop.classList.remove("active");
-    if (navTabFolders2 && !(state.activeFolderId && state.activeFolderId.startsWith("f-"))) {
+    if (navTabFolders2 && !isUserCollectionId(state.activeFolderId)) {
       navTabFolders2.classList.remove("is-active");
     }
   }
@@ -3216,20 +3286,50 @@
     const folderBannerTitle = document.getElementById("folderBannerTitle");
     const folderBannerCount = document.getElementById("folderBannerCount");
     const bannerActions = document.getElementById("folderBannerActions");
+    const bulkVisWrap = document.getElementById("folderBulkVisibility");
     if (!activeFolderBanner) return;
     if (activeFolderBanner.style && typeof activeFolderBanner.style.removeProperty === "function") {
       activeFolderBanner.style.removeProperty("--folder-color");
     }
-    if (state.activeFolderId && state.activeFolderId.startsWith("f-")) {
+    if (isUserCollectionId(state.activeFolderId)) {
       const folder = state.folders.find((f) => f.id === state.activeFolderId);
       if (folder) {
-        const folderCount = state.entries.filter((e) => e.folderId === folder.id).length;
+        const members = state.entries.filter((e) => entryBelongsToCollection(e, folder.id));
+        const folderCount = members.length;
+        const hiddenCount = members.filter((e) => e.hiddenFromMain).length;
+        const visibleCount = folderCount - hiddenCount;
         if (activeFolderBanner.style && typeof activeFolderBanner.style.setProperty === "function") {
           activeFolderBanner.style.setProperty("--folder-color", folder.color || "#0a84ff");
         }
         if (folderBannerIcon) folderBannerIcon.textContent = folder.icon || "\u{1F4C1}";
         if (folderBannerTitle) folderBannerTitle.textContent = folder.name;
-        if (folderBannerCount) folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? "s" : ""}`;
+        if (folderBannerCount) {
+          if (hiddenCount === 0) {
+            folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? "s" : ""}`;
+          } else if (hiddenCount === folderCount && folderCount > 0) {
+            folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? "s" : ""} \xB7 All hidden from Main`;
+          } else {
+            folderBannerCount.textContent = `${folderCount} site${folderCount !== 1 ? "s" : ""} \xB7 ${hiddenCount} hidden from Main`;
+          }
+        }
+        if (bulkVisWrap) {
+          if (folderCount === 0) {
+            bulkVisWrap.style.display = "none";
+            bulkVisWrap.innerHTML = "";
+          } else if (hiddenCount === 0) {
+            bulkVisWrap.style.display = "inline-flex";
+            bulkVisWrap.innerHTML = `<button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn" data-bulk-visibility="hide" title="Hide all webpages in this collection from the Main view">\u{1F648} Hide All from Main</button>`;
+          } else if (hiddenCount === folderCount) {
+            bulkVisWrap.style.display = "inline-flex";
+            bulkVisWrap.innerHTML = `<button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn is-active" data-bulk-visibility="show" title="Show all webpages in this collection in the Main view">\u{1F441}\uFE0F Show All in Main</button>`;
+          } else {
+            bulkVisWrap.style.display = "inline-flex";
+            bulkVisWrap.innerHTML = `
+            <button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn" data-bulk-visibility="hide" title="Hide remaining ${visibleCount} visible webpage${visibleCount !== 1 ? "s" : ""} from Main view">\u{1F648} Hide All (${visibleCount})</button>
+            <button type="button" class="btn btn-secondary btn-sm folder-bulk-vis-btn is-active" data-bulk-visibility="show" title="Show ${hiddenCount} hidden webpage${hiddenCount !== 1 ? "s" : ""} in Main view">\u{1F441}\uFE0F Show All (${hiddenCount})</button>
+          `;
+          }
+        }
         if (bannerActions) bannerActions.style.display = "flex";
         activeFolderBanner.style.display = "flex";
         return;
@@ -3239,14 +3339,22 @@
       if (folderBannerIcon) folderBannerIcon.textContent = "\u2B50";
       if (folderBannerTitle) folderBannerTitle.textContent = "Favorites";
       if (folderBannerCount) folderBannerCount.textContent = `${favCount} site${favCount !== 1 ? "s" : ""}`;
+      if (bulkVisWrap) {
+        bulkVisWrap.style.display = "none";
+        bulkVisWrap.innerHTML = "";
+      }
       if (bannerActions) bannerActions.style.display = "none";
       activeFolderBanner.style.display = "flex";
       return;
     } else if (state.activeFolderId === "unorganized") {
-      const unorgCount = state.entries.filter((e) => !e.folderId).length;
+      const unorgCount = state.entries.filter((e) => getEntryFolderIds(e).length === 0).length;
       if (folderBannerIcon) folderBannerIcon.textContent = "\u{1F4C2}";
       if (folderBannerTitle) folderBannerTitle.textContent = "Unorganized";
       if (folderBannerCount) folderBannerCount.textContent = `${unorgCount} site${unorgCount !== 1 ? "s" : ""}`;
+      if (bulkVisWrap) {
+        bulkVisWrap.style.display = "none";
+        bulkVisWrap.innerHTML = "";
+      }
       if (bannerActions) bannerActions.style.display = "none";
       activeFolderBanner.style.display = "flex";
       return;
@@ -3255,11 +3363,42 @@
       if (folderBannerIcon) folderBannerIcon.textContent = "\u26A0\uFE0F";
       if (folderBannerTitle) folderBannerTitle.textContent = "Broken / Offline Links";
       if (folderBannerCount) folderBannerCount.textContent = `${brokenCount} site${brokenCount !== 1 ? "s" : ""}`;
+      if (bulkVisWrap) {
+        bulkVisWrap.style.display = "none";
+        bulkVisWrap.innerHTML = "";
+      }
       if (bannerActions) bannerActions.style.display = "none";
       activeFolderBanner.style.display = "flex";
       return;
     }
+    if (bulkVisWrap) {
+      bulkVisWrap.style.display = "none";
+      bulkVisWrap.innerHTML = "";
+    }
     activeFolderBanner.style.display = "none";
+  }
+  function setCollectionMembersVisibility(folderId, hide, onUpdate) {
+    const folder = state.folders.find((f) => f.id === folderId);
+    if (!folder) return;
+    const diskList = getLatestStoredEntries();
+    let updatedCount = 0;
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    diskList.forEach((entry) => {
+      if (entryBelongsToCollection(entry, folderId)) {
+        const currentHidden = Boolean(entry.hiddenFromMain);
+        if (currentHidden !== hide) {
+          syncLegacyFolderFields(entry, getEntryFolderIds(entry), hide);
+          entry.dateModified = now;
+          updatedCount++;
+        }
+      }
+    });
+    if (updatedCount === 0) return;
+    saveEntries(diskList);
+    if (onUpdate) onUpdate();
+    showToast(
+      hide ? `Hidden ${updatedCount} website${updatedCount !== 1 ? "s" : ""} from Main view` : `Shown ${updatedCount} website${updatedCount !== 1 ? "s" : ""} in Main view`
+    );
   }
   function setupFolderDropTarget(element, targetFolderId, onDropSuccess) {
     if (element.getAttribute("data-drop-bound") === "true") return;
@@ -3267,7 +3406,7 @@
     element.addEventListener("dragover", (e) => {
       e.preventDefault();
       if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = "move";
+        e.dataTransfer.dropEffect = targetFolderId === "unorganized" ? "move" : "copy";
       }
       element.classList.add("drag-over");
     });
@@ -3290,26 +3429,34 @@
         if (onDropSuccess) onDropSuccess();
         showToast(`Pinned "${entry.name}" to Favorites \u2B50`);
       } else if (targetFolderId === "unorganized") {
-        entry.folderId = null;
+        const wasHidden = Boolean(entry.hiddenFromMain);
+        syncLegacyFolderFields(entry, [], false);
         entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
         saveEntries(diskList);
         if (onDropSuccess) onDropSuccess();
-        showToast(`Moved "${entry.name}" to Unorganized`);
+        showToast(
+          wasHidden ? `Removed "${entry.name}" from collections \u2014 now visible in Main` : `Moved "${entry.name}" to Unorganized`
+        );
       } else if (targetFolderId === "all" || targetFolderId === "broken") {
       } else {
         const folder = state.folders.find((f) => f.id === targetFolderId);
-        entry.folderId = targetFolderId;
+        const currentIds = getEntryFolderIds(entry);
+        if (currentIds.includes(targetFolderId)) {
+          showToast(`"${entry.name}" is already in ${folder ? folder.name : "collection"}`);
+          return;
+        }
+        syncLegacyFolderFields(entry, [...currentIds, targetFolderId], entry.hiddenFromMain);
         entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
         saveEntries(diskList);
         if (onDropSuccess) onDropSuccess();
-        showToast(`Moved "${entry.name}" to ${folder ? folder.name : "folder"} \u{1F4C1}`);
+        showToast(`Added "${entry.name}" to ${folder ? folder.name : "collection"} \u{1F4C1}`);
       }
     });
   }
   function deleteFolder(folderId, onFolderDeleted) {
     const folder = state.folders.find((f) => f.id === folderId);
     if (!folder) return;
-    if (!confirm(`Delete folder "${folder.name}"? Bookmarks inside will become unorganized.`)) return;
+    if (!confirm(`Delete collection "${folder.name}"? Websites inside will remain in your library (any site with no other collections will become unorganized and visible in Main).`)) return;
     state.folders = state.folders.filter((f) => f.id !== folderId);
     saveFolders(state.folders);
     try {
@@ -3320,8 +3467,10 @@
     }
     const diskList = getLatestStoredEntries();
     diskList.forEach((e) => {
-      if (e.folderId === folderId) {
-        e.folderId = null;
+      const currentIds = getEntryFolderIds(e);
+      if (currentIds.includes(folderId)) {
+        const nextIds = currentIds.filter((id) => id !== folderId);
+        syncLegacyFolderFields(e, nextIds, e.hiddenFromMain);
         e.dateModified = (/* @__PURE__ */ new Date()).toISOString();
       }
     });
@@ -3334,7 +3483,7 @@
     } else {
       renderFoldersSidebar();
     }
-    showToast(`Deleted folder "${folder.name}"`);
+    showToast(`Deleted collection "${folder.name}"`);
   }
   function renderFoldersSidebar(onFolderChanged, onEditFolder) {
     const sidebarFoldersList = document.getElementById("sidebarFoldersList");
@@ -3346,18 +3495,25 @@
     const sidebarBrokenView = document.getElementById("sidebarBrokenView");
     if (!sidebarFoldersList) return;
     const diskList = state.entries;
+    let allVisibleTotal = 0;
     let favTotal = 0;
     let unorgTotal = 0;
     let brokenTotal = 0;
     const folderCounts = /* @__PURE__ */ new Map();
     for (let i = 0; i < diskList.length; i++) {
       const e = diskList[i];
+      if (!e.hiddenFromMain) allVisibleTotal++;
       if (e.isFavorite) favTotal++;
-      if (!e.folderId) unorgTotal++;
-      else folderCounts.set(e.folderId, (folderCounts.get(e.folderId) || 0) + 1);
+      const fids = getEntryFolderIds(e);
+      if (fids.length === 0) unorgTotal++;
+      else {
+        for (const fid of fids) {
+          folderCounts.set(fid, (folderCounts.get(fid) || 0) + 1);
+        }
+      }
       if (e.health && e.health.status === "broken") brokenTotal++;
     }
-    if (countAll) countAll.textContent = String(diskList.length);
+    if (countAll) countAll.textContent = String(allVisibleTotal);
     if (countFavorites) countFavorites.textContent = String(favTotal);
     if (countUnorganized) countUnorganized.textContent = String(unorgTotal);
     if (countBroken) countBroken.textContent = String(brokenTotal);
@@ -3388,8 +3544,8 @@
       <span class="sidebar-item-name">${escapeHtml(folder.name)}</span>
       <span class="sidebar-item-count">${folderCount}</span>
       <div class="sidebar-item-actions">
-        <button type="button" class="sidebar-action-btn edit-folder-action" title="Edit folder">\u270F\uFE0F</button>
-        <button type="button" class="sidebar-action-btn delete-folder-action" title="Delete folder">\u{1F5D1}\uFE0F</button>
+        <button type="button" class="sidebar-action-btn edit-folder-action" title="Edit collection">\u270F\uFE0F</button>
+        <button type="button" class="sidebar-action-btn delete-folder-action" title="Delete collection">\u{1F5D1}\uFE0F</button>
       </div>
     `;
       item.addEventListener("click", (e) => {
@@ -3413,19 +3569,65 @@
     sidebarFoldersList.appendChild(frag);
     updateActiveFolderBanner(onFolderChanged);
   }
-  function populateFolderSelect(selectedId = "") {
-    const entryFolder2 = document.getElementById("entryFolder");
-    if (!entryFolder2) return;
-    entryFolder2.innerHTML = '<option value="">\u{1F4C2} None (Unorganized)</option>';
+  function updateHiddenFromMainVisibility() {
+    const hiddenGroup = document.getElementById("entryHiddenGroup");
+    const hiddenCheckbox = document.getElementById("entryHiddenFromMain");
+    const hasCollections = state.selectedModalFolderIds.length > 0;
+    if (hiddenGroup) {
+      hiddenGroup.style.display = hasCollections ? "block" : "none";
+    }
+    if (!hasCollections && hiddenCheckbox) {
+      hiddenCheckbox.checked = false;
+    }
+  }
+  function renderModalCollectionPicker() {
+    const picker = document.getElementById("entryCollectionsPicker");
+    if (!picker) return;
+    const validIds = new Set(state.folders.map((f) => f.id));
+    state.selectedModalFolderIds = state.selectedModalFolderIds.filter((id) => validIds.has(id));
+    picker.innerHTML = "";
+    if (state.folders.length === 0) {
+      picker.innerHTML = '<span class="collection-picker-empty">No collections yet \u2014 create one to organize sites.</span>';
+      updateHiddenFromMainVisibility();
+      return;
+    }
+    const selectedSet = new Set(state.selectedModalFolderIds);
     state.folders.forEach((folder) => {
-      const opt = document.createElement("option");
-      opt.value = folder.id;
-      opt.textContent = `${folder.icon || "\u{1F4C1}"} ${folder.name}`;
-      if (selectedId && folder.id === selectedId) {
-        opt.selected = true;
+      const isSelected = selectedSet.has(folder.id);
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = `collection-pill-btn ${isSelected ? "is-selected" : ""}`;
+      pill.setAttribute("data-folder-id", folder.id);
+      pill.setAttribute("aria-pressed", String(isSelected));
+      if (folder.color) {
+        pill.style.setProperty("--folder-color", folder.color);
       }
-      entryFolder2.appendChild(opt);
+      pill.innerHTML = `
+      <span class="collection-pill-icon">${escapeHtml(folder.icon || "\u{1F4C1}")}</span>
+      <span class="collection-pill-name">${escapeHtml(folder.name)}</span>
+      <span class="collection-pill-check">${isSelected ? "\u2713" : "+"}</span>
+    `;
+      pill.addEventListener("click", () => {
+        const idx = state.selectedModalFolderIds.indexOf(folder.id);
+        if (idx >= 0) {
+          state.selectedModalFolderIds.splice(idx, 1);
+        } else {
+          state.selectedModalFolderIds.push(folder.id);
+        }
+        renderModalCollectionPicker();
+        updateHiddenFromMainVisibility();
+      });
+      picker.appendChild(pill);
     });
+    updateHiddenFromMainVisibility();
+  }
+  function populateFolderSelect(selected) {
+    if (Array.isArray(selected)) {
+      state.selectedModalFolderIds = [...selected];
+    } else if (typeof selected === "string") {
+      state.selectedModalFolderIds = selected ? [selected] : [];
+    }
+    renderModalCollectionPicker();
   }
 
   // src/modules/settings/types.ts
@@ -4588,6 +4790,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const entryIcon2 = document.getElementById("entryIcon");
     const entryDescription2 = document.getElementById("entryDescription");
     const entryFavorite2 = document.getElementById("entryFavorite");
+    const entryHiddenFromMain2 = document.getElementById("entryHiddenFromMain");
     const entryForm2 = document.getElementById("entryForm");
     const iconCandidatesWrapper = document.getElementById("iconCandidatesWrapper");
     const entryCategory2 = document.getElementById("entryCategory");
@@ -4602,19 +4805,28 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       if (saveBtn) saveBtn.textContent = "Update";
       if (entryName2) entryName2.value = entry.name || "";
       if (entryUrl2) entryUrl2.value = entry.url || "";
-      populateFolderSelect(entry.folderId || "");
+      state.selectedModalFolderIds = [...getEntryFolderIds(entry)];
+      renderModalCollectionPicker();
       state.selectedCategories = [...entry.categories || []];
       const icon = entry.icon || entry.iconUrl || "";
       if (entryIcon2) entryIcon2.value = icon;
       if (entryDescription2) entryDescription2.value = entry.description || "";
       if (entryFavorite2) entryFavorite2.checked = entry.isFavorite || false;
+      if (entryHiddenFromMain2) {
+        entryHiddenFromMain2.checked = Boolean(entry.hiddenFromMain) && state.selectedModalFolderIds.length > 0;
+      }
+      updateHiddenFromMainVisibility();
       renderIconCandidates(entry.url, icon, "google");
     } else {
       if (modalTitle) modalTitle.textContent = "Add Website";
       if (saveBtn) saveBtn.textContent = "Save";
       if (entryForm2) entryForm2.reset();
-      const defaultFid = initialData?.folderId || (state.activeFolderId && state.activeFolderId.startsWith("f-") ? state.activeFolderId : "");
-      populateFolderSelect(defaultFid);
+      state.selectedModalFolderIds = initialData?.folderIds?.length ? [...initialData.folderIds] : initialData?.folderId ? [initialData.folderId] : isUserCollectionId(state.activeFolderId) ? [state.activeFolderId] : [];
+      renderModalCollectionPicker();
+      if (entryHiddenFromMain2) {
+        entryHiddenFromMain2.checked = Boolean(initialData?.hiddenFromMain) && state.selectedModalFolderIds.length > 0;
+      }
+      updateHiddenFromMainVisibility();
       state.selectedCategories = initialData?.categories ? [...initialData.categories] : [];
       if (iconCandidatesWrapper) iconCandidatesWrapper.style.display = "none";
       if (initialData) {
@@ -4652,20 +4864,27 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   async function addEntry(data, onUpdate) {
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const rawIcon = data.icon || data.iconUrl || getFaviconUrl(data.url);
-    const entry = {
-      id: generateId(),
-      name: data.name,
-      url: ensureProtocol(data.url),
-      description: data.description || "",
-      iconUrl: rawIcon,
-      folderId: data.folderId || null,
-      categories: data.categories || [],
-      dateAdded: now,
-      dateModified: now,
-      visitCount: 0,
-      lastVisited: null,
-      isFavorite: data.isFavorite || false
-    };
+    const initialFolderIds = data.folderIds !== void 0 ? data.folderIds : data.folderId ? [data.folderId] : [];
+    const entry = syncLegacyFolderFields(
+      {
+        id: generateId(),
+        name: data.name,
+        url: ensureProtocol(data.url),
+        description: data.description || "",
+        iconUrl: rawIcon,
+        folderIds: [],
+        folderId: null,
+        hiddenFromMain: false,
+        categories: data.categories || [],
+        dateAdded: now,
+        dateModified: now,
+        visitCount: 0,
+        lastVisited: null,
+        isFavorite: data.isFavorite || false
+      },
+      initialFolderIds,
+      Boolean(data.hiddenFromMain)
+    );
     const diskList = getLatestStoredEntries();
     diskList.push(entry);
     state.entries = diskList;
@@ -4699,20 +4918,27 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const rawIcon = data.icon || data.iconUrl || getFaviconUrl(data.url);
     let target = diskList.find((e) => e.id === id);
     if (!target) {
-      target = {
-        id,
-        name: data.name,
-        url: ensureProtocol(data.url),
-        description: data.description || "",
-        iconUrl: rawIcon,
-        folderId: data.folderId || null,
-        categories: data.categories || [],
-        dateAdded: (/* @__PURE__ */ new Date()).toISOString(),
-        dateModified: (/* @__PURE__ */ new Date()).toISOString(),
-        visitCount: 0,
-        lastVisited: null,
-        isFavorite: data.isFavorite || false
-      };
+      const nextFolderIds = data.folderIds !== void 0 ? data.folderIds : data.folderId ? [data.folderId] : [];
+      target = syncLegacyFolderFields(
+        {
+          id,
+          name: data.name,
+          url: ensureProtocol(data.url),
+          description: data.description || "",
+          iconUrl: rawIcon,
+          folderIds: [],
+          folderId: null,
+          hiddenFromMain: false,
+          categories: data.categories || [],
+          dateAdded: (/* @__PURE__ */ new Date()).toISOString(),
+          dateModified: (/* @__PURE__ */ new Date()).toISOString(),
+          visitCount: 0,
+          lastVisited: null,
+          isFavorite: data.isFavorite || false
+        },
+        nextFolderIds,
+        Boolean(data.hiddenFromMain)
+      );
       diskList.push(target);
     } else {
       target.name = data.name;
@@ -4720,7 +4946,9 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       target.description = data.description || "";
       target.iconUrl = rawIcon;
       delete target.icon;
-      target.folderId = data.folderId !== void 0 ? data.folderId : target.folderId || null;
+      const nextFolderIds = data.folderIds !== void 0 ? data.folderIds : data.folderId !== void 0 ? data.folderId ? [data.folderId] : [] : getEntryFolderIds(target);
+      const nextHidden = data.hiddenFromMain !== void 0 ? data.hiddenFromMain : target.hiddenFromMain;
+      syncLegacyFolderFields(target, nextFolderIds, Boolean(nextHidden));
       target.categories = data.categories || [];
       target.isFavorite = data.isFavorite || false;
       target.dateModified = (/* @__PURE__ */ new Date()).toISOString();
@@ -4785,6 +5013,45 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     saveEntries(diskList);
     if (onUpdate) onUpdate();
   }
+  function toggleHiddenFromMain(id, onUpdate) {
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find((e) => e.id === id);
+    if (!entry) return;
+    const folderIds = getEntryFolderIds(entry);
+    if (!entry.hiddenFromMain && folderIds.length === 0) {
+      entry.hiddenFromMain = false;
+      showToast(`Add "${entry.name}" to a collection first to hide it from Main`);
+      return;
+    }
+    const nextHidden = !entry.hiddenFromMain;
+    syncLegacyFolderFields(entry, folderIds, nextHidden);
+    entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
+    saveEntries(diskList);
+    if (onUpdate) onUpdate();
+    showToast(
+      nextHidden ? `Hidden "${entry.name}" from Main view` : `Shown "${entry.name}" in Main view`
+    );
+  }
+  function removeEntryFromCollection(entryId, folderId, onUpdate) {
+    const diskList = getLatestStoredEntries();
+    const entry = diskList.find((e) => e.id === entryId);
+    if (!entry) return;
+    const currentIds = getEntryFolderIds(entry);
+    if (!currentIds.includes(folderId)) return;
+    const remainingIds = currentIds.filter((id) => id !== folderId);
+    const wasHidden = Boolean(entry.hiddenFromMain);
+    syncLegacyFolderFields(entry, remainingIds, wasHidden);
+    entry.dateModified = (/* @__PURE__ */ new Date()).toISOString();
+    saveEntries(diskList);
+    if (onUpdate) onUpdate();
+    const folder = state.folders.find((f) => f.id === folderId);
+    const folderName = folder ? folder.name : "collection";
+    if (wasHidden && remainingIds.length === 0) {
+      showToast(`Removed "${entry.name}" from ${folderName} \u2014 now visible in Main view`);
+    } else {
+      showToast(`Removed "${entry.name}" from ${folderName}`);
+    }
+  }
   function visitEntry(id, onUpdate) {
     const diskList = getLatestStoredEntries();
     const entry = diskList.find((e) => e.id === id);
@@ -4808,13 +5075,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     tsCache.set(iso, val);
     return val;
   }
-  function getFilteredEntries() {
-    const searchInput2 = document.getElementById("searchInput");
-    const sortSelect2 = document.getElementById("sortSelect");
-    const query = (searchInput2?.value || "").toLowerCase().trim();
-    const sortVal = sortSelect2?.value || "dateAdded-desc";
-    const [sortField, sortDir] = sortVal.split("-");
-    let filtered = [...state.entries];
+  function applySearchAndCategoryFilters(entries, query) {
+    let filtered = entries;
     if (query) {
       filtered = filtered.filter(
         (e) => (e.name || "").toLowerCase().includes(query) || (e.url || "").toLowerCase().includes(query) || (e.description || "").toLowerCase().includes(query)
@@ -4836,14 +5098,33 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         }
       }
     }
+    return filtered;
+  }
+  function countHiddenSearchMatches() {
+    if (state.activeFolderId !== "all" || state.includeHiddenInSearch) return 0;
+    const searchInput2 = document.getElementById("searchInput");
+    const query = (searchInput2?.value || "").toLowerCase().trim();
+    const hiddenEntries = state.entries.filter((e) => e.hiddenFromMain);
+    if (hiddenEntries.length === 0) return 0;
+    return applySearchAndCategoryFilters(hiddenEntries, query).length;
+  }
+  function getFilteredEntries() {
+    const searchInput2 = document.getElementById("searchInput");
+    const sortSelect2 = document.getElementById("sortSelect");
+    const query = (searchInput2?.value || "").toLowerCase().trim();
+    const sortVal = sortSelect2?.value || "dateAdded-desc";
+    const [sortField, sortDir] = sortVal.split("-");
+    let filtered = applySearchAndCategoryFilters([...state.entries], query);
     if (state.activeFolderId === "favorites") {
       filtered = filtered.filter((e) => e.isFavorite);
     } else if (state.activeFolderId === "unorganized") {
-      filtered = filtered.filter((e) => !e.folderId);
+      filtered = filtered.filter((e) => getEntryFolderIds(e).length === 0);
     } else if (state.activeFolderId === "broken") {
       filtered = filtered.filter((e) => e.health && e.health.status === "broken");
-    } else if (state.activeFolderId && state.activeFolderId !== "all") {
-      filtered = filtered.filter((e) => e.folderId === state.activeFolderId);
+    } else if (isUserCollectionId(state.activeFolderId)) {
+      filtered = filtered.filter((e) => entryBelongsToCollection(e, state.activeFolderId));
+    } else if (!state.includeHiddenInSearch) {
+      filtered = filtered.filter((e) => !e.hiddenFromMain);
     }
     filtered.sort((a, b) => {
       if (state.pinFavorites) {
@@ -4922,16 +5203,17 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const grid = document.getElementById("grid");
     const activeCatFilterBanner = document.getElementById("activeCatFilterBanner");
     if (!insightsDrawer || !state.isInsightsOpen) return;
-    const totalSites = state.entries.length;
+    const visibleEntries = state.entries.filter((e) => !e.hiddenFromMain);
+    const totalSites = visibleEntries.length;
     let totalLaunches = 0;
-    state.entries.forEach((e) => {
+    visibleEntries.forEach((e) => {
       totalLaunches += e.visitCount || 0;
     });
     const allCats = getAllCategories();
     const totalFolders = state.folders.length;
     if (insightsHeaderStats) {
       insightsHeaderStats.innerHTML = `
-      <div class="insights-stat-pill" title="Total saved bookmarks">
+      <div class="insights-stat-pill" title="Total visible bookmarks">
         <span>Sites:</span>
         <span class="insights-stat-num">${totalSites}</span>
       </div>
@@ -4943,18 +5225,18 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         <span>Categories:</span>
         <span class="insights-stat-num">${allCats.length}</span>
       </div>
-      <div class="insights-stat-pill" title="Folders created">
-        <span>Folders:</span>
+      <div class="insights-stat-pill" title="Collections created">
+        <span>Collections:</span>
         <span class="insights-stat-num">${totalFolders}</span>
       </div>
     `;
     }
     if (!insightsBody) return;
-    const visitedSites = [...state.entries].filter((e) => (e.visitCount || 0) > 0).sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0)).slice(0, 6);
-    const recentlyAdded = [...state.entries].sort((a, b) => new Date(b.dateAdded || 0).getTime() - new Date(a.dateAdded || 0).getTime()).slice(0, 5);
+    const visitedSites = [...visibleEntries].filter((e) => (e.visitCount || 0) > 0).sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0)).slice(0, 6);
+    const recentlyAdded = [...visibleEntries].sort((a, b) => new Date(b.dateAdded || 0).getTime() - new Date(a.dateAdded || 0).getTime()).slice(0, 5);
     const catCounts = {};
     let totalCatAssignments = 0;
-    state.entries.forEach((e) => {
+    visibleEntries.forEach((e) => {
       (e.categories || []).forEach((c) => {
         catCounts[c] = (catCounts[c] || 0) + 1;
         totalCatAssignments++;
@@ -4963,7 +5245,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const sortedCats = Object.keys(catCounts).sort((a, b) => catCounts[b] - catCounts[a]);
     const now = Date.now();
     const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1e3;
-    const dormantEntries = state.entries.filter((e) => {
+    const dormantEntries = visibleEntries.filter((e) => {
       if (e.lastVisited) {
         return now - new Date(e.lastVisited).getTime() > NINETY_DAYS_MS;
       }
@@ -5276,9 +5558,26 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     if (viewIconsBtn2) viewIconsBtn2.classList.toggle("is-active", mode === "icons");
     renderCardsOnly();
   }
+  function resolveEntryFolders(entry, folderMap) {
+    const ids = getEntryFolderIds(entry);
+    const resolved = [];
+    for (const fid of ids) {
+      const folder = folderMap ? folderMap.get(fid) : state.folders.find((f) => f.id === fid);
+      if (folder) resolved.push(folder);
+    }
+    return resolved;
+  }
+  function renderCollectionChipsHtml(folders, showHiddenBadge) {
+    const folderTags = folders.map(
+      (folder) => `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || "#0a84ff")}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Collection: ${escapeHtml(folder.name)} (Click to view collection)"><span>${escapeHtml(folder.icon || "\u{1F4C1}")}</span> ${escapeHtml(folder.name)}</span>`
+    ).join("");
+    const hiddenBadge = showHiddenBadge ? `<span class="tag hidden-main-tag" title="Hidden from Main view">\u{1F648} Hidden</span>` : "";
+    return `${hiddenBadge}${folderTags}`;
+  }
   function renderCard(entry, folderMap) {
     const card = document.createElement("div");
-    card.className = "card";
+    const inUserCollection = isUserCollectionId(state.activeFolderId);
+    card.className = `card${entry.hiddenFromMain ? " is-hidden-from-main" : ""}${inUserCollection ? " in-collection-view" : ""}`;
     card.setAttribute("data-id", entry.id);
     const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
     if (!isMobile) {
@@ -5286,7 +5585,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       card.addEventListener("dragstart", (e) => {
         if (e.dataTransfer) {
           e.dataTransfer.setData("text/plain", entry.id);
-          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.effectAllowed = "copyMove";
         }
         card.classList.add("is-dragging");
       });
@@ -5304,7 +5603,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       card.classList.add("has-pending-icon");
     }
     const domain = getDomain(entry.url);
-    const folder = entry.folderId ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find((f) => f.id === entry.folderId)) || null : null;
+    const entryFolders = resolveEntryFolders(entry, folderMap);
+    const activeCollection = inUserCollection ? (folderMap ? folderMap.get(state.activeFolderId) : state.folders.find((f) => f.id === state.activeFolderId)) || null : null;
     const iconSrc = entry.icon || entry.iconUrl || "";
     card.innerHTML = `
     <button class="card-favorite ${entry.isFavorite ? "active" : ""}" title="${entry.isFavorite ? "Unpin from favorites" : "Pin to favorites"}">
@@ -5345,7 +5645,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     ` : ""}
     <div class="card-meta">
       <div class="card-tags-row">
-        ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || "#0a84ff")}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)} (Click to view folder)"><span>${escapeHtml(folder.icon || "\u{1F4C1}")}</span> ${escapeHtml(folder.name)}</span>` : ""}
+        ${renderCollectionChipsHtml(entryFolders, Boolean(entry.hiddenFromMain) && !inUserCollection)}
         ${(entry.categories || []).map((cat) => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join("")}
       </div>
       <div class="card-footer-row">
@@ -5368,14 +5668,35 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           </div>
         </div>
       </div>
+      ${inUserCollection ? `
+        <div class="card-collection-bar">
+          <button type="button" class="card-visibility-switch ${entry.hiddenFromMain ? "is-hidden" : ""}" role="switch" aria-checked="${!entry.hiddenFromMain}" title="${entry.hiddenFromMain ? "Hidden from Main view \u2014 click to show in Main" : "Visible in Main view \u2014 click to hide from Main"}">
+            <span class="vis-switch-track"><span class="vis-switch-thumb"></span></span>
+            <span class="vis-switch-label">${entry.hiddenFromMain ? "Hidden from Main" : "In Main"}</span>
+          </button>
+          <button type="button" class="card-remove-collection-btn" title="Remove from ${escapeHtml(activeCollection?.name || "collection")} (keeps bookmark in library)">\u2715 Remove</button>
+        </div>
+      ` : ""}
     </div>
   `;
     card.addEventListener("click", (e) => {
       const target = e.target;
       if (!target) return;
-      if (target.closest(".folder-tag")) {
+      const folderTag = target.closest(".folder-tag");
+      if (folderTag) {
         e.stopPropagation();
-        if (folder) setActiveFolder(folder.id, render);
+        const fid = folderTag.getAttribute("data-folder-id");
+        if (fid) setActiveFolder(fid, render);
+        return;
+      }
+      if (target.closest(".card-visibility-switch")) {
+        e.stopPropagation();
+        toggleHiddenFromMain(entry.id, render);
+        return;
+      }
+      if (target.closest(".card-remove-collection-btn")) {
+        e.stopPropagation();
+        removeEntryFromCollection(entry.id, state.activeFolderId, render);
         return;
       }
       if (target.closest(".card-favorite")) {
@@ -5423,7 +5744,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
   function renderTableRow(entry, folderMap) {
     const row = document.createElement("div");
-    row.className = "table-row";
+    const inUserCollection = isUserCollectionId(state.activeFolderId);
+    row.className = `table-row${entry.hiddenFromMain ? " is-hidden-from-main" : ""}${inUserCollection ? " in-collection-view" : ""}`;
     row.setAttribute("data-id", entry.id);
     const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
     if (!isMobile) {
@@ -5431,7 +5753,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       row.addEventListener("dragstart", (e) => {
         if (e.dataTransfer) {
           e.dataTransfer.setData("text/plain", entry.id);
-          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.effectAllowed = "copyMove";
         }
         row.classList.add("is-dragging");
       });
@@ -5440,7 +5762,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       });
     }
     const domain = getDomain(entry.url);
-    const folder = entry.folderId ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find((f) => f.id === entry.folderId)) || null : null;
+    const entryFolders = resolveEntryFolders(entry, folderMap);
+    const activeCollection = inUserCollection ? (folderMap ? folderMap.get(state.activeFolderId) : state.folders.find((f) => f.id === state.activeFolderId)) || null : null;
     const iconSrc = entry.icon || entry.iconUrl || "";
     const pendingIcon = state.pendingIcons.get(entry.id);
     if (pendingIcon) {
@@ -5480,7 +5803,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       ` : ""}
     </div>
     <div class="table-cell-tags">
-      ${folder ? `<span class="tag folder-tag" data-folder-id="${escapeHtml(folder.id)}" style="--folder-color: ${escapeHtml(folder.color || "#0a84ff")}; background: color-mix(in srgb, var(--folder-color) 14%, transparent); color: var(--folder-color); border: 1px solid color-mix(in srgb, var(--folder-color) 32%, transparent);" title="Folder: ${escapeHtml(folder.name)}">${escapeHtml(folder.icon || "\u{1F4C1}")} ${escapeHtml(folder.name)}</span>` : ""}
+      ${renderCollectionChipsHtml(entryFolders, Boolean(entry.hiddenFromMain) && !inUserCollection)}
       ${(entry.categories || []).map((cat) => `<span class="tag" ${getCategoryTagStyle(cat)}>${escapeHtml(cat)}</span>`).join("")}
     </div>
     <div class="table-cell-visits">
@@ -5490,6 +5813,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       ${timeAgo(entry.dateAdded)}
     </div>
     <div class="table-cell-actions">
+      ${inUserCollection ? `
+        <button class="table-action-btn toggle-hidden-btn ${entry.hiddenFromMain ? "is-hidden" : ""}" title="${entry.hiddenFromMain ? "Hidden from Main \u2014 click to show in Main" : "Visible in Main \u2014 click to hide from Main"}">${entry.hiddenFromMain ? "\u{1F648}" : "\u{1F441}\uFE0F"}</button>
+        <button class="table-action-btn remove-collection-btn" title="Remove from ${escapeHtml(activeCollection?.name || "collection")}">\u2715</button>
+      ` : ""}
       <button class="table-action-btn refresh-btn" title="Refresh icon">\u{1F504}</button>
       <button class="table-action-btn edit-btn" title="Edit">\u270F\uFE0F</button>
       <button class="table-action-btn delete-btn" title="Delete">\u{1F5D1}\uFE0F</button>
@@ -5498,9 +5825,21 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     row.addEventListener("click", (e) => {
       const target = e.target;
       if (!target) return;
-      if (target.closest(".folder-tag")) {
+      const folderTag = target.closest(".folder-tag");
+      if (folderTag) {
         e.stopPropagation();
-        if (folder) setActiveFolder(folder.id, render);
+        const fid = folderTag.getAttribute("data-folder-id");
+        if (fid) setActiveFolder(fid, render);
+        return;
+      }
+      if (target.closest(".toggle-hidden-btn")) {
+        e.stopPropagation();
+        toggleHiddenFromMain(entry.id, render);
+        return;
+      }
+      if (target.closest(".remove-collection-btn")) {
+        e.stopPropagation();
+        removeEntryFromCollection(entry.id, state.activeFolderId, render);
         return;
       }
       if (target.closest(".table-fav-btn")) {
@@ -5543,7 +5882,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
   function renderIconCard(entry, folderMap) {
     const card = document.createElement("div");
-    card.className = "icon-card";
+    const inUserCollection = isUserCollectionId(state.activeFolderId);
+    card.className = `icon-card${entry.hiddenFromMain ? " is-hidden-from-main" : ""}${inUserCollection ? " in-collection-view" : ""}`;
     card.setAttribute("data-id", entry.id);
     const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
     if (!isMobile) {
@@ -5551,7 +5891,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       card.addEventListener("dragstart", (e) => {
         if (e.dataTransfer) {
           e.dataTransfer.setData("text/plain", entry.id);
-          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.effectAllowed = "copyMove";
         }
         card.classList.add("is-dragging");
       });
@@ -5564,11 +5904,19 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         card.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
       });
     }
-    const folder = entry.folderId ? (folderMap ? folderMap.get(entry.folderId) : state.folders.find((f) => f.id === entry.folderId)) || null : null;
+    const entryFolders = resolveEntryFolders(entry, folderMap);
+    const activeCollection = inUserCollection ? (folderMap ? folderMap.get(state.activeFolderId) : state.folders.find((f) => f.id === state.activeFolderId)) || null : null;
     const iconSrc = entry.icon || entry.iconUrl || "";
+    const folderDotsHtml = entryFolders.slice(0, 3).map(
+      (f) => `<span class="icon-card-folder-dot" style="background: ${escapeHtml(f.color || "var(--accent)")};" title="Collection: ${escapeHtml(f.name)}"></span>`
+    ).join("");
     card.innerHTML = `
     <div class="icon-card-header">
       <div class="icon-card-actions">
+        ${inUserCollection ? `
+          <button class="icon-card-action-btn toggle-hidden-btn ${entry.hiddenFromMain ? "is-hidden" : ""}" title="${entry.hiddenFromMain ? "Hidden from Main \u2014 click to show in Main" : "Visible in Main \u2014 click to hide from Main"}">${entry.hiddenFromMain ? "\u{1F648}" : "\u{1F441}\uFE0F"}</button>
+          <button class="icon-card-action-btn remove-collection-btn" title="Remove from ${escapeHtml(activeCollection?.name || "collection")}">\u2715</button>
+        ` : ""}
         <button class="icon-card-action-btn edit-btn" title="Edit">\u270F\uFE0F</button>
         <button class="icon-card-action-btn delete-btn" title="Delete">\u{1F5D1}\uFE0F</button>
       </div>
@@ -5579,14 +5927,24 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     <div class="icon-card-frame">
       ${iconSrc ? `<img src="${escapeHtml(iconSrc)}" alt="" loading="lazy" decoding="async" onerror="this.parentElement.innerHTML='<span style=\\'font-size:20px;\\'>\u{1F310}</span>'">` : '<span style="font-size:20px;">\u{1F310}</span>'}
     </div>
-    <div class="icon-card-name" title="${escapeHtml(entry.name)}">
-      ${folder ? `<span class="icon-card-folder-dot" style="background: ${escapeHtml(folder.color || "var(--accent)")};" title="Folder: ${escapeHtml(folder.name)}"></span>` : ""}
+    <div class="icon-card-name" title="${escapeHtml(entry.name)}${entry.hiddenFromMain ? " (Hidden from Main)" : ""}">
+      ${folderDotsHtml}
       <span>${escapeHtml(entry.name)}</span>
     </div>
   `;
     card.addEventListener("click", (e) => {
       const target = e.target;
       if (!target) return;
+      if (target.closest(".toggle-hidden-btn")) {
+        e.stopPropagation();
+        toggleHiddenFromMain(entry.id, render);
+        return;
+      }
+      if (target.closest(".remove-collection-btn")) {
+        e.stopPropagation();
+        removeEntryFromCollection(entry.id, state.activeFolderId, render);
+        return;
+      }
       if (target.closest(".icon-card-fav")) {
         e.stopPropagation();
         toggleFavorite(entry.id, render);
@@ -5618,25 +5976,38 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const activeCatFilterBannerLeft = document.getElementById("activeCatFilterBannerLeft");
     const grid = document.getElementById("grid");
     const emptyState = document.getElementById("emptyState");
-    const total = state.entries.length;
+    const visibleMainTotal = state.entries.filter((e) => !e.hiddenFromMain).length;
+    let viewTotal = visibleMainTotal;
+    if (state.activeFolderId === "all") {
+      viewTotal = state.includeHiddenInSearch ? state.entries.length : visibleMainTotal;
+    } else if (state.activeFolderId === "favorites") {
+      viewTotal = state.entries.filter((e) => e.isFavorite).length;
+    } else if (state.activeFolderId === "unorganized") {
+      viewTotal = state.entries.filter((e) => getEntryFolderIds(e).length === 0).length;
+    } else if (state.activeFolderId === "broken") {
+      viewTotal = state.entries.filter((e) => e.health && e.health.status === "broken").length;
+    } else if (isUserCollectionId(state.activeFolderId)) {
+      viewTotal = state.entries.filter((e) => entryBelongsToCollection(e, state.activeFolderId)).length;
+    }
     const showing = filtered.length;
     const activeCats = Array.from(state.selectedFilterCategories);
+    const hiddenSuffix = state.activeFolderId === "all" && state.includeHiddenInSearch ? " \xB7 incl. hidden" : "";
     if (statsText) {
-      if (total === 0) {
-        statsText.textContent = "0 sites";
-      } else if (showing === total) {
-        statsText.textContent = `${total} site${total !== 1 ? "s" : ""}`;
+      if (viewTotal === 0) {
+        statsText.textContent = `0 sites${hiddenSuffix}`;
+      } else if (showing === viewTotal) {
+        statsText.textContent = `${viewTotal} site${viewTotal !== 1 ? "s" : ""}${hiddenSuffix}`;
       } else {
-        statsText.textContent = `Showing ${showing} of ${total} site${total !== 1 ? "s" : ""}`;
+        statsText.textContent = `Showing ${showing} of ${viewTotal} site${viewTotal !== 1 ? "s" : ""}${hiddenSuffix}`;
       }
     }
     const headerCountBadge = document.getElementById("headerCountBadge");
     if (headerCountBadge) {
-      headerCountBadge.textContent = String(total);
+      headerCountBadge.textContent = String(visibleMainTotal);
     }
     const searchInput2 = document.getElementById("searchInput");
     if (searchInput2 && !searchInput2.value) {
-      searchInput2.placeholder = `Search ${total} bookmarks\u2026`;
+      searchInput2.placeholder = `Search ${visibleMainTotal} bookmarks\u2026`;
     }
     if (activeCatFilterBanner) {
       if (activeCats.length > 0 && activeCats.length < getAllCategories().length) {
@@ -5656,7 +6027,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       }
     }
     if (!grid || !emptyState) return;
-    if (total === 0) {
+    if (state.entries.length === 0) {
       grid.style.display = "none";
       emptyState.style.display = "block";
       return;
@@ -5666,6 +6037,42 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     grid.className = "grid view-" + mode;
     emptyState.style.display = "none";
     grid.innerHTML = "";
+    if (filtered.length === 0) {
+      const hiddenMatches = countHiddenSearchMatches();
+      const emptyMsg = document.createElement("div");
+      emptyMsg.className = "grid-empty-message";
+      if (state.activeFolderId === "all" && hiddenMatches > 0) {
+        emptyMsg.innerHTML = `
+        <div class="grid-empty-icon">\u{1F648}</div>
+        <p>No visible bookmarks matched. <strong>${hiddenMatches}</strong> hidden bookmark${hiddenMatches !== 1 ? "s" : ""} matched your filters.</p>
+        <button type="button" class="btn btn-secondary btn-sm" id="showHiddenMatchesBtn">\u{1F441}\uFE0F Show ${hiddenMatches} hidden match${hiddenMatches !== 1 ? "es" : ""}</button>
+      `;
+        emptyMsg.querySelector("#showHiddenMatchesBtn")?.addEventListener("click", () => {
+          state.includeHiddenInSearch = true;
+          const toggleBtn = document.getElementById("searchIncludeHiddenBtn");
+          if (toggleBtn) {
+            toggleBtn.classList.add("active");
+            toggleBtn.setAttribute("aria-pressed", "true");
+            toggleBtn.title = "Including hidden collection webpages in search (click to hide)";
+            const iconSpan = toggleBtn.querySelector(".search-hidden-icon");
+            if (iconSpan) iconSpan.textContent = "\u{1F441}\uFE0F";
+          }
+          renderCardsOnly();
+        });
+      } else if (isUserCollectionId(state.activeFolderId)) {
+        emptyMsg.innerHTML = `
+        <div class="grid-empty-icon">\u{1F4C2}</div>
+        <p>No websites in this collection yet (or none match your filters).</p>
+      `;
+      } else {
+        emptyMsg.innerHTML = `
+        <div class="grid-empty-icon">\u{1F50D}</div>
+        <p>No matching websites found.</p>
+      `;
+      }
+      grid.appendChild(emptyMsg);
+      return;
+    }
     const folderMap = /* @__PURE__ */ new Map();
     for (const f of state.folders) {
       folderMap.set(f.id, f);
@@ -5683,7 +6090,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       <span class="th-fav"></span>
       <span class="th-icon"></span>
       <span class="th-name">Website</span>
-      <span class="th-tags">Folder & Categories</span>
+      <span class="th-tags">Collections & Categories</span>
       <span class="th-visits">Visits</span>
       <span class="th-date">Added</span>
       <span class="th-actions" style="text-align: right;">Actions</span>
@@ -6267,12 +6674,24 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   var isCommandPaletteOpen = false;
   var paletteSelectedIndex = 0;
   var paletteFlatItems = [];
+  var paletteIncludeHidden = false;
+  function updatePaletteHiddenToggleUI() {
+    const btn = document.getElementById("commandPaletteHiddenToggle");
+    if (!btn) return;
+    btn.classList.toggle("is-active", paletteIncludeHidden);
+    btn.setAttribute("aria-pressed", String(paletteIncludeHidden));
+    btn.title = paletteIncludeHidden ? "Showing hidden webpages in search (click to hide)" : "Hidden webpages excluded from search (click to include)";
+    const iconSpan = btn.querySelector(".palette-hidden-icon");
+    if (iconSpan) iconSpan.textContent = paletteIncludeHidden ? "\u{1F441}\uFE0F" : "\u{1F648}";
+  }
   function openCommandPalette(callbacks) {
     const commandPaletteBackdrop = document.getElementById("commandPaletteBackdrop");
     const commandPaletteInput = document.getElementById("commandPaletteInput");
     const commandPaletteClearBtn = document.getElementById("commandPaletteClearBtn");
     if (!commandPaletteBackdrop || !commandPaletteInput) return;
     isCommandPaletteOpen = true;
+    paletteIncludeHidden = false;
+    updatePaletteHiddenToggleUI();
     commandPaletteBackdrop.style.display = "flex";
     commandPaletteInput.value = "";
     if (commandPaletteClearBtn) commandPaletteClearBtn.style.display = "none";
@@ -6509,12 +6928,14 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     return actions;
   }
   function getCommandPaletteFolders(callbacks) {
+    const visibleMainCount = state.entries.filter((e) => !e.hiddenFromMain).length;
+    const unorganizedCount = state.entries.filter((e) => getEntryFolderIds(e).length === 0).length;
     const list = [
       {
         id: "folder-all",
         type: "folder",
         title: "All Bookmarks",
-        subtitle: `View all ${state.entries.length} saved bookmarks`,
+        subtitle: `View all ${visibleMainCount} visible bookmarks`,
         icon: "\u{1F4C1}",
         badge: "View",
         keywords: ["all", "bookmarks", "library"],
@@ -6534,7 +6955,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         id: "folder-unorganized",
         type: "folder",
         title: "Unorganized",
-        subtitle: `Bookmarks not in any collection (${state.entries.filter((e) => !e.folderId).length})`,
+        subtitle: `Bookmarks not in any collection (${unorganizedCount})`,
         icon: "\u{1F4C2}",
         badge: "View",
         keywords: ["unorganized", "inbox", "unsorted"],
@@ -6555,7 +6976,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       });
     }
     state.folders.forEach((f) => {
-      const count = state.entries.filter((e) => e.folderId === f.id).length;
+      const count = state.entries.filter((e) => entryBelongsToCollection(e, f.id)).length;
       list.push({
         id: `folder-${f.id}`,
         type: "folder",
@@ -6571,17 +6992,22 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     return list;
   }
   function getCommandPaletteBookmarks(query, callbacks) {
+    const searchable = paletteIncludeHidden ? state.entries : state.entries.filter((e) => !e.hiddenFromMain);
     if (!query) {
-      return state.entries.slice().sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0) || new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()).slice(0, 6).map((entry) => createBookmarkPaletteItem(entry, "Frequent", callbacks));
+      return searchable.slice().sort((a, b) => (b.visitCount || 0) - (a.visitCount || 0) || new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()).slice(0, 6).map((entry) => createBookmarkPaletteItem(entry, "Frequent", callbacks));
     }
     const q = query.toLowerCase().trim();
     const matched = [];
-    for (const entry of state.entries) {
+    for (const entry of searchable) {
       const nameMatch = entry.name.toLowerCase().includes(q);
       const urlMatch = entry.url.toLowerCase().includes(q);
       const descMatch = (entry.description || "").toLowerCase().includes(q);
       const catMatch = (entry.categories || []).some((c) => c.toLowerCase().includes(q));
-      if (nameMatch || urlMatch || descMatch || catMatch) {
+      const folderMatch = getEntryFolderIds(entry).some((fid) => {
+        const f = state.folders.find((col) => col.id === fid);
+        return f ? f.name.toLowerCase().includes(q) : false;
+      });
+      if (nameMatch || urlMatch || descMatch || catMatch || folderMatch) {
         matched.push(createBookmarkPaletteItem(entry, "Bookmark", callbacks));
       }
     }
@@ -6589,15 +7015,23 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   }
   function createBookmarkPaletteItem(entry, badgeLabel, callbacks) {
     const domain = getDomain(entry.url);
-    const folder = entry.folderId ? state.folders.find((f) => f.id === entry.folderId) : null;
+    const entryFolders = getEntryFolderIds(entry).map((fid) => state.folders.find((f) => f.id === fid)).filter((f) => Boolean(f));
+    const primaryFolder = entryFolders[0] || null;
+    let badge = badgeLabel;
+    if (primaryFolder) {
+      badge = entryFolders.length > 1 ? `${primaryFolder.name} +${entryFolders.length - 1}` : primaryFolder.name;
+    }
+    if (entry.hiddenFromMain) {
+      badge = `${badge} \xB7 Hidden`;
+    }
     return {
       id: `bookmark-${entry.id}`,
       type: "bookmark",
       title: entry.name,
       subtitle: `${domain}${entry.description ? ` \u2022 ${entry.description}` : ""}`,
       iconUrl: entry.iconUrl || entry.icon,
-      badge: folder ? folder.name : badgeLabel,
-      color: folder ? folder.color : null,
+      badge,
+      color: primaryFolder ? primaryFolder.color : null,
       run: () => callbacks.visitEntry(entry.id)
     };
   }
@@ -6698,7 +7132,17 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const commandPaletteInput = document.getElementById("commandPaletteInput");
     const commandPaletteClearBtn = document.getElementById("commandPaletteClearBtn");
     const commandPaletteEscBadge = document.getElementById("commandPaletteEscBadge");
+    const commandPaletteHiddenToggle = document.getElementById("commandPaletteHiddenToggle");
     const cmdPaletteKbdLabel = document.getElementById("cmdPaletteKbdLabel");
+    if (commandPaletteHiddenToggle) {
+      commandPaletteHiddenToggle.addEventListener("click", () => {
+        paletteIncludeHidden = !paletteIncludeHidden;
+        updatePaletteHiddenToggleUI();
+        paletteSelectedIndex = 0;
+        renderCommandPaletteResults(commandPaletteInput?.value || "", callbacks);
+        commandPaletteInput?.focus();
+      });
+    }
     if (cmdPaletteKbdLabel) {
       const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
       cmdPaletteKbdLabel.textContent = isMac ? "\u2318K" : "Ctrl+K";
@@ -6816,6 +7260,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     }
     const cleanList = rawList.map((e) => {
       const copy = { ...e };
+      const folderIds = getEntryFolderIds(copy);
+      copy.folderIds = folderIds;
+      copy.folderId = folderIds[0] || null;
+      copy.hiddenFromMain = folderIds.length > 0 && Boolean(copy.hiddenFromMain);
       if (copy.iconUrl || copy.icon) {
         copy.iconUrl = copy.iconUrl || copy.icon;
         if (copy.icon && (copy.icon === copy.iconUrl || !copy.customIcon)) {
@@ -6977,19 +7425,24 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
             color: f.color || "#0a84ff"
           })),
           categories: getAllCategories(),
-          entries: (state.entries || []).map((e) => ({
-            id: e.id,
-            name: e.name,
-            url: e.url,
-            icon: e.icon || null,
-            iconUrl: e.iconUrl || null,
-            categories: e.categories || [],
-            folderId: e.folderId || null,
-            dateAdded: e.dateAdded,
-            description: e.description || "",
-            visitCount: e.visitCount || 0,
-            isFavorite: !!e.isFavorite
-          }))
+          entries: (state.entries || []).map((e) => {
+            const folderIds = getEntryFolderIds(e);
+            return {
+              id: e.id,
+              name: e.name,
+              url: e.url,
+              icon: e.icon || null,
+              iconUrl: e.iconUrl || null,
+              categories: e.categories || [],
+              folderIds,
+              folderId: folderIds[0] || null,
+              hiddenFromMain: Boolean(e.hiddenFromMain),
+              dateAdded: e.dateAdded,
+              description: e.description || "",
+              visitCount: e.visitCount || 0,
+              isFavorite: !!e.isFavorite
+            };
+          })
         }, "*");
       } catch (_) {
       }
@@ -7207,6 +7660,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
             if (inNew) matchedFolderId = inNew.id;
           }
         }
+        const folderIds = matchedFolderId ? [matchedFolderId] : [];
         const resolvedIcon = iconUrl || getFaviconUrl(rawUrl);
         const entry = {
           id: generateId(),
@@ -7215,7 +7669,9 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           description: "",
           icon: resolvedIcon,
           iconUrl: resolvedIcon,
+          folderIds,
           folderId: matchedFolderId,
+          hiddenFromMain: false,
           categories,
           dateAdded,
           visitCount: 0,
@@ -7280,7 +7736,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
           saveEntries(diskList);
           if (onImportSuccess) onImportSuccess();
           const skippedCount = importedEntries.length - importedCount;
-          const folderPart = addedFoldersCount > 0 ? ` and ${addedFoldersCount} folder${addedFoldersCount !== 1 ? "s" : ""}` : "";
+          const folderPart = addedFoldersCount > 0 ? ` and ${addedFoldersCount} collection${addedFoldersCount !== 1 ? "s" : ""}` : "";
           showToast(
             `Imported ${importedCount} site${importedCount !== 1 ? "s" : ""}${folderPart} from browser bookmarks (${skippedCount} duplicate${skippedCount !== 1 ? "s" : ""} skipped).`
           );
@@ -7332,13 +7788,17 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
               }
             }
             const resolvedIcon = item.iconUrl || item.icon || getFaviconUrl(item.url);
+            const folderIds = getEntryFolderIds(item);
+            const hiddenFromMain = folderIds.length > 0 ? Boolean(item.hiddenFromMain) : false;
             diskList.push({
               id: item.id || generateId(),
               name: item.name,
               url: ensureProtocol(item.url),
               description: item.description || "",
               iconUrl: resolvedIcon,
-              folderId: item.folderId || null,
+              folderIds,
+              folderId: folderIds[0] || null,
+              hiddenFromMain,
               categories: cats,
               dateAdded: item.dateAdded || (/* @__PURE__ */ new Date()).toISOString(),
               dateModified: item.dateModified || item.dateAdded || (/* @__PURE__ */ new Date()).toISOString(),
@@ -7852,18 +8312,23 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const entryMap = /* @__PURE__ */ new Map();
     const processEntry = (entry) => {
       if (!entry || !entry.id) return;
-      const entryTime = new Date(entry.dateModified || entry.dateAdded || 0).getTime();
-      const deletedTime = activeTombstoneLookup.get(entry.id);
+      const normalized = syncLegacyFolderFields(
+        { ...entry },
+        getEntryFolderIds(entry),
+        Boolean(entry.hiddenFromMain)
+      );
+      const entryTime = new Date(normalized.dateModified || normalized.dateAdded || 0).getTime();
+      const deletedTime = activeTombstoneLookup.get(normalized.id);
       if (deletedTime && deletedTime >= entryTime) {
         return;
       }
-      if (!entryMap.has(entry.id)) {
-        entryMap.set(entry.id, entry);
+      if (!entryMap.has(normalized.id)) {
+        entryMap.set(normalized.id, normalized);
       } else {
-        const current = entryMap.get(entry.id);
+        const current = entryMap.get(normalized.id);
         const currentTime = new Date(current.dateModified || current.dateAdded || 0).getTime();
         if (entryTime >= currentTime) {
-          entryMap.set(entry.id, entry);
+          entryMap.set(normalized.id, normalized);
         }
       }
     };
@@ -7871,11 +8336,10 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     for (const item of remotePayload.entries || []) processEntry(item);
     const mergedEntries = Array.from(entryMap.values());
     const folderMap = /* @__PURE__ */ new Map();
-    const DEFAULT_FOLDER_IDS = /* @__PURE__ */ new Set(["all", "favorites", "unorganized", "broken"]);
     const processFolder = (folder) => {
       if (!folder || !folder.id) return;
       const deletedTime = activeTombstoneLookup.get(folder.id);
-      if (deletedTime && !DEFAULT_FOLDER_IDS.has(folder.id)) {
+      if (deletedTime && !SPECIAL_FOLDER_IDS.has(folder.id)) {
         return;
       }
       if (!folderMap.has(folder.id)) {
@@ -7894,7 +8358,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const hasEntriesChanged = mergedEntries.length !== localEntries.length || mergedEntries.some((e, i) => {
       const loc = localEntries[i];
       if (!loc) return true;
-      return loc.id !== e.id || loc.name !== e.name || loc.url !== e.url || loc.folderId !== e.folderId || loc.isFavorite !== e.isFavorite || loc.description !== e.description || loc.dateModified !== e.dateModified || JSON.stringify(loc.categories || []) !== JSON.stringify(e.categories || []);
+      return loc.id !== e.id || loc.name !== e.name || loc.url !== e.url || JSON.stringify(getEntryFolderIds(loc)) !== JSON.stringify(getEntryFolderIds(e)) || Boolean(loc.hiddenFromMain) !== Boolean(e.hiddenFromMain) || loc.isFavorite !== e.isFavorite || loc.description !== e.description || loc.dateModified !== e.dateModified || JSON.stringify(loc.categories || []) !== JSON.stringify(e.categories || []);
     });
     const hasFoldersChanged = mergedFolders.length !== localFolders.length || mergedFolders.some((f, i) => {
       const loc = localFolders[i];
@@ -9056,7 +9520,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   var entryForm = document.getElementById("entryForm");
   var entryName = document.getElementById("entryName");
   var entryUrl = document.getElementById("entryUrl");
-  var entryFolder = document.getElementById("entryFolder");
+  var entryHiddenFromMain = document.getElementById("entryHiddenFromMain");
   var entryIcon = document.getElementById("entryIcon");
   var entryDescription = document.getElementById("entryDescription");
   var entryFavorite = document.getElementById("entryFavorite");
@@ -9086,6 +9550,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   var catModalSearchClearBtn = document.getElementById("catModalSearchClearBtn");
   var searchInput = document.getElementById("searchInput");
   var searchClearBtn = document.getElementById("searchClearBtn");
+  var searchIncludeHiddenBtn = document.getElementById("searchIncludeHiddenBtn");
   var sortSelect = document.getElementById("sortSelect");
   var pinFavoritesBtn = document.getElementById("pinFavoritesBtn");
   var viewCardsBtn = document.getElementById("viewCardsBtn");
@@ -9118,6 +9583,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   var inlineNewFolderBtn = document.getElementById("inlineNewFolderBtn");
   var editFolderBtn = document.getElementById("editFolderBtn");
   var deleteFolderBtn = document.getElementById("deleteFolderBtn");
+  var folderBulkVisibility = document.getElementById("folderBulkVisibility");
   var folderForm = document.getElementById("folderForm");
   var folderModalClose = document.getElementById("folderModalClose");
   var cancelFolderBtn = document.getElementById("cancelFolderBtn");
@@ -9213,10 +9679,13 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     if (pendingCat && !state.selectedCategories.includes(pendingCat)) {
       state.selectedCategories.push(pendingCat);
     }
+    const selectedFolderIds = [...state.selectedModalFolderIds];
     const data = {
       name: entryName.value.trim(),
       url: entryUrl.value.trim(),
-      folderId: entryFolder ? entryFolder.value || null : null,
+      folderIds: selectedFolderIds,
+      folderId: selectedFolderIds[0] || null,
+      hiddenFromMain: selectedFolderIds.length > 0 && Boolean(entryHiddenFromMain?.checked),
       categories: [...state.selectedCategories],
       iconUrl: entryIcon ? entryIcon.value.trim() : "",
       description: entryDescription ? entryDescription.value.trim() : "",
@@ -9511,6 +9980,22 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       renderCardsOnly();
     });
   }
+  function updateSearchHiddenToggleUI() {
+    if (!searchIncludeHiddenBtn) return;
+    searchIncludeHiddenBtn.classList.toggle("active", state.includeHiddenInSearch);
+    searchIncludeHiddenBtn.setAttribute("aria-pressed", String(state.includeHiddenInSearch));
+    searchIncludeHiddenBtn.title = state.includeHiddenInSearch ? "Including hidden collection webpages in search (click to hide)" : "Hidden collection webpages are excluded (click to include in search)";
+    const iconSpan = searchIncludeHiddenBtn.querySelector(".search-hidden-icon");
+    if (iconSpan) iconSpan.textContent = state.includeHiddenInSearch ? "\u{1F441}\uFE0F" : "\u{1F648}";
+  }
+  if (searchIncludeHiddenBtn) {
+    updateSearchHiddenToggleUI();
+    searchIncludeHiddenBtn.addEventListener("click", () => {
+      state.includeHiddenInSearch = !state.includeHiddenInSearch;
+      updateSearchHiddenToggleUI();
+      renderCardsOnly();
+    });
+  }
   if (sortSelect) {
     sortSelect.addEventListener("change", () => renderCardsOnly());
   }
@@ -9777,22 +10262,34 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   if (inlineNewFolderBtn) {
     inlineNewFolderBtn.addEventListener("click", () => {
       openFolderModal(null, (newFolderId) => {
-        populateFolderSelect(newFolderId);
+        if (!state.selectedModalFolderIds.includes(newFolderId)) {
+          state.selectedModalFolderIds.push(newFolderId);
+        }
+        renderModalCollectionPicker();
+        updateHiddenFromMainVisibility();
       });
     });
   }
   if (editFolderBtn) {
     editFolderBtn.addEventListener("click", () => {
-      if (state.activeFolderId && state.activeFolderId.startsWith("f-")) {
+      if (isUserCollectionId(state.activeFolderId)) {
         openFolderModal(state.activeFolderId);
       }
     });
   }
   if (deleteFolderBtn) {
     deleteFolderBtn.addEventListener("click", () => {
-      if (state.activeFolderId && state.activeFolderId.startsWith("f-")) {
+      if (isUserCollectionId(state.activeFolderId)) {
         deleteFolder(state.activeFolderId, render);
       }
+    });
+  }
+  if (folderBulkVisibility) {
+    folderBulkVisibility.addEventListener("click", (e) => {
+      const btn = e.target?.closest("[data-bulk-visibility]");
+      if (!btn || !isUserCollectionId(state.activeFolderId)) return;
+      const action = btn.getAttribute("data-bulk-visibility");
+      setCollectionMembersVisibility(state.activeFolderId, action === "hide", render);
     });
   }
   if (folderForm) {
@@ -9955,8 +10452,11 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     const hadSearch = Boolean(searchInput && searchInput.value);
     const hadCats = state.selectedFilterCategories.size > 0;
     const hadFolder = state.activeFolderId !== "all";
+    const hadHiddenSearch = state.includeHiddenInSearch;
     if (searchInput) searchInput.value = "";
     if (searchClearBtn) searchClearBtn.style.display = "none";
+    state.includeHiddenInSearch = false;
+    updateSearchHiddenToggleUI();
     state.selectedFilterCategories.clear();
     if (catFilterList) {
       catFilterList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
@@ -9967,7 +10467,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     if (catSearch) catSearch.value = "";
     updateCatFilterLabel();
     updateMobileCategoryTrackActiveState();
-    if (hadSearch || hadCats || hadFolder) {
+    if (hadSearch || hadCats || hadFolder || hadHiddenSearch) {
       state.activeFolderId = "all";
       renderFoldersSidebar(render);
       renderCardsOnly();
@@ -9987,7 +10487,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         } else {
           closeMobileFoldersDrawer();
           updateMobileBottomNavActiveTab(
-            state.activeFolderId === "favorites" ? "favorites" : state.activeFolderId && state.activeFolderId.startsWith("f-") ? "folders" : "directory"
+            state.activeFolderId === "favorites" ? "favorites" : isUserCollectionId(state.activeFolderId) ? "folders" : "directory"
           );
         }
         return;
@@ -10045,7 +10545,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
       } else {
         closeMobileFoldersDrawer();
         updateMobileBottomNavActiveTab(
-          state.activeFolderId === "favorites" ? "favorites" : state.activeFolderId && state.activeFolderId.startsWith("f-") ? "folders" : "directory"
+          state.activeFolderId === "favorites" ? "favorites" : isUserCollectionId(state.activeFolderId) ? "folders" : "directory"
         );
       }
     });
@@ -10196,7 +10696,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         isTrackingSwipe = false;
         closeMobileFoldersDrawer();
         updateMobileBottomNavActiveTab(
-          state.activeFolderId === "favorites" ? "favorites" : state.activeFolderId && state.activeFolderId.startsWith("f-") ? "folders" : "directory"
+          state.activeFolderId === "favorites" ? "favorites" : isUserCollectionId(state.activeFolderId) ? "folders" : "directory"
         );
       }
     }, { passive: true });
