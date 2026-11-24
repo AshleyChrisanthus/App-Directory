@@ -65,7 +65,8 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
 export function buildTaxonomyUserPrompt(
   context: ExtractedPageContext,
   availableCategories: string[],
-  searchSnippets?: string[]
+  searchSnippets?: string[],
+  decisionHintTags?: string[]
 ): string {
   const existingList = availableCategories.length > 0
     ? availableCategories.join(', ')
@@ -101,6 +102,12 @@ export function buildTaxonomyUserPrompt(
 
   prompt += `\n### Available Categories in User's App Directory:\n`;
   prompt += `[ ${existingList} ]\n\n`;
+
+  if (decisionHintTags && decisionHintTags.length > 0) {
+    prompt += `### Pre-matched Existing Tags (from fast classifier):\n`;
+    prompt += `[ ${decisionHintTags.join(', ')} ]\n`;
+    prompt += `Keep any of these that fit, and focus on whether a genuinely distinct new tag is needed.\n\n`;
+  }
 
   prompt += `### Instructions:
 1. Select 1 to 5 of the most fitting tags. Prioritize the Available Categories list above whenever they fit.

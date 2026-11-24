@@ -287,6 +287,11 @@ function renderModal(
             <input type="checkbox" id="ad-autoclassify-check" checked>
             <span>Auto-classify categories on opening modal</span>
           </label>
+
+          <label class="ad-checkbox-row">
+            <input type="checkbox" id="ad-decision-fastpath-check" checked>
+            <span>Use Gemini Decision 1 fast-path before Flash</span>
+          </label>
         </div>
         <div class="ad-settings-footer">
           <button type="button" class="ad-btn ad-btn-secondary" id="ad-settings-cancel-btn">Cancel</button>
@@ -609,6 +614,7 @@ function renderModal(
   const geminiModelSelect = shadow.getElementById('ad-gemini-model-select') as HTMLSelectElement | null;
   const braveKeyInput = shadow.getElementById('ad-brave-key-input') as HTMLInputElement | null;
   const autoclassifyCheck = shadow.getElementById('ad-autoclassify-check') as HTMLInputElement | null;
+  const decisionFastPathCheck = shadow.getElementById('ad-decision-fastpath-check') as HTMLInputElement | null;
 
   let lastLoadedSettings: ExtensionSettings | null = null;
 
@@ -641,6 +647,7 @@ function renderModal(
       }
       if (braveKeyInput && s) braveKeyInput.value = s.braveApiKey || '';
       if (autoclassifyCheck && s) autoclassifyCheck.checked = s.autoClassify !== false;
+      if (decisionFastPathCheck && s) decisionFastPathCheck.checked = s.useDecisionFastPath !== false;
       settingsDrawer.classList.add('ad-show');
     });
   };
@@ -661,7 +668,9 @@ function renderModal(
         geminiFallbackModels: lastLoadedSettings?.geminiFallbackModels || ['gemini-2.5-flash-lite'],
         discoveredModels: lastLoadedSettings?.discoveredModels,
         braveApiKey: braveKeyInput?.value.trim() || '',
-        autoClassify: autoclassifyCheck?.checked ?? true
+        autoClassify: autoclassifyCheck?.checked ?? true,
+        useDecisionFastPath: decisionFastPathCheck?.checked ?? true,
+        decisionConfidenceThreshold: lastLoadedSettings?.decisionConfidenceThreshold ?? 0.75
       };
 
       chrome.runtime.sendMessage({ type: 'SAVE_SETTINGS', settings: newSettings }, () => {

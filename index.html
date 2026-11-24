@@ -1056,6 +1056,16 @@
               </label>
             </div>
 
+            <div class="settings-toggle-row">
+              <label class="settings-toggle-label" for="settingsUseDecisionFastPath">
+                <input type="checkbox" id="settingsUseDecisionFastPath" checked>
+                <span class="settings-toggle-text">
+                  <strong>Gemini Decision 1 Fast-Path</strong>
+                  <small>Score all existing tags first with <code>gemini-decision-1</code> and only route to Flash / Flash-Lite when a new tag is needed.</small>
+                </span>
+              </label>
+            </div>
+
             <div class="settings-test-row">
               <button type="button" class="btn btn-secondary btn-sm" id="settingsTestAiBtn">⚡ Test Connection</button>
               <span class="settings-status-badge" id="settingsTestAiStatus" style="display: none;"></span>

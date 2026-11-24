@@ -24,6 +24,8 @@ export interface AppGlobalSettings {
   discoveredModels: DiscoveredModel[]; // Discovered/cached available models
   braveApiKey: string;
   autoClassify: boolean;
+  useDecisionFastPath: boolean;
+  decisionConfidenceThreshold: number;
 
   // General Preferences
   openInNewTab: boolean;
@@ -37,6 +39,8 @@ export const DEFAULT_GLOBAL_SETTINGS: AppGlobalSettings = {
   discoveredModels: [...DEFAULT_KNOWN_MODELS],
   braveApiKey: '',
   autoClassify: true,
+  useDecisionFastPath: true,
+  decisionConfidenceThreshold: 0.75,
   openInNewTab: true,
   defaultSort: 'dateAdded-desc'
 };

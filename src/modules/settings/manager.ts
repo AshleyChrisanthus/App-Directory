@@ -58,7 +58,9 @@ export function broadcastSettingsToExtension(settings: AppGlobalSettings): void 
         geminiFallbackModels: settings.geminiFallbackModels,
         discoveredModels: settings.discoveredModels,
         braveApiKey: settings.braveApiKey,
-        autoClassify: settings.autoClassify
+        autoClassify: settings.autoClassify,
+        useDecisionFastPath: settings.useDecisionFastPath,
+        decisionConfidenceThreshold: settings.decisionConfidenceThreshold
       }
     }, '*');
   }
@@ -99,6 +101,14 @@ export function syncSettingsFromExtension(extSettings: Partial<AppGlobalSettings
   }
   if (extSettings.autoClassify !== undefined && extSettings.autoClassify !== currentSettings.autoClassify) {
     next.autoClassify = extSettings.autoClassify;
+    changed = true;
+  }
+  if (extSettings.useDecisionFastPath !== undefined && extSettings.useDecisionFastPath !== currentSettings.useDecisionFastPath) {
+    next.useDecisionFastPath = extSettings.useDecisionFastPath;
+    changed = true;
+  }
+  if (typeof extSettings.decisionConfidenceThreshold === 'number' && extSettings.decisionConfidenceThreshold !== currentSettings.decisionConfidenceThreshold) {
+    next.decisionConfidenceThreshold = extSettings.decisionConfidenceThreshold;
     changed = true;
   }
 
@@ -310,6 +320,7 @@ function populateSettingsForm(): void {
   const geminiModelSelect = document.getElementById('settingsGeminiModel') as HTMLSelectElement | null;
   const braveKeyInput = document.getElementById('settingsBraveKey') as HTMLInputElement | null;
   const autoClassifyCheckbox = document.getElementById('settingsAutoClassify') as HTMLInputElement | null;
+  const useDecisionFastPathCheckbox = document.getElementById('settingsUseDecisionFastPath') as HTMLInputElement | null;
   const openInNewTabCheckbox = document.getElementById('settingsOpenInNewTab') as HTMLInputElement | null;
   const defaultSortSelect = document.getElementById('settingsDefaultSort') as HTMLSelectElement | null;
 
@@ -321,6 +332,7 @@ function populateSettingsForm(): void {
 
   if (braveKeyInput) braveKeyInput.value = currentSettings.braveApiKey || '';
   if (autoClassifyCheckbox) autoClassifyCheckbox.checked = currentSettings.autoClassify !== false;
+  if (useDecisionFastPathCheckbox) useDecisionFastPathCheckbox.checked = currentSettings.useDecisionFastPath !== false;
   if (openInNewTabCheckbox) openInNewTabCheckbox.checked = currentSettings.openInNewTab !== false;
   if (defaultSortSelect) defaultSortSelect.value = currentSettings.defaultSort || 'dateAdded-desc';
 }
@@ -330,6 +342,7 @@ function readFormSettings(): AppGlobalSettings {
   const geminiModelSelect = document.getElementById('settingsGeminiModel') as HTMLSelectElement | null;
   const braveKeyInput = document.getElementById('settingsBraveKey') as HTMLInputElement | null;
   const autoClassifyCheckbox = document.getElementById('settingsAutoClassify') as HTMLInputElement | null;
+  const useDecisionFastPathCheckbox = document.getElementById('settingsUseDecisionFastPath') as HTMLInputElement | null;
   const openInNewTabCheckbox = document.getElementById('settingsOpenInNewTab') as HTMLInputElement | null;
   const defaultSortSelect = document.getElementById('settingsDefaultSort') as HTMLSelectElement | null;
 
@@ -350,6 +363,8 @@ function readFormSettings(): AppGlobalSettings {
     discoveredModels: currentSettings.discoveredModels || [...DEFAULT_KNOWN_MODELS],
     braveApiKey: braveKeyInput ? braveKeyInput.value.trim() : currentSettings.braveApiKey,
     autoClassify: autoClassifyCheckbox ? autoClassifyCheckbox.checked : currentSettings.autoClassify,
+    useDecisionFastPath: useDecisionFastPathCheckbox ? useDecisionFastPathCheckbox.checked : currentSettings.useDecisionFastPath,
+    decisionConfidenceThreshold: currentSettings.decisionConfidenceThreshold ?? DEFAULT_GLOBAL_SETTINGS.decisionConfidenceThreshold,
     openInNewTab: openInNewTabCheckbox ? openInNewTabCheckbox.checked : currentSettings.openInNewTab,
     defaultSort: defaultSortSelect ? defaultSortSelect.value : currentSettings.defaultSort
   };
