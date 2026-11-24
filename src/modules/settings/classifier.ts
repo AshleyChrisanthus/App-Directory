@@ -1,5 +1,6 @@
 import { getSettings } from './manager';
 import { TAXONOMY_SYSTEM_PROMPT, buildTaxonomyUserPrompt } from '../../extension/taxonomy';
+import { classifyWithDecisionsApi, GEMINI_DECISION_MODEL } from '../../extension/decisions';
 import {
   ExtractedPageContext,
   ClassificationResult,
@@ -84,7 +85,60 @@ export async function classifyBookmarkWithAI(
     }
   }
 
-  const userPrompt = buildTaxonomyUserPrompt(pageContext, availableCategories, searchSnippets);
+  const auditChain: ModelAuditEntry[] = [];
+  let decisionHintTags: string[] | undefined;
+
+  // Stage 1: Fast existing-tag scoring & new-tag routing via gemini-decision-1
+  if (settings.useDecisionFastPath !== false && availableCategories.length > 0) {
+    const decisionResult = await classifyWithDecisionsApi(
+      geminiApiKey,
+      pageContext,
+      availableCategories,
+      searchSnippets,
+      settings.decisionConfidenceThreshold ?? 0.75,
+      onProgress,
+      auditChain
+    );
+
+    if (decisionResult.error === 'INVALID_API_KEY') {
+      onProgress?.({
+        stage: 'ERROR',
+        model: GEMINI_DECISION_MODEL,
+        errorReason: 'INVALID_API_KEY',
+        message: 'Invalid Gemini API Key.'
+      });
+      return {
+        success: false,
+        error: 'INVALID_API_KEY',
+        recommendedTags: [],
+        auditChain
+      };
+    }
+
+    if (!decisionResult.shouldRouteToGenerative && decisionResult.matchedTags.length > 0) {
+      return {
+        success: true,
+        method,
+        recommendedTags: decisionResult.matchedTags,
+        newTags: [],
+        reasoning: `Matched existing taxonomy via ${GEMINI_DECISION_MODEL} (new-tag score: ${decisionResult.needsNewTagScore.toFixed(2)}).`,
+        suggestedNewTag: null,
+        modelUsed: GEMINI_DECISION_MODEL,
+        auditChain
+      };
+    }
+
+    if (decisionResult.matchedTags.length > 0) {
+      decisionHintTags = decisionResult.matchedTags;
+    }
+  }
+
+  const userPrompt = buildTaxonomyUserPrompt(
+    pageContext,
+    availableCategories,
+    searchSnippets,
+    decisionHintTags
+  );
 
   // Construct ordered list of models to try
   const modelsToTry: string[] = [];
@@ -103,7 +157,6 @@ export async function classifyBookmarkWithAI(
     modelsToTry.push('gemini-2.5-flash');
   }
 
-  const auditChain: ModelAuditEntry[] = [];
   let lastError = 'UNKNOWN_ERROR';
 
   for (let idx = 0; idx < modelsToTry.length; idx++) {

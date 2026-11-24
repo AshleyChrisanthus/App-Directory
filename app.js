@@ -3646,6 +3646,8 @@
     discoveredModels: [...DEFAULT_KNOWN_MODELS],
     braveApiKey: "",
     autoClassify: true,
+    useDecisionFastPath: true,
+    decisionConfidenceThreshold: 0.75,
     openInNewTab: true,
     defaultSort: "dateAdded-desc"
   };
@@ -3801,7 +3803,9 @@
           geminiFallbackModels: settings.geminiFallbackModels,
           discoveredModels: settings.discoveredModels,
           braveApiKey: settings.braveApiKey,
-          autoClassify: settings.autoClassify
+          autoClassify: settings.autoClassify,
+          useDecisionFastPath: settings.useDecisionFastPath,
+          decisionConfidenceThreshold: settings.decisionConfidenceThreshold
         }
       }, "*");
     }
@@ -3841,6 +3845,14 @@
       next.autoClassify = extSettings.autoClassify;
       changed = true;
     }
+    if (extSettings.useDecisionFastPath !== void 0 && extSettings.useDecisionFastPath !== currentSettings.useDecisionFastPath) {
+      next.useDecisionFastPath = extSettings.useDecisionFastPath;
+      changed = true;
+    }
+    if (typeof extSettings.decisionConfidenceThreshold === "number" && extSettings.decisionConfidenceThreshold !== currentSettings.decisionConfidenceThreshold) {
+      next.decisionConfidenceThreshold = extSettings.decisionConfidenceThreshold;
+      changed = true;
+    }
     if (changed) {
       currentSettings = { ...currentSettings, ...next };
       try {
@@ -3850,35 +3862,87 @@
       populateSettingsForm();
     }
   }
-  async function testGeminiConnection(apiKey, model) {
+  async function testGeminiConnection(apiKey, model, checkDecisionsApi = false) {
     const key = apiKey.trim();
     if (!key) {
       return { success: false, message: "Please enter a Gemini API key first." };
     }
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || "gemini-2.5-flash")}:generateContent?key=${encodeURIComponent(key)}`;
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "Ping test. Reply with OK." }] }]
-        })
-      });
-      if (res.ok) {
-        return { success: true, message: `Connected to ${model} successfully!` };
+    const targetModel = model || "gemini-2.5-flash";
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(targetModel)}:generateContent?key=${encodeURIComponent(key)}`;
+    const pingGenerative = async () => {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Ping test. Reply with OK." }] }]
+          })
+        });
+        return { ok: res.ok, status: res.status };
+      } catch (err) {
+        return { ok: false, status: 0, err: err?.message || "Network error" };
       }
-      if (res.status === 400 || res.status === 403) {
-        return { success: false, message: `Invalid API key (HTTP ${res.status}). Check your Google AI Studio key.` };
-      } else if (res.status === 429) {
+    };
+    const pingDecisions = async () => {
+      try {
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/decisions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": key
+          },
+          body: JSON.stringify({
+            model: "gemini-decision-1",
+            input: "Ping test.",
+            questions: {
+              ping: {
+                type: "noul",
+                instructions: "Is this a ping test?"
+              }
+            }
+          })
+        });
+        return { ok: res.ok, status: res.status };
+      } catch (err) {
+        return { ok: false, status: 0, err: err?.message || "Network error" };
+      }
+    };
+    const formatFailure = (label, status, err) => {
+      if (status === 400 || status === 403) return `${label}: Invalid API key (HTTP ${status})`;
+      if (status === 429) return `${label}: Rate limit reached (HTTP 429)`;
+      if (status === 503) return `${label}: Temporarily overloaded (HTTP 503)`;
+      if (status > 0) return `${label}: HTTP ${status}`;
+      return `${label}: ${err || "Network error"}`;
+    };
+    const [genRes, decRes] = await Promise.all([
+      pingGenerative(),
+      checkDecisionsApi ? pingDecisions() : Promise.resolve(null)
+    ]);
+    if (!genRes.ok) {
+      if (genRes.status === 400 || genRes.status === 403) {
+        return { success: false, message: `Invalid API key (HTTP ${genRes.status}). Check your Google AI Studio key.` };
+      }
+      if (genRes.status === 429) {
         return { success: false, message: "Rate limit reached (HTTP 429). Please wait a moment." };
-      } else if (res.status === 503) {
-        return { success: false, message: `${model} is temporarily overloaded (HTTP 503). You can switch to gemini-2.5-flash.` };
-      } else {
-        return { success: false, message: `API Error (HTTP ${res.status}).` };
       }
-    } catch (err) {
-      return { success: false, message: err?.message || "Network error connecting to Gemini API." };
+      if (genRes.status === 503) {
+        return { success: false, message: `${targetModel} is temporarily overloaded (HTTP 503). You can switch to gemini-2.5-flash.` };
+      }
+      if (genRes.status > 0) {
+        return { success: false, message: `API Error (HTTP ${genRes.status}).` };
+      }
+      return { success: false, message: genRes.err || "Network error connecting to Gemini API." };
     }
+    if (decRes) {
+      if (decRes.ok) {
+        return { success: true, message: `Connected to ${targetModel} and gemini-decision-1 successfully!` };
+      }
+      return {
+        success: false,
+        message: `Connected to ${targetModel}, but ${formatFailure("gemini-decision-1", decRes.status, decRes.err)}.`
+      };
+    }
+    return { success: true, message: `Connected to ${targetModel} successfully!` };
   }
   function openSettingsModal(defaultTab = "ai") {
     const backdrop = document.getElementById("settingsModalBackdrop");
@@ -4013,6 +4077,7 @@
     const geminiModelSelect = document.getElementById("settingsGeminiModel");
     const braveKeyInput = document.getElementById("settingsBraveKey");
     const autoClassifyCheckbox = document.getElementById("settingsAutoClassify");
+    const useDecisionFastPathCheckbox = document.getElementById("settingsUseDecisionFastPath");
     const openInNewTabCheckbox = document.getElementById("settingsOpenInNewTab");
     const defaultSortSelect = document.getElementById("settingsDefaultSort");
     if (geminiKeyInput) geminiKeyInput.value = currentSettings.geminiApiKey || "";
@@ -4022,6 +4087,7 @@
     renderFallbackChainList();
     if (braveKeyInput) braveKeyInput.value = currentSettings.braveApiKey || "";
     if (autoClassifyCheckbox) autoClassifyCheckbox.checked = currentSettings.autoClassify !== false;
+    if (useDecisionFastPathCheckbox) useDecisionFastPathCheckbox.checked = currentSettings.useDecisionFastPath !== false;
     if (openInNewTabCheckbox) openInNewTabCheckbox.checked = currentSettings.openInNewTab !== false;
     if (defaultSortSelect) defaultSortSelect.value = currentSettings.defaultSort || "dateAdded-desc";
   }
@@ -4030,6 +4096,7 @@
     const geminiModelSelect = document.getElementById("settingsGeminiModel");
     const braveKeyInput = document.getElementById("settingsBraveKey");
     const autoClassifyCheckbox = document.getElementById("settingsAutoClassify");
+    const useDecisionFastPathCheckbox = document.getElementById("settingsUseDecisionFastPath");
     const openInNewTabCheckbox = document.getElementById("settingsOpenInNewTab");
     const defaultSortSelect = document.getElementById("settingsDefaultSort");
     const fallbackSelects = document.querySelectorAll(".settings-fallback-item-select");
@@ -4047,6 +4114,8 @@
       discoveredModels: currentSettings.discoveredModels || [...DEFAULT_KNOWN_MODELS],
       braveApiKey: braveKeyInput ? braveKeyInput.value.trim() : currentSettings.braveApiKey,
       autoClassify: autoClassifyCheckbox ? autoClassifyCheckbox.checked : currentSettings.autoClassify,
+      useDecisionFastPath: useDecisionFastPathCheckbox ? useDecisionFastPathCheckbox.checked : currentSettings.useDecisionFastPath,
+      decisionConfidenceThreshold: currentSettings.decisionConfidenceThreshold ?? DEFAULT_GLOBAL_SETTINGS.decisionConfidenceThreshold,
       openInNewTab: openInNewTabCheckbox ? openInNewTabCheckbox.checked : currentSettings.openInNewTab,
       defaultSort: defaultSortSelect ? defaultSortSelect.value : currentSettings.defaultSort
     };
@@ -4162,6 +4231,8 @@
         const geminiKey = geminiKeyInput ? geminiKeyInput.value.trim() : "";
         const geminiModelSelect = document.getElementById("settingsGeminiModel");
         const model = geminiModelSelect ? geminiModelSelect.value : "gemini-2.5-flash";
+        const decisionFastPathCheckbox = document.getElementById("settingsUseDecisionFastPath");
+        const checkDecisionsApi = decisionFastPathCheckbox ? decisionFastPathCheckbox.checked : currentSettings.useDecisionFastPath !== false;
         if (!geminiKey) {
           if (testStatus) {
             testStatus.style.display = "inline-flex";
@@ -4176,7 +4247,7 @@
           testStatus.textContent = "Testing connection\u2026";
         }
         testAiBtn.setAttribute("disabled", "true");
-        const result = await testGeminiConnection(geminiKey, model);
+        const result = await testGeminiConnection(geminiKey, model, checkDecisionsApi);
         testAiBtn.removeAttribute("disabled");
         if (testStatus) {
           testStatus.style.display = "inline-flex";
@@ -4267,7 +4338,7 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
   "reasoning": "Brief 1-2 sentence explanation of why these tags apply."
 }
 `;
-  function buildTaxonomyUserPrompt(context, availableCategories, searchSnippets) {
+  function buildTaxonomyUserPrompt(context, availableCategories, searchSnippets, decisionHintTags) {
     const existingList = availableCategories.length > 0 ? availableCategories.join(", ") : "None yet";
     let prompt = `Classify this website based on the taxonomy guidelines.
 
@@ -4313,6 +4384,15 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     prompt += `[ ${existingList} ]
 
 `;
+    if (decisionHintTags && decisionHintTags.length > 0) {
+      prompt += `### Pre-matched Existing Tags (from fast classifier):
+`;
+      prompt += `[ ${decisionHintTags.join(", ")} ]
+`;
+      prompt += `Keep any of these that fit, and focus on whether a genuinely distinct new tag is needed.
+
+`;
+    }
     prompt += `### Instructions:
 1. Select 1 to 5 of the most fitting tags. Prioritize the Available Categories list above whenever they fit.
 2. If none of the available categories fit well, or if a crucial distinct category is missing, you MUST suggest 1-2 new appropriate tags (e.g., "Internet History", "Digital Archive", "AI History", etc.).
@@ -4321,6 +4401,190 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
 5. In "reasoning", provide a concise 1-2 sentence rationale explaining your choices.
 6. Respond ONLY with the requested JSON object.`;
     return prompt;
+  }
+
+  // src/extension/decisions.ts
+  var GEMINI_DECISION_MODEL = "gemini-decision-1";
+  var DECISIONS_API_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/decisions";
+  var MAX_DECISION_QUESTIONS = 1e3;
+  var MAX_RECOMMENDED_TAGS = 5;
+  var DEFAULT_CONFIDENCE_THRESHOLD = 0.75;
+  var NEW_TAG_ROUTE_THRESHOLD = 0.5;
+  function buildDecisionInputText(context, searchSnippets) {
+    const lines = [
+      `URL: ${context.url}`,
+      `Title: ${context.title}`
+    ];
+    if (context.description) {
+      lines.push(`Meta Description: ${context.description}`);
+    }
+    if (context.headings.length > 0) {
+      lines.push(`Main Headings: ${context.headings.slice(0, 6).join(" | ")}`);
+    }
+    if (context.schemaTypes.length > 0) {
+      lines.push(`Schema.org Types: ${context.schemaTypes.join(", ")}`);
+    }
+    if (context.heroText) {
+      lines.push(`Hero Text: ${context.heroText}`);
+    }
+    if (context.bodySummary) {
+      lines.push(`Page Content Snippet: ${context.bodySummary.slice(0, 1800)}`);
+    }
+    if (searchSnippets && searchSnippets.length > 0) {
+      lines.push("External Web Search Context:");
+      searchSnippets.forEach((snippet, idx) => {
+        lines.push(`[Result ${idx + 1}] ${snippet}`);
+      });
+    }
+    return lines.join("\n");
+  }
+  function readNoulProbability(answer) {
+    if (!answer || typeof answer !== "object") return 0;
+    if (typeof answer.noul === "number") return answer.noul;
+    if (typeof answer.value === "number") return answer.value;
+    return 0;
+  }
+  async function classifyWithDecisionsApi(geminiApiKey, context, availableCategories, searchSnippets = [], confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD, onProgress, auditChain) {
+    if (!availableCategories || availableCategories.length === 0) {
+      return {
+        matchedTags: [],
+        needsNewTag: true,
+        needsNewTagScore: 1,
+        tagScores: {},
+        shouldRouteToGenerative: true,
+        latencyMs: 0
+      };
+    }
+    onProgress?.({
+      stage: "ATTEMPTING",
+      model: GEMINI_DECISION_MODEL,
+      message: `Scoring ${availableCategories.length} existing tags via ${GEMINI_DECISION_MODEL}...`
+    });
+    const categoriesToCheck = availableCategories.slice(0, MAX_DECISION_QUESTIONS - 1);
+    const questions = {};
+    const keyToCategory = /* @__PURE__ */ new Map();
+    categoriesToCheck.forEach((category, idx) => {
+      const key = `tag_${idx}`;
+      keyToCategory.set(key, category);
+      questions[key] = {
+        type: "noul",
+        instructions: `Does this website's core product or primary purpose belong in the "${category}" category? Answer yes only if "${category}" is a substantial, first-class capability of the site rather than a minor feature.`
+      };
+    });
+    questions["needs_new_tag"] = {
+      type: "noul",
+      instructions: `Is this website's primary product or category missing from all of the existing categories (${categoriesToCheck.join(", ")}), such that a brand-new reusable taxonomy tag is genuinely needed?`
+    };
+    const input = buildDecisionInputText(context, searchSnippets);
+    const startTime = Date.now();
+    let response = null;
+    let fetchError = null;
+    try {
+      response = await fetch(DECISIONS_API_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiApiKey
+        },
+        body: JSON.stringify({
+          model: GEMINI_DECISION_MODEL,
+          input,
+          questions
+        })
+      });
+    } catch (err) {
+      fetchError = err;
+    }
+    const latencyMs = Date.now() - startTime;
+    if (fetchError || !response || !response.ok) {
+      const status = response ? response.status : 0;
+      let errorReason = "NETWORK_ERROR";
+      if (status === 429) {
+        errorReason = "RATE_LIMIT_EXCEEDED";
+      } else if (status === 503) {
+        errorReason = "SERVICE_OVERLOADED_503";
+      } else if (status === 400 || status === 403) {
+        errorReason = "INVALID_API_KEY";
+      } else if (status > 0) {
+        errorReason = `HTTP_${status}`;
+      }
+      auditChain?.push({
+        model: GEMINI_DECISION_MODEL,
+        status: "FAILED",
+        error: errorReason,
+        latencyMs
+      });
+      return {
+        matchedTags: [],
+        needsNewTag: true,
+        needsNewTagScore: 1,
+        tagScores: {},
+        shouldRouteToGenerative: true,
+        latencyMs,
+        error: errorReason
+      };
+    }
+    try {
+      const data = await response.json();
+      const answers = data?.answers || {};
+      const tagScores = {};
+      const scoredMatches = [];
+      for (const [key, category] of keyToCategory.entries()) {
+        const score = readNoulProbability(answers[key]);
+        tagScores[category] = score;
+        if (score >= confidenceThreshold) {
+          scoredMatches.push({ category, score });
+        }
+      }
+      scoredMatches.sort((a, b) => b.score - a.score);
+      const matchedTags = scoredMatches.slice(0, MAX_RECOMMENDED_TAGS).map((item) => item.category);
+      const needsNewTagScore = readNoulProbability(answers["needs_new_tag"]);
+      const needsNewTag = needsNewTagScore >= NEW_TAG_ROUTE_THRESHOLD;
+      const shouldRouteToGenerative = matchedTags.length === 0 || needsNewTag;
+      auditChain?.push({
+        model: GEMINI_DECISION_MODEL,
+        status: "SUCCESS",
+        latencyMs
+      });
+      if (!shouldRouteToGenerative) {
+        onProgress?.({
+          stage: "SUCCESS",
+          model: GEMINI_DECISION_MODEL,
+          message: `Matched ${matchedTags.length} tag(s) via ${GEMINI_DECISION_MODEL} (${latencyMs}ms)`
+        });
+      } else {
+        const reasonText = matchedTags.length === 0 ? "No existing tag cleared threshold" : "New tag may be needed";
+        onProgress?.({
+          stage: "FALLBACK_SWITCH",
+          model: GEMINI_DECISION_MODEL,
+          message: `${GEMINI_DECISION_MODEL} (${latencyMs}ms): ${reasonText} \u2192 Routing to generative model...`
+        });
+      }
+      return {
+        matchedTags,
+        needsNewTag,
+        needsNewTagScore,
+        tagScores,
+        shouldRouteToGenerative,
+        latencyMs
+      };
+    } catch {
+      auditChain?.push({
+        model: GEMINI_DECISION_MODEL,
+        status: "FAILED",
+        error: "PARSE_ERROR",
+        latencyMs
+      });
+      return {
+        matchedTags: [],
+        needsNewTag: true,
+        needsNewTagScore: 1,
+        tagScores: {},
+        shouldRouteToGenerative: true,
+        latencyMs,
+        error: "PARSE_ERROR"
+      };
+    }
   }
 
   // src/modules/settings/classifier.ts
@@ -4385,7 +4649,54 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
         console.warn("[Classifier] Brave Search failed, continuing with direct prompt:", bErr);
       }
     }
-    const userPrompt = buildTaxonomyUserPrompt(pageContext, availableCategories, searchSnippets);
+    const auditChain = [];
+    let decisionHintTags;
+    if (settings.useDecisionFastPath !== false && availableCategories.length > 0) {
+      const decisionResult = await classifyWithDecisionsApi(
+        geminiApiKey,
+        pageContext,
+        availableCategories,
+        searchSnippets,
+        settings.decisionConfidenceThreshold ?? 0.75,
+        onProgress,
+        auditChain
+      );
+      if (decisionResult.error === "INVALID_API_KEY") {
+        onProgress?.({
+          stage: "ERROR",
+          model: GEMINI_DECISION_MODEL,
+          errorReason: "INVALID_API_KEY",
+          message: "Invalid Gemini API Key."
+        });
+        return {
+          success: false,
+          error: "INVALID_API_KEY",
+          recommendedTags: [],
+          auditChain
+        };
+      }
+      if (!decisionResult.shouldRouteToGenerative && decisionResult.matchedTags.length > 0) {
+        return {
+          success: true,
+          method,
+          recommendedTags: decisionResult.matchedTags,
+          newTags: [],
+          reasoning: `Matched existing taxonomy via ${GEMINI_DECISION_MODEL} (new-tag score: ${decisionResult.needsNewTagScore.toFixed(2)}).`,
+          suggestedNewTag: null,
+          modelUsed: GEMINI_DECISION_MODEL,
+          auditChain
+        };
+      }
+      if (decisionResult.matchedTags.length > 0) {
+        decisionHintTags = decisionResult.matchedTags;
+      }
+    }
+    const userPrompt = buildTaxonomyUserPrompt(
+      pageContext,
+      availableCategories,
+      searchSnippets,
+      decisionHintTags
+    );
     const modelsToTry = [];
     if (settings.geminiModel && settings.geminiModel.trim()) {
       modelsToTry.push(settings.geminiModel.trim());
@@ -4401,7 +4712,6 @@ You MUST output strictly a valid JSON object matching this schema with no markdo
     if (modelsToTry.length === 0) {
       modelsToTry.push("gemini-2.5-flash");
     }
-    const auditChain = [];
     let lastError = "UNKNOWN_ERROR";
     for (let idx = 0; idx < modelsToTry.length; idx++) {
       const currentModel = modelsToTry[idx];

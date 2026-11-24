@@ -58,7 +58,9 @@ export function broadcastSettingsToExtension(settings: AppGlobalSettings): void 
         geminiFallbackModels: settings.geminiFallbackModels,
         discoveredModels: settings.discoveredModels,
         braveApiKey: settings.braveApiKey,
-        autoClassify: settings.autoClassify
+        autoClassify: settings.autoClassify,
+        useDecisionFastPath: settings.useDecisionFastPath,
+        decisionConfidenceThreshold: settings.decisionConfidenceThreshold
       }
     }, '*');
   }
@@ -101,6 +103,14 @@ export function syncSettingsFromExtension(extSettings: Partial<AppGlobalSettings
     next.autoClassify = extSettings.autoClassify;
     changed = true;
   }
+  if (extSettings.useDecisionFastPath !== undefined && extSettings.useDecisionFastPath !== currentSettings.useDecisionFastPath) {
+    next.useDecisionFastPath = extSettings.useDecisionFastPath;
+    changed = true;
+  }
+  if (typeof extSettings.decisionConfidenceThreshold === 'number' && extSettings.decisionConfidenceThreshold !== currentSettings.decisionConfidenceThreshold) {
+    next.decisionConfidenceThreshold = extSettings.decisionConfidenceThreshold;
+    changed = true;
+  }
 
   if (changed) {
     currentSettings = { ...currentSettings, ...next };
@@ -111,39 +121,99 @@ export function syncSettingsFromExtension(extSettings: Partial<AppGlobalSettings
   }
 }
 
-export async function testGeminiConnection(apiKey: string, model: string): Promise<{ success: boolean; message: string }> {
+export async function testGeminiConnection(
+  apiKey: string,
+  model: string,
+  checkDecisionsApi: boolean = false
+): Promise<{ success: boolean; message: string }> {
   const key = apiKey.trim();
   if (!key) {
     return { success: false, message: 'Please enter a Gemini API key first.' };
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || 'gemini-2.5-flash')}:generateContent?key=${encodeURIComponent(key)}`;
+  const targetModel = model || 'gemini-2.5-flash';
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(targetModel)}:generateContent?key=${encodeURIComponent(key)}`;
 
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: 'Ping test. Reply with OK.' }] }]
-      })
-    });
-
-    if (res.ok) {
-      return { success: true, message: `Connected to ${model} successfully!` };
+  const pingGenerative = async (): Promise<{ ok: boolean; status: number; err?: string }> => {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'Ping test. Reply with OK.' }] }]
+        })
+      });
+      return { ok: res.ok, status: res.status };
+    } catch (err: any) {
+      return { ok: false, status: 0, err: err?.message || 'Network error' };
     }
+  };
 
-    if (res.status === 400 || res.status === 403) {
-      return { success: false, message: `Invalid API key (HTTP ${res.status}). Check your Google AI Studio key.` };
-    } else if (res.status === 429) {
+  const pingDecisions = async (): Promise<{ ok: boolean; status: number; err?: string }> => {
+    try {
+      const res = await fetch('https://generativelanguage.googleapis.com/v1beta/decisions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          model: 'gemini-decision-1',
+          input: 'Ping test.',
+          questions: {
+            ping: {
+              type: 'noul',
+              instructions: 'Is this a ping test?'
+            }
+          }
+        })
+      });
+      return { ok: res.ok, status: res.status };
+    } catch (err: any) {
+      return { ok: false, status: 0, err: err?.message || 'Network error' };
+    }
+  };
+
+  const formatFailure = (label: string, status: number, err?: string): string => {
+    if (status === 400 || status === 403) return `${label}: Invalid API key (HTTP ${status})`;
+    if (status === 429) return `${label}: Rate limit reached (HTTP 429)`;
+    if (status === 503) return `${label}: Temporarily overloaded (HTTP 503)`;
+    if (status > 0) return `${label}: HTTP ${status}`;
+    return `${label}: ${err || 'Network error'}`;
+  };
+
+  const [genRes, decRes] = await Promise.all([
+    pingGenerative(),
+    checkDecisionsApi ? pingDecisions() : Promise.resolve(null)
+  ]);
+
+  if (!genRes.ok) {
+    if (genRes.status === 400 || genRes.status === 403) {
+      return { success: false, message: `Invalid API key (HTTP ${genRes.status}). Check your Google AI Studio key.` };
+    }
+    if (genRes.status === 429) {
       return { success: false, message: 'Rate limit reached (HTTP 429). Please wait a moment.' };
-    } else if (res.status === 503) {
-      return { success: false, message: `${model} is temporarily overloaded (HTTP 503). You can switch to gemini-2.5-flash.` };
-    } else {
-      return { success: false, message: `API Error (HTTP ${res.status}).` };
     }
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'Network error connecting to Gemini API.' };
+    if (genRes.status === 503) {
+      return { success: false, message: `${targetModel} is temporarily overloaded (HTTP 503). You can switch to gemini-2.5-flash.` };
+    }
+    if (genRes.status > 0) {
+      return { success: false, message: `API Error (HTTP ${genRes.status}).` };
+    }
+    return { success: false, message: genRes.err || 'Network error connecting to Gemini API.' };
   }
+
+  if (decRes) {
+    if (decRes.ok) {
+      return { success: true, message: `Connected to ${targetModel} and gemini-decision-1 successfully!` };
+    }
+    return {
+      success: false,
+      message: `Connected to ${targetModel}, but ${formatFailure('gemini-decision-1', decRes.status, decRes.err)}.`
+    };
+  }
+
+  return { success: true, message: `Connected to ${targetModel} successfully!` };
 }
 
 export function openSettingsModal(defaultTab: string = 'ai'): void {
@@ -310,6 +380,7 @@ function populateSettingsForm(): void {
   const geminiModelSelect = document.getElementById('settingsGeminiModel') as HTMLSelectElement | null;
   const braveKeyInput = document.getElementById('settingsBraveKey') as HTMLInputElement | null;
   const autoClassifyCheckbox = document.getElementById('settingsAutoClassify') as HTMLInputElement | null;
+  const useDecisionFastPathCheckbox = document.getElementById('settingsUseDecisionFastPath') as HTMLInputElement | null;
   const openInNewTabCheckbox = document.getElementById('settingsOpenInNewTab') as HTMLInputElement | null;
   const defaultSortSelect = document.getElementById('settingsDefaultSort') as HTMLSelectElement | null;
 
@@ -321,6 +392,7 @@ function populateSettingsForm(): void {
 
   if (braveKeyInput) braveKeyInput.value = currentSettings.braveApiKey || '';
   if (autoClassifyCheckbox) autoClassifyCheckbox.checked = currentSettings.autoClassify !== false;
+  if (useDecisionFastPathCheckbox) useDecisionFastPathCheckbox.checked = currentSettings.useDecisionFastPath !== false;
   if (openInNewTabCheckbox) openInNewTabCheckbox.checked = currentSettings.openInNewTab !== false;
   if (defaultSortSelect) defaultSortSelect.value = currentSettings.defaultSort || 'dateAdded-desc';
 }
@@ -330,6 +402,7 @@ function readFormSettings(): AppGlobalSettings {
   const geminiModelSelect = document.getElementById('settingsGeminiModel') as HTMLSelectElement | null;
   const braveKeyInput = document.getElementById('settingsBraveKey') as HTMLInputElement | null;
   const autoClassifyCheckbox = document.getElementById('settingsAutoClassify') as HTMLInputElement | null;
+  const useDecisionFastPathCheckbox = document.getElementById('settingsUseDecisionFastPath') as HTMLInputElement | null;
   const openInNewTabCheckbox = document.getElementById('settingsOpenInNewTab') as HTMLInputElement | null;
   const defaultSortSelect = document.getElementById('settingsDefaultSort') as HTMLSelectElement | null;
 
@@ -350,6 +423,8 @@ function readFormSettings(): AppGlobalSettings {
     discoveredModels: currentSettings.discoveredModels || [...DEFAULT_KNOWN_MODELS],
     braveApiKey: braveKeyInput ? braveKeyInput.value.trim() : currentSettings.braveApiKey,
     autoClassify: autoClassifyCheckbox ? autoClassifyCheckbox.checked : currentSettings.autoClassify,
+    useDecisionFastPath: useDecisionFastPathCheckbox ? useDecisionFastPathCheckbox.checked : currentSettings.useDecisionFastPath,
+    decisionConfidenceThreshold: currentSettings.decisionConfidenceThreshold ?? DEFAULT_GLOBAL_SETTINGS.decisionConfidenceThreshold,
     openInNewTab: openInNewTabCheckbox ? openInNewTabCheckbox.checked : currentSettings.openInNewTab,
     defaultSort: defaultSortSelect ? defaultSortSelect.value : currentSettings.defaultSort
   };
@@ -494,6 +569,8 @@ export function initSettingsModal(): void {
       const geminiKey = geminiKeyInput ? geminiKeyInput.value.trim() : '';
       const geminiModelSelect = document.getElementById('settingsGeminiModel') as HTMLSelectElement | null;
       const model = geminiModelSelect ? geminiModelSelect.value : 'gemini-2.5-flash';
+      const decisionFastPathCheckbox = document.getElementById('settingsUseDecisionFastPath') as HTMLInputElement | null;
+      const checkDecisionsApi = decisionFastPathCheckbox ? decisionFastPathCheckbox.checked : currentSettings.useDecisionFastPath !== false;
 
       if (!geminiKey) {
         if (testStatus) {
@@ -511,7 +588,7 @@ export function initSettingsModal(): void {
       }
 
       testAiBtn.setAttribute('disabled', 'true');
-      const result = await testGeminiConnection(geminiKey, model);
+      const result = await testGeminiConnection(geminiKey, model, checkDecisionsApi);
       testAiBtn.removeAttribute('disabled');
 
       if (testStatus) {

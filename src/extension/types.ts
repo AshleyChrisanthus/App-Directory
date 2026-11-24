@@ -55,6 +55,8 @@ export interface ExtensionSettings {
   discoveredModels?: DiscoveredModel[];
   braveApiKey?: string;
   autoClassify: boolean;
+  useDecisionFastPath?: boolean;
+  decisionConfidenceThreshold?: number;
 }
 
 export interface CachedFolder {

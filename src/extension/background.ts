@@ -2,6 +2,7 @@
 
 import { TAXONOMY_SYSTEM_PROMPT, buildTaxonomyUserPrompt } from './taxonomy';
 import { getEntryFolderIds } from '../utils/collections';
+import { classifyWithDecisionsApi, GEMINI_DECISION_MODEL } from './decisions';
 import {
   ExtractedPageContext,
   ExtensionSettings,
@@ -20,7 +21,9 @@ const STORAGE_KEYS = {
   SETTINGS_GEMINI_FALLBACK_MODELS: 'ad_gemini_fallback_models',
   SETTINGS_DISCOVERED_MODELS: 'ad_discovered_models',
   SETTINGS_BRAVE_KEY: 'ad_brave_api_key',
-  SETTINGS_AUTO_CLASSIFY: 'ad_auto_classify'
+  SETTINGS_AUTO_CLASSIFY: 'ad_auto_classify',
+  SETTINGS_USE_DECISION_FAST_PATH: 'ad_use_decision_fast_path',
+  SETTINGS_DECISION_THRESHOLD: 'ad_decision_threshold'
 };
 
 
@@ -211,7 +214,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS,
         STORAGE_KEYS.SETTINGS_DISCOVERED_MODELS,
         STORAGE_KEYS.SETTINGS_BRAVE_KEY,
-        STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY
+        STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY,
+        STORAGE_KEYS.SETTINGS_USE_DECISION_FAST_PATH,
+        STORAGE_KEYS.SETTINGS_DECISION_THRESHOLD
       ], (res) => {
         sendResponse({
           geminiApiKey: res[STORAGE_KEYS.SETTINGS_GEMINI_KEY] || '',
@@ -219,7 +224,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           geminiFallbackModels: res[STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS] || ['gemini-2.5-flash-lite'],
           discoveredModels: res[STORAGE_KEYS.SETTINGS_DISCOVERED_MODELS] || [],
           braveApiKey: res[STORAGE_KEYS.SETTINGS_BRAVE_KEY] || '',
-          autoClassify: res[STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY] !== false
+          autoClassify: res[STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY] !== false,
+          useDecisionFastPath: res[STORAGE_KEYS.SETTINGS_USE_DECISION_FAST_PATH] !== false,
+          decisionConfidenceThreshold: typeof res[STORAGE_KEYS.SETTINGS_DECISION_THRESHOLD] === 'number'
+            ? res[STORAGE_KEYS.SETTINGS_DECISION_THRESHOLD]
+            : 0.75
         });
       });
       return true;
@@ -231,8 +240,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         [STORAGE_KEYS.SETTINGS_GEMINI_KEY]: s.geminiApiKey || '',
         [STORAGE_KEYS.SETTINGS_GEMINI_MODEL]: s.geminiModel || 'gemini-2.5-flash',
         [STORAGE_KEYS.SETTINGS_BRAVE_KEY]: s.braveApiKey || '',
-        [STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY]: s.autoClassify !== false
+        [STORAGE_KEYS.SETTINGS_AUTO_CLASSIFY]: s.autoClassify !== false,
+        [STORAGE_KEYS.SETTINGS_USE_DECISION_FAST_PATH]: s.useDecisionFastPath !== false
       };
+      if (typeof s.decisionConfidenceThreshold === 'number') {
+        toSet[STORAGE_KEYS.SETTINGS_DECISION_THRESHOLD] = s.decisionConfidenceThreshold;
+      }
       if (Array.isArray(s.geminiFallbackModels)) {
         toSet[STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS] = s.geminiFallbackModels;
       }
@@ -586,7 +599,9 @@ async function executeClassificationWorkflow(
     STORAGE_KEYS.SETTINGS_GEMINI_KEY,
     STORAGE_KEYS.SETTINGS_GEMINI_MODEL,
     STORAGE_KEYS.SETTINGS_GEMINI_FALLBACK_MODELS,
-    STORAGE_KEYS.SETTINGS_BRAVE_KEY
+    STORAGE_KEYS.SETTINGS_BRAVE_KEY,
+    STORAGE_KEYS.SETTINGS_USE_DECISION_FAST_PATH,
+    STORAGE_KEYS.SETTINGS_DECISION_THRESHOLD
   ]);
 
   const geminiApiKey = String(res[STORAGE_KEYS.SETTINGS_GEMINI_KEY] || '').trim();
@@ -596,6 +611,11 @@ async function executeClassificationWorkflow(
     ? rawFallbacks
     : ['gemini-2.5-flash-lite'];
   const braveApiKey = String(res[STORAGE_KEYS.SETTINGS_BRAVE_KEY] || '').trim();
+  const useDecisionFastPath = res[STORAGE_KEYS.SETTINGS_USE_DECISION_FAST_PATH] !== false;
+  const rawThreshold = res[STORAGE_KEYS.SETTINGS_DECISION_THRESHOLD];
+  const decisionThreshold: number = typeof rawThreshold === 'number'
+    ? rawThreshold
+    : 0.75;
 
   if (!geminiApiKey) {
     return {
@@ -642,11 +662,60 @@ async function executeClassificationWorkflow(
     }
   }
 
-  // Build prompt
+  const auditChain: ModelAuditEntry[] = [];
+  let decisionHintTags: string[] | undefined;
+
+  // Stage 1: Fast existing-tag scoring & new-tag routing via gemini-decision-1
+  if (useDecisionFastPath && availableCategories.length > 0) {
+    const decisionResult = await classifyWithDecisionsApi(
+      geminiApiKey,
+      pageContext,
+      availableCategories,
+      searchSnippets,
+      decisionThreshold,
+      onProgress,
+      auditChain
+    );
+
+    if (decisionResult.error === 'INVALID_API_KEY') {
+      onProgress?.({
+        stage: 'ERROR',
+        model: GEMINI_DECISION_MODEL,
+        errorReason: 'INVALID_API_KEY',
+        message: 'Invalid Gemini API Key.'
+      });
+      return {
+        success: false,
+        error: 'INVALID_API_KEY',
+        recommendedTags: [],
+        auditChain
+      };
+    }
+
+    if (!decisionResult.shouldRouteToGenerative && decisionResult.matchedTags.length > 0) {
+      return {
+        success: true,
+        method,
+        recommendedTags: decisionResult.matchedTags,
+        newTags: [],
+        reasoning: `Matched existing taxonomy via ${GEMINI_DECISION_MODEL} (new-tag score: ${decisionResult.needsNewTagScore.toFixed(2)}).`,
+        suggestedNewTag: null,
+        modelUsed: GEMINI_DECISION_MODEL,
+        auditChain
+      };
+    }
+
+    if (decisionResult.matchedTags.length > 0) {
+      decisionHintTags = decisionResult.matchedTags;
+    }
+  }
+
+  // Build prompt for Stage 2 generative fallback
   const userPrompt = buildTaxonomyUserPrompt(
     pageContext,
     availableCategories,
-    searchSnippets
+    searchSnippets,
+    decisionHintTags
   );
 
   // Construct ordered list of models to try
@@ -662,7 +731,6 @@ async function executeClassificationWorkflow(
     modelsToTry.push('gemini-2.5-flash');
   }
 
-  const auditChain: ModelAuditEntry[] = [];
   let lastError = 'UNKNOWN_ERROR';
 
   for (let idx = 0; idx < modelsToTry.length; idx++) {
