@@ -3660,35 +3660,87 @@
       populateSettingsForm();
     }
   }
-  async function testGeminiConnection(apiKey, model) {
+  async function testGeminiConnection(apiKey, model, checkDecisionsApi = false) {
     const key = apiKey.trim();
     if (!key) {
       return { success: false, message: "Please enter a Gemini API key first." };
     }
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || "gemini-2.5-flash")}:generateContent?key=${encodeURIComponent(key)}`;
-    try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: "Ping test. Reply with OK." }] }]
-        })
-      });
-      if (res.ok) {
-        return { success: true, message: `Connected to ${model} successfully!` };
+    const targetModel = model || "gemini-2.5-flash";
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(targetModel)}:generateContent?key=${encodeURIComponent(key)}`;
+    const pingGenerative = async () => {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Ping test. Reply with OK." }] }]
+          })
+        });
+        return { ok: res.ok, status: res.status };
+      } catch (err) {
+        return { ok: false, status: 0, err: err?.message || "Network error" };
       }
-      if (res.status === 400 || res.status === 403) {
-        return { success: false, message: `Invalid API key (HTTP ${res.status}). Check your Google AI Studio key.` };
-      } else if (res.status === 429) {
+    };
+    const pingDecisions = async () => {
+      try {
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/decisions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": key
+          },
+          body: JSON.stringify({
+            model: "gemini-decision-1",
+            input: "Ping test.",
+            questions: {
+              ping: {
+                type: "noul",
+                instructions: "Is this a ping test?"
+              }
+            }
+          })
+        });
+        return { ok: res.ok, status: res.status };
+      } catch (err) {
+        return { ok: false, status: 0, err: err?.message || "Network error" };
+      }
+    };
+    const formatFailure = (label, status, err) => {
+      if (status === 400 || status === 403) return `${label}: Invalid API key (HTTP ${status})`;
+      if (status === 429) return `${label}: Rate limit reached (HTTP 429)`;
+      if (status === 503) return `${label}: Temporarily overloaded (HTTP 503)`;
+      if (status > 0) return `${label}: HTTP ${status}`;
+      return `${label}: ${err || "Network error"}`;
+    };
+    const [genRes, decRes] = await Promise.all([
+      pingGenerative(),
+      checkDecisionsApi ? pingDecisions() : Promise.resolve(null)
+    ]);
+    if (!genRes.ok) {
+      if (genRes.status === 400 || genRes.status === 403) {
+        return { success: false, message: `Invalid API key (HTTP ${genRes.status}). Check your Google AI Studio key.` };
+      }
+      if (genRes.status === 429) {
         return { success: false, message: "Rate limit reached (HTTP 429). Please wait a moment." };
-      } else if (res.status === 503) {
-        return { success: false, message: `${model} is temporarily overloaded (HTTP 503). You can switch to gemini-2.5-flash.` };
-      } else {
-        return { success: false, message: `API Error (HTTP ${res.status}).` };
       }
-    } catch (err) {
-      return { success: false, message: err?.message || "Network error connecting to Gemini API." };
+      if (genRes.status === 503) {
+        return { success: false, message: `${targetModel} is temporarily overloaded (HTTP 503). You can switch to gemini-2.5-flash.` };
+      }
+      if (genRes.status > 0) {
+        return { success: false, message: `API Error (HTTP ${genRes.status}).` };
+      }
+      return { success: false, message: genRes.err || "Network error connecting to Gemini API." };
     }
+    if (decRes) {
+      if (decRes.ok) {
+        return { success: true, message: `Connected to ${targetModel} and gemini-decision-1 successfully!` };
+      }
+      return {
+        success: false,
+        message: `Connected to ${targetModel}, but ${formatFailure("gemini-decision-1", decRes.status, decRes.err)}.`
+      };
+    }
+    return { success: true, message: `Connected to ${targetModel} successfully!` };
   }
   function openSettingsModal(defaultTab = "ai") {
     const backdrop = document.getElementById("settingsModalBackdrop");
@@ -3977,6 +4029,8 @@
         const geminiKey = geminiKeyInput ? geminiKeyInput.value.trim() : "";
         const geminiModelSelect = document.getElementById("settingsGeminiModel");
         const model = geminiModelSelect ? geminiModelSelect.value : "gemini-2.5-flash";
+        const decisionFastPathCheckbox = document.getElementById("settingsUseDecisionFastPath");
+        const checkDecisionsApi = decisionFastPathCheckbox ? decisionFastPathCheckbox.checked : currentSettings.useDecisionFastPath !== false;
         if (!geminiKey) {
           if (testStatus) {
             testStatus.style.display = "inline-flex";
@@ -3991,7 +4045,7 @@
           testStatus.textContent = "Testing connection\u2026";
         }
         testAiBtn.setAttribute("disabled", "true");
-        const result = await testGeminiConnection(geminiKey, model);
+        const result = await testGeminiConnection(geminiKey, model, checkDecisionsApi);
         testAiBtn.removeAttribute("disabled");
         if (testStatus) {
           testStatus.style.display = "inline-flex";
